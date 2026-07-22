@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useOutletContext, useLocation } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import EventCard from "@/components/events/EventCard";
 import EventFilters from "@/components/events/EventFilters";
 import useGeoLocation from "@/lib/useGeoLocation";
@@ -323,38 +323,8 @@ export default function Home() {
   }, [filters.zipCode]);
 
   const loadAds = async () => {
-    try {
-      const zip = filters.zipCode || (() => {
-        try { const s = localStorage.getItem("home_filters"); return s ? JSON.parse(s).zipCode || "" : ""; } catch { return ""; }
-      })();
-
-      const [paidAds, defaultAds, zipConfigs] = await Promise.all([
-        base44.entities.BannerAd.filter({ status: "active" }, "-created_date", 50),
-        base44.entities.AdminDefaultAd.filter({ status: "active" }, "-priority", 10),
-        zip ? base44.entities.AdZipConfig.filter({ zip_code: zip }) : Promise.resolve([]),
-      ]);
-
-      const maxSlots = zipConfigs.length > 0 ? zipConfigs[0].max_slots : 3;
-      const paidForZip = zip ? paidAds.filter(a => a.zip_code === zip) : paidAds;
-      const emptySlots = Math.max(0, maxSlots - paidForZip.length);
-
-      // Pick default filler by slot order
-      const slot1 = defaultAds.find(a => a.is_slot_1);
-      const slot2 = defaultAds.find(a => a.is_slot_2);
-      const slot3 = defaultAds.find(a => a.is_slot_3);
-      const ordered = [slot1, slot2, slot3].filter(Boolean);
-      const seen = new Set();
-      const fillers = ordered.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; }).slice(0, emptySlots);
-
-      // Combine: all paid ads (any zip, feed handles zip filtering) + filler defaults
-      const combined = [
-        ...paidAds.map(ad => ({ type: "paid", ad })),
-        ...fillers.map(ad => ({ type: "default", ad })),
-      ];
-      setActiveAds(combined);
-    } catch {
-      setActiveAds([]);
-    }
+    // Ads tables will be migrated to Supabase in a later pass.
+    setActiveAds([]);
   };
 
   // Rotate ad positions every 30 seconds
@@ -369,46 +339,28 @@ export default function Home() {
   }, [activeAds]);
 
   const loadFavorites = async () => {
-    try {
-      const [saved, favOrgs] = await Promise.all([
-        base44.entities.SavedEvent.list(),
-        base44.entities.FavoriteOrganizer.list(),
-      ]);
-      setSavedEventRecords(saved);
-      setSavedEventIds(new Set(saved.map((s) => s.event_id)));
-      // Use poster_user_id for matching against event.created_by_id
-      setFavoriteOrganizerIds(new Set(favOrgs.map((f) => f.poster_user_id || f.organizer_id).filter(Boolean)));
-    } catch {}
+    // Saved events / favorite organizers will return in a later Supabase pass.
+    setSavedEventRecords([]);
+    setSavedEventIds(new Set());
+    setFavoriteOrganizerIds(new Set());
   };
 
-  const toggleSave = async (eventId) => {
+  const toggleSave = async () => {
     if (!user) return setAuthPrompt(true);
-    const event = events.find((e) => e.id === eventId);
-    if (savedEventIds.has(eventId)) {
-      const record = savedEventRecords.find((r) => r.event_id === eventId);
-      if (record) {
-        await base44.entities.SavedEvent.delete(record.id);
-        if (event) await base44.entities.Event.update(eventId, { save_count: Math.max(0, (event.save_count || 0) - 1) });
-        setSavedEventRecords((prev) => prev.filter((r) => r.event_id !== eventId));
-        setSavedEventIds((prev) => { const s = new Set(prev); s.delete(eventId); return s; });
-      }
-    } else {
-      const record = await base44.entities.SavedEvent.create({ event_id: eventId });
-      if (event) await base44.entities.Event.update(eventId, { save_count: (event.save_count || 0) + 1 });
-      setSavedEventRecords((prev) => [...prev, record]);
-      setSavedEventIds((prev) => new Set([...prev, eventId]));
-    }
+    // Saving favorites will return after the SavedEvent table is migrated.
   };
 
   const loadEvents = async () => {
     setLoading(true);
     try {
-      const data = await base44.entities.Event.filter({ status: "active" }, "-created_date", 200);
-      setEvents(data);
-      // Track impressions for activities shown in the feed (mirrors ad impression tracking)
-      data.forEach((e) => {
-        base44.entities.Event.update(e.id, { impression_count: (e.impression_count || 0) + 1 }).catch(() => {});
-      });
+      const { data, error } = await supabase
+        .from("events")
+        .select("*")
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      setEvents(data || []);
     } catch {
       setEvents([]);
     }

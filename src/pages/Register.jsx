@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import GoogleIcon from "@/components/GoogleIcon";
 import { Mail, Lock, Loader2, Users, Building2, MapPin, CheckCircle, AlertTriangle } from "lucide-react";
@@ -59,14 +58,25 @@ export default function Register() {
   const [orgWebsite, setOrgWebsite] = useState("");
   const [orgEmail, setOrgEmail] = useState("");
 
-  // Step 3 — OTP
-  const [otpCode, setOtpCode] = useState("");
+  // Step 3 — email confirmation
 
   // Bot protection: honeypot field must stay empty, and a human can't reach step 2 in under 3 seconds
   const [hpField, setHpField] = useState("");
   const [formLoadTime] = useState(() => Date.now());
 
-  const handleGoogle = () => base44.auth.loginWithProvider("google", "/");
+  const handleGoogle = async () => {
+    setError("");
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/` },
+    });
+    if (oauthError) {
+      setError(
+        oauthError.message ||
+          "Google sign-in is not configured yet in Supabase Auth providers."
+      );
+    }
+  };
 
   // Step 1 submit
   const handleStep1 = (e) => {
@@ -78,7 +88,7 @@ export default function Register() {
     setStep(2);
   };
 
-  // Step 2 submit — registers with platform and triggers OTP email
+  // Step 2 submit — registers with Supabase and sends confirmation email
   const handleStep2 = async (e) => {
     e.preventDefault();
     setError("");
@@ -96,7 +106,32 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await base44.auth.register({ email, password });
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            role,
+            first_name: isOrganizer ? "" : firstName,
+            last_name: isOrganizer ? "" : lastName,
+            zip_code: zipCode,
+            org_name: isOrganizer ? orgName : null,
+            org_description: isOrganizer ? orgDescription : null,
+            org_website: isOrganizer ? orgWebsite : null,
+            org_email: isOrganizer ? orgEmail : null,
+          },
+        },
+      });
+      if (signUpError) throw signUpError;
+
+      // If email confirmation is disabled, session exists immediately — finish profile now.
+      if (data.session?.user) {
+        await finalizeProfile(data.session.user);
+        window.location.href = "/";
+        return;
+      }
+
       setStep(3);
     } catch (err) {
       setError(err.message || "Registration failed. Please try again.");
@@ -104,62 +139,47 @@ export default function Register() {
     setLoading(false);
   };
 
-  const handleResend = async () => {
-    setError("");
-    try {
-      await base44.auth.resendOtp(email);
-    } catch (err) {
-      setError(err.message || "Failed to resend code.");
+  const finalizeProfile = async (authUser) => {
+    const isOrganizer = role === "organizer";
+    const { error: profileError } = await supabase.from("profiles").upsert({
+      id: authUser.id,
+      email: authUser.email,
+      role,
+      first_name: isOrganizer ? "" : firstName,
+      last_name: isOrganizer ? "" : lastName,
+      zip_code: zipCode,
+      updated_at: new Date().toISOString(),
+    });
+    if (profileError) throw profileError;
+
+    if (isOrganizer) {
+      const { error: orgError } = await supabase.from("organizers").insert({
+        user_id: authUser.id,
+        org_name: orgName,
+        org_description: orgDescription,
+        org_website: orgWebsite,
+        org_email: orgEmail,
+      });
+      if (orgError) throw orgError;
     }
   };
 
-  // Step 3 — verify OTP then write all profile data atomically
-  const handleVerify = async () => {
+  const handleResend = async () => {
     setError("");
-    setLoading(true);
     try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
-      if (!result?.access_token) {
-        setError("Verification failed. Please try again.");
-        setLoading(false);
-        return;
-      }
-      base44.auth.setToken(result.access_token);
-
-      const isOrganizer = role === "organizer";
-      const fullName = isOrganizer ? orgName : `${firstName} ${lastName}`.trim();
-
-      // Write profile to auth system
-      await base44.auth.updateMe({
-        first_name: isOrganizer ? "" : firstName,
-        last_name: isOrganizer ? "" : lastName,
-        full_name: fullName,
-        zip_code: zipCode,
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email,
       });
-
-      // Set role via privileged function
-      await base44.functions.invoke("updateUserRole", { role });
-
-      // If organizer, create the Organizer entity record
-      if (isOrganizer) {
-        const me = await base44.auth.me();
-        await base44.entities.Organizer.create({
-          user_id: me.id,
-          org_name: orgName,
-          org_description: orgDescription,
-          org_website: orgWebsite,
-          org_email: orgEmail,
-        });
-      }
-
-      // Initialize notification preferences
-      try { await base44.functions.invoke("initUserPreferences", {}); } catch {}
-
-      window.location.href = "/";
+      if (resendError) throw resendError;
     } catch (err) {
-      setError(err.message || "Invalid verification code.");
-      setLoading(false);
+      setError(err.message || "Failed to resend email.");
     }
+  };
+
+  // Kept for older UI path; confirmation is now email-link based.
+  const handleVerify = async () => {
+    window.location.href = "/login";
   };
 
   return (
@@ -358,28 +378,16 @@ export default function Register() {
                   <Mail className="w-7 h-7 text-mint-500" />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  We sent a 6-digit code to <span className="font-semibold text-foreground">{email}</span>.
-                  Enter it below to confirm your email and complete registration.
+                  We sent a confirmation link to <span className="font-semibold text-foreground">{email}</span>.
+                  Open that email, confirm your address, then log in to finish setup.
                 </p>
               </div>
-              <div className="flex justify-center">
-                <InputOTP maxLength={6} value={otpCode} onChange={setOtpCode} autoFocus autoComplete="one-time-code">
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
               <Button className="w-full h-11 rounded-xl bg-mint-500 hover:bg-mint-600 text-white font-semibold"
-                onClick={handleVerify} disabled={loading || otpCode.length < 6}>
-                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Setting up your account…</> : "Complete Registration"}
+                onClick={handleVerify}>
+                Go to Log in
               </Button>
               <p className="text-center text-sm text-muted-foreground">
-                Didn't receive the code?{" "}
+                Didn't receive the email?{" "}
                 <button onClick={handleResend} className="text-mint-500 font-semibold hover:underline">Resend</button>
               </p>
             </div>
