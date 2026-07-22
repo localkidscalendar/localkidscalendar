@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,8 +104,13 @@ export default function FAQManagerV2() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await base44.entities.FAQ.list("sort_order", 200);
-      setFaqs(data);
+      const { data, error } = await supabase
+        .from("faqs")
+        .select("*")
+        .order("sort_order", { ascending: true })
+        .limit(200);
+      if (error) throw error;
+      setFaqs(data || []);
     } catch {
       setFaqs([]);
     }
@@ -145,15 +150,18 @@ export default function FAQManagerV2() {
     try {
       if (editingId === "new") {
         const maxOrder = faqs.length > 0 ? Math.max(...faqs.map(f => f.sort_order || 0)) + 1 : 0;
-        await base44.entities.FAQ.create({ ...form, sort_order: maxOrder });
+        const { error } = await supabase.from("faqs").insert({ ...form, sort_order: maxOrder });
+        if (error) throw error;
         toast({ title: "FAQ added!" });
       } else {
-        await base44.entities.FAQ.update(editingId, {
+        const { error } = await supabase.from("faqs").update({
           question: form.question,
           answer: form.answer,
           category: form.category,
           status: form.status,
-        });
+          updated_at: new Date().toISOString(),
+        }).eq("id", editingId);
+        if (error) throw error;
         toast({ title: "FAQ updated!" });
       }
       setEditingId(null);
@@ -168,7 +176,8 @@ export default function FAQManagerV2() {
   const remove = async (id) => {
     if (!window.confirm("Delete this FAQ?")) return;
     try {
-      await base44.entities.FAQ.delete(id);
+      const { error } = await supabase.from("faqs").delete().eq("id", id);
+      if (error) throw error;
       toast({ title: "FAQ deleted." });
       if (editingId === id) { setEditingId(null); setForm(EMPTY_FORM); }
       await load();
@@ -180,7 +189,8 @@ export default function FAQManagerV2() {
   const toggleStatus = async (faq) => {
     try {
       const newStatus = faq.status === "active" ? "hidden" : "active";
-      await base44.entities.FAQ.update(faq.id, { status: newStatus });
+      const { error } = await supabase.from("faqs").update({ status: newStatus }).eq("id", faq.id);
+      if (error) throw error;
       setFaqs(prev => prev.map(f => f.id === faq.id ? { ...f, status: newStatus } : f));
     } catch {
       toast({ title: "Failed to update status.", variant: "destructive" });
@@ -195,10 +205,11 @@ export default function FAQManagerV2() {
       return f;
     }));
     try {
-      await Promise.all([
-        base44.entities.FAQ.update(faqA.id, { sort_order: idxB }),
-        base44.entities.FAQ.update(faqB.id, { sort_order: idxA }),
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from("faqs").update({ sort_order: idxB }).eq("id", faqA.id),
+        supabase.from("faqs").update({ sort_order: idxA }).eq("id", faqB.id),
       ]);
+      if (e1 || e2) throw e1 || e2;
     } catch {
       toast({ title: "Failed to reorder.", variant: "destructive" });
       load();

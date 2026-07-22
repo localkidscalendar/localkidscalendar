@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useOutletContext, Link, useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { ChevronDown, ChevronUp, Search, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import GrowingCommunitySection from "@/components/about/GrowingCommunitySection";
@@ -19,8 +19,14 @@ export default function About() {
 
   const loadFaqs = async () => {
     try {
-      const data = await base44.entities.FAQ.filter({ status: "active" }, "sort_order", 200);
-      setFaqs(data);
+      const { data, error } = await supabase
+        .from("faqs")
+        .select("*")
+        .eq("status", "active")
+        .order("sort_order", { ascending: true })
+        .limit(200);
+      if (error) throw error;
+      setFaqs(data || []);
     } catch {
       setFaqs([]);
     }

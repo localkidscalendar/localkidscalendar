@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,9 +35,16 @@ export default function ContactUs() {
       const loadContactInfo = async () => {
         if (user?.role === "organizer") {
           try {
-            const org = await base44.entities.Organizer.filter({ user_id: user.id });
-            if (org.length > 0) {
+            const { data: org } = await supabase
+              .from("organizers")
+              .select("*")
+              .eq("user_id", user.id)
+              .limit(1);
+            if (org?.length > 0) {
               setSenderName(org[0].org_name || "");
+              setSenderEmail(user.email || "");
+            } else {
+              setSenderName(user.org_name || user.full_name || "");
               setSenderEmail(user.email || "");
             }
           } catch {}
@@ -76,7 +83,7 @@ export default function ContactUs() {
     }
     setSubmitting(true);
     try {
-      await base44.entities.ContactMessage.create({
+      const { error } = await supabase.from("contact_messages").insert({
         sender_name: senderName || "",
         sender_email: senderEmail || "",
         sender_phone: senderPhone || "",
@@ -84,9 +91,14 @@ export default function ContactUs() {
         message,
         status: "unread",
       });
+      if (error) throw error;
       setSubmitted(true);
-    } catch {
-      toast({ title: "Something went wrong. Please try again.", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Something went wrong. Please try again.",
+        description: err.message,
+        variant: "destructive",
+      });
     }
     setSubmitting(false);
   };
