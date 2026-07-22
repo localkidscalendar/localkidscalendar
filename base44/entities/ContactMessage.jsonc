@@ -1,0 +1,60 @@
+{
+  "name": "ContactMessage",
+  "type": "object",
+  "properties": {
+    "sender_name": {
+      "type": "string"
+    },
+    "sender_email": {
+      "type": "string"
+    },
+    "sender_phone": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string",
+      "enum": [
+        "Report Technical Issues",
+        "Submit New Ideas & Suggestions",
+        "Inquire About Activity Details",
+        "General Questions"
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "unread",
+        "read",
+        "resolved"
+      ],
+      "default": "unread"
+    }
+  },
+  "required": [
+    "sender_name",
+    "sender_email",
+    "subject",
+    "message"
+  ],
+  "rls": {
+    "create": true,
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

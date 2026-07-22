@@ -1,0 +1,28 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "organizer",
+        "community_member"
+      ],
+      "default": "community_member"
+    },
+    "is_advertiser": {
+      "type": "boolean",
+      "default": false
+    },
+    "first_name": {
+      "type": "string"
+    },
+    "last_name": {
+      "type": "string"
+    },
+    "zip_code": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "AdZipConfig",
+  "type": "object",
+  "properties": {
+    "zip_code": {
+      "type": "string"
+    },
+    "max_slots": {
+      "type": "number",
+      "default": 3
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "zip_code"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

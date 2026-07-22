@@ -1,0 +1,102 @@
+{
+  "name": "AdWaitlist",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "business_name": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "zip_code": {
+      "type": "string"
+    },
+    "plan_type": {
+      "type": "string",
+      "enum": [
+        "monthly",
+        "annual"
+      ],
+      "default": "monthly"
+    },
+    "position": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "offered",
+        "accepted",
+        "expired",
+        "declined",
+        "cancelled"
+      ],
+      "default": "waiting"
+    },
+    "offer_sent_date": {
+      "type": "string"
+    },
+    "offer_expires_date": {
+      "type": "string"
+    },
+    "offer_count": {
+      "type": "number",
+      "default": 0
+    },
+    "admin_override_notes": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "zip_code",
+    "email"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

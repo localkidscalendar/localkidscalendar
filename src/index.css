@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 20% 97%;
+    --foreground: 225 30% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 225 30% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 225 30% 14%;
+    --primary: 225 30% 14%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 150 30% 88%;
+    --secondary-foreground: 150 50% 24%;
+    --muted: 240 10% 96%;
+    --muted-foreground: 225 10% 40%;
+    --accent: 28 60% 90%;
+    --accent-foreground: 28 60% 35%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 150 40% 40%;
+    --chart-1: 150 40% 40%;
+    --chart-2: 28 60% 55%;
+    --chart-3: 225 30% 14%;
+    --chart-4: 150 30% 70%;
+    --chart-5: 28 40% 75%;
+    --radius: 0.75rem;
+    --font-heading: 'Quicksand', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Quicksand', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 150 40% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-body;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(220, 13%, 85%);
+  border-radius: 3px;
+}
+
+/* Obfuscate contact info */
+.contact-protect {
+  unicode-bidi: bidi-override;
+  direction: rtl;
+  user-select: none;
+}

@@ -1,0 +1,271 @@
+{
+  "name": "Event",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "camp",
+          "class",
+          "event",
+          "sport",
+          "general_interest"
+        ]
+      },
+      "default": []
+    },
+    "subcategory": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "classifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "camp",
+              "class",
+              "event",
+              "sport",
+              "general_interest"
+            ]
+          },
+          "subcategory": {
+            "type": "string"
+          }
+        }
+      },
+      "default": [],
+      "description": "Paired category+subcategory selections (e.g. Sport/Hockey, Camp/Summer Camp) so a single activity can belong to multiple distinct category contexts."
+    },
+    "age_min": {
+      "type": "number"
+    },
+    "age_max": {
+      "type": "number"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "registration_start": {
+      "type": "string",
+      "format": "date"
+    },
+    "registration_end": {
+      "type": "string",
+      "format": "date"
+    },
+    "registration_full": {
+      "type": "boolean",
+      "default": false
+    },
+    "recurring": {
+      "type": "string",
+      "enum": [
+        "none",
+        "daily",
+        "weekly",
+        "monthly"
+      ],
+      "default": "none"
+    },
+    "time_start": {
+      "type": "string"
+    },
+    "time_end": {
+      "type": "string"
+    },
+    "location_name": {
+      "type": "string"
+    },
+    "address": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "zip_code": {
+      "type": "string"
+    },
+    "latitude": {
+      "type": "number"
+    },
+    "longitude": {
+      "type": "number"
+    },
+    "cost": {
+      "type": "string"
+    },
+    "contact_name": {
+      "type": "string"
+    },
+    "contact_email": {
+      "type": "string"
+    },
+    "contact_phone": {
+      "type": "string"
+    },
+    "website": {
+      "type": "string"
+    },
+    "event_image": {
+      "type": "string",
+      "format": "uri"
+    },
+    "org_logo": {
+      "type": "string",
+      "format": "uri"
+    },
+    "org_name": {
+      "type": "string"
+    },
+    "org_description": {
+      "type": "string"
+    },
+    "posted_by_role": {
+      "type": "string",
+      "enum": [
+        "community_member",
+        "organizer"
+      ]
+    },
+    "poster_display_name": {
+      "type": "string"
+    },
+    "flag_count": {
+      "type": "number",
+      "default": 0
+    },
+    "flagged_by": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "deleted",
+        "expired",
+        "archived"
+      ],
+      "default": "active"
+    },
+    "save_count": {
+      "type": "number",
+      "default": 0
+    },
+    "view_count": {
+      "type": "number",
+      "default": 0
+    },
+    "impression_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of times this activity card appeared in the home feed (similar to ad impressions)."
+    },
+    "keywords": {
+      "type": "string"
+    },
+    "admin_notes": {
+      "type": "string",
+      "description": "Explanation provided by an Admin when removing/deleting this activity. Shown to the contributor on their Dashboard and emailed to them."
+    },
+    "image_moderation_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "declined",
+        "manual_review",
+        "manual_review_declined"
+      ],
+      "default": "approved",
+      "description": "AI/manual moderation status of the activity photo (event_image), mirroring the ad creative moderation workflow."
+    },
+    "image_moderation_notes": {
+      "type": "string",
+      "description": "AI or admin explanation for a declined/manual-review activity photo."
+    },
+    "image_moderation_date": {
+      "type": "string",
+      "description": "Timestamp of the last moderation decision on the activity photo."
+    }
+  },
+  "required": [
+    "title",
+    "description",
+    "start_date",
+    "city",
+    "state",
+    "zip_code"
+  ],
+  "rls": {
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.status": "active"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

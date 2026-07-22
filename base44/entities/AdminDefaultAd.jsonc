@@ -1,0 +1,65 @@
+{
+  "name": "AdminDefaultAd",
+  "type": "object",
+  "properties": {
+    "ad_name": {
+      "type": "string"
+    },
+    "image_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "link_url": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "number",
+      "default": 0
+    },
+    "is_slot_1": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_slot_2": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_slot_3": {
+      "type": "boolean",
+      "default": false
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "default": "active"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "ad_name",
+    "link_url"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

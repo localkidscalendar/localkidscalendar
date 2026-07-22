@@ -1,0 +1,51 @@
+{
+  "name": "BetaConfig",
+  "type": "object",
+  "properties": {
+    "config_key": {
+      "type": "string",
+      "default": "global"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "zip_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "stage1_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "When enabled, requires visitors to enter an access code before viewing any part of the site (regardless of login status)."
+    },
+    "access_code": {
+      "type": "string",
+      "description": "The code visitors must enter to access the site while Stage 1 is enabled."
+    }
+  },
+  "required": [
+    "config_key"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

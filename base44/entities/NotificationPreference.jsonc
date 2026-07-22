@@ -1,0 +1,111 @@
+{
+  "name": "NotificationPreference",
+  "type": "object",
+  "properties": {
+    "frequency": {
+      "type": "string",
+      "enum": [
+        "weekly",
+        "none"
+      ],
+      "default": "none"
+    },
+    "include_fav_organizers": {
+      "type": "boolean",
+      "default": true
+    },
+    "include_other_activities": {
+      "type": "boolean",
+      "default": false
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "organizer_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "keywords": {
+      "type": "string"
+    },
+    "locations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "zip_code": {
+            "type": "string"
+          },
+          "radius_miles": {
+            "type": "number",
+            "default": 15
+          }
+        }
+      },
+      "default": [],
+      "description": "List of zip codes + radius to receive notifications from (allows multiple locations)."
+    },
+    "zip_code": {
+      "type": "string"
+    },
+    "radius_miles": {
+      "type": "number",
+      "default": 15
+    },
+    "age_min": {
+      "type": "number"
+    },
+    "age_max": {
+      "type": "number"
+    }
+  },
+  "required": [],
+  "rls": {
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

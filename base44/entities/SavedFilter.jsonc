@@ -1,0 +1,45 @@
+{
+  "name": "SavedFilter",
+  "type": "object",
+  "properties": {
+    "search": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "default": "all"
+    },
+    "subcategory": {
+      "type": "string"
+    },
+    "sortBy": {
+      "type": "string",
+      "enum": [
+        "posted",
+        "start",
+        "registration"
+      ],
+      "default": "posted"
+    },
+    "zipCode": {
+      "type": "string"
+    },
+    "radiusMiles": {
+      "type": "number",
+      "default": 15
+    },
+    "ageMin": {
+      "type": "number"
+    },
+    "ageMax": {
+      "type": "number"
+    },
+    "priceMin": {
+      "type": "number"
+    },
+    "priceMax": {
+      "type": "number"
+    }
+  },
+  "required": []
+}

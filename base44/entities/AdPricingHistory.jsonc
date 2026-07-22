@@ -1,0 +1,53 @@
+{
+  "name": "AdPricingHistory",
+  "type": "object",
+  "properties": {
+    "monthly_rate": {
+      "type": "number"
+    },
+    "annual_discount_percent": {
+      "type": "number"
+    },
+    "effective_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "set_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "monthly_rate",
+    "annual_discount_percent",
+    "effective_date"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

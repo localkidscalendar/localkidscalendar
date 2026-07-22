@@ -1,0 +1,52 @@
+{
+  "name": "Organizer",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "org_name": {
+      "type": "string"
+    },
+    "org_description": {
+      "type": "string"
+    },
+    "org_logo": {
+      "type": "string",
+      "format": "uri"
+    },
+    "org_website": {
+      "type": "string"
+    },
+    "org_email": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "org_name"
+  ],
+  "rls": {
+    "create": {
+      "data.user_id": "{{user.id}}"
+    },
+    "read": null,
+    "update": {
+      "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

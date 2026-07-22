@@ -1,0 +1,113 @@
+{
+  "name": "DiscountCode",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "discount_percent": {
+      "type": "number"
+    },
+    "plan_type": {
+      "type": "string",
+      "enum": [
+        "monthly",
+        "annual",
+        "both"
+      ],
+      "default": "both"
+    },
+    "renewals_applicable": {
+      "type": "number",
+      "default": 1
+    },
+    "max_uses_per_user": {
+      "type": "number",
+      "default": 1
+    },
+    "restricted_email": {
+      "type": "string",
+      "description": "If set, this code can only be used by the account with this exact email address (a personal code, not a group/all code)."
+    },
+    "expires_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "max_uses": {
+      "type": "number"
+    },
+    "times_used": {
+      "type": "number",
+      "default": 0
+    },
+    "used_by_user_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "used_by_records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "ad_name": {
+            "type": "string"
+          },
+          "zip_code": {
+            "type": "string"
+          },
+          "used_date": {
+            "type": "string"
+          }
+        }
+      },
+      "default": []
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "expired",
+        "disabled"
+      ],
+      "default": "active"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "discount_percent"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "AdPricingConfig",
+  "type": "object",
+  "properties": {
+    "monthly_rate": {
+      "type": "number",
+      "default": 150
+    },
+    "annual_discount_percent": {
+      "type": "number",
+      "default": 30
+    },
+    "config_key": {
+      "type": "string",
+      "default": "global"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "config_key"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": null,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
