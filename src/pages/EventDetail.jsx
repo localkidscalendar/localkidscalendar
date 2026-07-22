@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useOutletContext, useNavigate, Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
@@ -49,172 +49,78 @@ export default function EventDetail() {
   const loadEvent = async () => {
     setLoading(true);
     try {
-      const e = await base44.entities.Event.get(id);
+      const { data: e, error } = await supabase.from("events").select("*").eq("id", id).single();
+      if (error) throw error;
       setEvent(e);
-      base44.entities.Event.update(id, { view_count: (e.view_count || 0) + 1 }).catch(() => {});
-    } catch { navigate("/"); }
+      await supabase
+        .from("events")
+        .update({ view_count: (e.view_count || 0) + 1 })
+        .eq("id", id);
+    } catch {
+      navigate("/");
+    }
     setLoading(false);
   };
 
   const loadComments = async () => {
-    try {
-      const c = await base44.entities.Comment.filter({ event_id: id, status: "active" }, "-created_date", 50);
-      setComments(c);
-    } catch {}
+    // Comments table will be migrated later.
+    setComments([]);
   };
 
   const loadPosterUser = async (posterId) => {
     try {
-      const users = await base44.entities.User.filter({ id: posterId });
-      if (users[0]) setPosterUser(users[0]);
-      // Also load Organizer profile if posted by organizer
-      const orgs = await base44.entities.Organizer.filter({ user_id: posterId });
-      if (orgs[0]) setPosterOrganizer(orgs[0]);
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", posterId)
+        .maybeSingle();
+      if (profile) setPosterUser(profile);
+
+      const { data: orgs } = await supabase
+        .from("organizers")
+        .select("*")
+        .eq("user_id", posterId)
+        .limit(1);
+      if (orgs?.[0]) setPosterOrganizer(orgs[0]);
     } catch {}
   };
 
-  const checkFavorite = async (posterId) => {
-    try {
-      // Check by poster_user_id (works for both organizers and community members)
-      const favs = await base44.entities.FavoriteOrganizer.filter({ poster_user_id: posterId });
-      setIsFavorite(favs.length > 0);
-    } catch {}
+  const checkFavorite = async () => {
+    setIsFavorite(false);
   };
 
-  const syncNotificationPrefs = async (orgId, remove = false) => {
-    try {
-      const prefs = await base44.entities.NotificationPreference.filter({}, "-created_date", 1);
-      if (prefs.length === 0) return;
-      const pref = prefs[0];
-      const current = pref.organizer_ids || [];
-      const updated = remove
-        ? current.filter((id) => id !== orgId)
-        : current.includes(orgId) ? current : [...current, orgId];
-      await base44.entities.NotificationPreference.update(pref.id, { organizer_ids: updated });
-    } catch {}
-  };
+  const syncNotificationPrefs = async () => {};
 
   const handleToggleFavorite = async () => {
     if (!user) return setAuthPrompt("Sign in to favorite this poster and get notified about their activities.");
-    const posterId = event?.created_by_id;
-    if (!posterId) return;
-    try {
-      if (isFavorite) {
-        const favs = await base44.entities.FavoriteOrganizer.filter({ poster_user_id: posterId });
-        if (favs[0]) await base44.entities.FavoriteOrganizer.delete(favs[0].id);
-        setIsFavorite(false);
-        toast({ title: "Removed from favorites" });
-        if (posterOrganizer) syncNotificationPrefs(posterOrganizer.id, true);
-      } else {
-        await base44.entities.FavoriteOrganizer.create({
-          organizer_id: posterOrganizer?.id || "",
-          poster_user_id: posterId,
-        });
-        setIsFavorite(true);
-        toast({ title: "Added to favorites!" });
-        if (posterOrganizer) syncNotificationPrefs(posterOrganizer.id, false);
-      }
-    } catch {}
+    toast({ title: "Favorites coming soon", description: "This feature will return after the next Supabase migration step." });
   };
 
   const checkSaved = async () => {
-    try {
-      const saves = await base44.entities.SavedEvent.filter({ event_id: id });
-      setSaved(saves.length > 0);
-    } catch {}
+    setSaved(false);
   };
 
   const handleSave = async () => {
     if (!user) return setAuthPrompt("Sign in to save activities to your personal dashboard.");
-    try {
-      if (saved) {
-        const saves = await base44.entities.SavedEvent.filter({ event_id: id });
-        if (saves[0]) await base44.entities.SavedEvent.delete(saves[0].id);
-        setSaved(false);
-        await base44.entities.Event.update(id, { save_count: Math.max(0, (event.save_count || 0) - 1) });
-        setEvent((prev) => ({ ...prev, save_count: Math.max(0, (prev.save_count || 0) - 1) }));
-        toast({ title: "Removed from saved" });
-      } else {
-        await base44.entities.SavedEvent.create({ event_id: id });
-        setSaved(true);
-        await base44.entities.Event.update(id, { save_count: (event.save_count || 0) + 1 });
-        setEvent((prev) => ({ ...prev, save_count: (prev.save_count || 0) + 1 }));
-        toast({ title: "Event saved!" });
-      }
-    } catch {}
+    toast({ title: "Saving coming soon", description: "This feature will return after the next Supabase migration step." });
   };
 
   const handleAddComment = async () => {
     if (!user) return setAuthPrompt("Sign in to post a comment.");
-    if (!newComment.trim()) return;
-    setSubmittingComment(true);
-    try {
-      await base44.entities.Comment.create({ event_id: id, content: newComment.trim(), author_name: user.full_name || "Community Member" });
-      setNewComment("");
-      loadComments();
-      toast({ title: "Comment posted!" });
-    } catch {}
-    setSubmittingComment(false);
+    toast({ title: "Comments coming soon", description: "This feature will return after the next Supabase migration step." });
   };
 
-  const handleFlagEvent = async (reason) => {
+  const handleFlagEvent = async () => {
     if (!user) return setAuthPrompt("Sign in to report this event.");
-    if (reason === "other" && !otherReasonText.trim()) {
-      return toast({ title: "Please provide a reason" });
-    }
-    try {
-      const alreadyFlagged = (event.flagged_by || []).includes(user.id);
-      if (alreadyFlagged) { toast({ title: "You already flagged this event" }); return; }
-      const flagData = {
-        target_type: "event",
-        target_id: id,
-        reason,
-        reporter_id: user.id,
-        reporter_name: user.full_name,
-        target_contributor_name: event.posted_by_role === "organizer" ? event.org_name : event.contact_name
-      };
-      if (reason === "other") flagData.details = otherReasonText.trim();
-      await base44.entities.FlagReport.create(flagData);
-      const newFlaggedBy = [...(event.flagged_by || []), user.id];
-      const newFlagCount = (event.flag_count || 0) + 1;
-      const updates = { flag_count: newFlagCount, flagged_by: newFlaggedBy };
-      if (newFlagCount >= 3) updates.status = "deleted";
-      await base44.entities.Event.update(id, updates);
-      toast({ title: newFlagCount >= 3 ? "Event removed due to multiple flags" : "Event flagged. Thank you for helping keep our community safe." });
-      if (newFlagCount >= 3) navigate("/");
-      else loadEvent();
-    } catch {}
+    toast({ title: "Reporting coming soon", description: "This feature will return after the next Supabase migration step." });
     setFlagOpen(false);
     setSelectedFlagReason(null);
     setOtherReasonText("");
   };
 
-  const handleFlagComment = async (commentId, comment, reason) => {
+  const handleFlagComment = async () => {
     if (!user) return setAuthPrompt("Sign in to report a comment.");
-    if (reason === "other" && !otherReasonText.trim()) {
-      return toast({ title: "Please provide a reason" });
-    }
-    try {
-      const alreadyFlagged = (comment.flagged_by || []).includes(user.id);
-      if (alreadyFlagged) { toast({ title: "Already flagged" }); return; }
-      const flagData = {
-        target_type: "comment",
-        target_id: commentId,
-        reason,
-        reporter_id: user.id,
-        reporter_name: user.full_name,
-        target_contributor_name: comment.author_name
-      };
-      if (reason === "other") flagData.details = otherReasonText.trim();
-      await base44.entities.FlagReport.create(flagData);
-      const newFlaggedBy = [...(comment.flagged_by || []), user.id];
-      const newFlagCount = (comment.flag_count || 0) + 1;
-      const updates = { flag_count: newFlagCount, flagged_by: newFlaggedBy };
-      if (newFlagCount >= 3) updates.status = "deleted";
-      await base44.entities.Comment.update(commentId, updates);
-      toast({ title: newFlagCount >= 3 ? "Comment removed" : "Comment flagged" });
-      loadComments();
-    } catch {}
+    toast({ title: "Reporting coming soon" });
     setFlaggingCommentId(null);
     setSelectedFlagReason(null);
     setOtherReasonText("");
@@ -222,27 +128,42 @@ export default function EventDetail() {
 
   const handleMarkFull = async () => {
     try {
-      await base44.entities.Event.update(id, { registration_full: !event.registration_full });
+      const { error } = await supabase
+        .from("events")
+        .update({ registration_full: !event.registration_full })
+        .eq("id", id);
+      if (error) throw error;
       loadEvent();
       toast({ title: event.registration_full ? "Marked as open" : "Marked as full" });
-    } catch {}
+    } catch (err) {
+      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+    }
   };
 
   const handleToggleActive = async () => {
     if (event.status === "active") {
       if (!window.confirm(`Deactivate "${event.title}"? This will remove it from the public site until you reactivate it. NOTE: If your activity is complete, we recommend keeping it active (rather than removing it) in case users are searching for it in the past.`)) return;
       try {
-        await base44.entities.Event.update(id, { status: "deleted", admin_notes: "" });
+        const { error } = await supabase
+          .from("events")
+          .update({ status: "deleted", admin_notes: "" })
+          .eq("id", id);
+        if (error) throw error;
         toast({ title: "Activity deactivated" });
         loadEvent();
-      } catch {}
+      } catch (err) {
+        toast({ title: "Update failed", description: err.message, variant: "destructive" });
+      }
     } else {
       if (!window.confirm(`Reactivate "${event.title}"? This will make it visible on the public site again.`)) return;
       try {
-        await base44.entities.Event.update(id, { status: "active" });
+        const { error } = await supabase.from("events").update({ status: "active" }).eq("id", id);
+        if (error) throw error;
         toast({ title: "Activity reactivated" });
         loadEvent();
-      } catch {}
+      } catch (err) {
+        toast({ title: "Update failed", description: err.message, variant: "destructive" });
+      }
     }
   };
 

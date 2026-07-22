@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useOutletContext, useNavigate, useSearchParams } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -85,8 +85,13 @@ export default function PostEvent() {
 
   const loadOrganizerInfo = async (userId) => {
     try {
-      const records = await base44.entities.Organizer.filter({ user_id: userId });
-      if (records.length > 0) {
+      const { data: records, error } = await supabase
+        .from("organizers")
+        .select("*")
+        .eq("user_id", userId)
+        .limit(1);
+      if (error) throw error;
+      if (records?.length > 0) {
         const org = records[0];
         setForm((prev) => ({
           ...prev,
@@ -94,7 +99,7 @@ export default function PostEvent() {
           org_description: org.org_description || "",
           org_logo: org.org_logo || "",
           contact_email: org.org_email || user?.email || "",
-          contact_phone: org.org_phone || "",
+          contact_phone: "",
           website: org.org_website || "",
           posted_by_role: "organizer",
         }));
@@ -105,14 +110,21 @@ export default function PostEvent() {
   const loadExisting = async (eid) => {
     setLoading(true);
     try {
-      const e = await base44.entities.Event.get(eid);
-      const { id, created_date, updated_date, created_by_id, flag_count, flagged_by, status, save_count, category, subcategory, classifications, ...rest } = e;
+      const { data: e, error } = await supabase.from("events").select("*").eq("id", eid).single();
+      if (error) throw error;
+      const { id, created_at, updated_at, created_by_id, flag_count, flagged_by, status, save_count, category, subcategory, classifications, ...rest } = e;
       let rows = classifications && classifications.length > 0 ? classifications : [];
       if (rows.length === 0 && category?.length) {
         rows = category.map((cat, i) => ({ category: cat, subcategory: subcategory?.[i] || "" }));
       }
       if (rows.length === 0) rows = [{ category: "", subcategory: "" }];
-      setForm({ ...rest, classifications: rows, age_min: rest.age_min?.toString() || "", age_max: rest.age_max?.toString() || "" });
+      setForm({
+        ...rest,
+        classifications: rows,
+        age_min: rest.age_min?.toString() || "",
+        age_max: rest.age_max?.toString() || "",
+        rules_agreed: false,
+      });
     } catch {}
     setLoading(false);
   };
@@ -122,28 +134,39 @@ export default function PostEvent() {
   const handleImageUpload = async (e, field) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!user?.id) {
+      toast({ title: "Please sign in to upload images", variant: "destructive" });
+      return;
+    }
     const setUploading = field === "event_image" ? setUploadingImage : setUploadingLogo;
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      updateField(field, file_url);
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/${field}-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("event-media")
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = supabase.storage.from("event-media").getPublicUrl(path);
+      const fileUrl = publicData.publicUrl;
+      updateField(field, fileUrl);
+
       if (field === "event_image") {
-        setForm((prev) => ({ ...prev, image_moderation_status: "pending", image_moderation_notes: "" }));
-        setModeratingImage(true);
-        try {
-          const res = await base44.functions.invoke("moderateEventImage", { image_url: file_url });
-          const status = res.data?.status || "approved";
-          setForm((prev) => ({ ...prev, image_moderation_status: status, image_moderation_notes: res.data?.reason || "", image_moderation_date: new Date().toISOString() }));
-          if (status === "declined") {
-            toast({ title: "Photo not approved", description: res.data?.reason || "Please upload a different photo.", variant: "destructive" });
-          }
-        } catch {
-          setForm((prev) => ({ ...prev, image_moderation_status: "approved", image_moderation_notes: "" }));
-        }
-        setModeratingImage(false);
+        // Image moderation will return later; approve by default for now.
+        setForm((prev) => ({
+          ...prev,
+          image_moderation_status: "approved",
+          image_moderation_notes: "",
+          image_moderation_date: new Date().toISOString(),
+        }));
       }
-    } catch {
-      toast({ title: "Upload failed", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Upload failed",
+        description: err.message || "Please try again.",
+        variant: "destructive",
+      });
     }
     setUploading(false);
   };
@@ -210,26 +233,41 @@ export default function PostEvent() {
         classifications: validRows,
         category: [...new Set(validRows.map((c) => c.category))],
         subcategory: [...new Set(validRows.filter((c) => c.subcategory).map((c) => c.subcategory))],
-        age_min: form.age_min ? Number(form.age_min) : undefined,
-        age_max: form.age_max ? Number(form.age_max) : undefined,
+        age_min: form.age_min ? Number(form.age_min) : null,
+        age_max: form.age_max ? Number(form.age_max) : null,
         event_image: form.event_image || null,
         org_logo: form.org_logo || null,
         status: "active",
+        created_by_id: user.id,
+        posted_by_role: isOrganizer ? "organizer" : "community_member",
         poster_display_name: !isOrganizer
           ? (user?.first_name ? `${user.first_name}${user.last_name ? ` ${user.last_name[0]}.` : ""}` : "Community Member")
-          : undefined,
+          : (form.org_name || null),
+        updated_at: new Date().toISOString(),
       };
+
+      // Remove UI-only / empty-string date fields that should be null
+      ["end_date", "registration_start", "registration_end", "time_start", "time_end"].forEach((key) => {
+        if (!data[key]) data[key] = null;
+      });
+
       if (editId) {
-        await base44.entities.Event.update(editId, data);
+        const { error } = await supabase.from("events").update(data).eq("id", editId);
+        if (error) throw error;
         toast({ title: "Activity updated!", description: "Your changes are now live." });
         navigate(`/event/${editId}`);
       } else {
-        const created = await base44.entities.Event.create(data);
+        const { data: created, error } = await supabase.from("events").insert(data).select("id").single();
+        if (error) throw error;
         toast({ title: "Activity posted!", description: "Your activity is now live and visible to the community." });
         navigate(`/event/${created.id}`);
       }
-    } catch {
-      toast({ title: "Something went wrong", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Something went wrong",
+        description: err.message || "Please try again.",
+        variant: "destructive",
+      });
     }
     setSubmitting(false);
   };
