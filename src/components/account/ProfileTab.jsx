@@ -24,43 +24,57 @@ export default function ProfileTab({ user, setUser }) {
   });
 
   useEffect(() => {
+    let cancelled = false;
     const displayRole = isAdmin
       ? "community_member"
       : (user.role === "user" || user.role === "community_member")
         ? "community_member"
         : (user.role || "community_member");
-    setForm({
-      first_name: user.first_name || "",
-      last_name: user.last_name || "",
-      zip_code: user.zip_code || "",
-      role: displayRole,
-      org_name: "", org_description: "", org_logo: "", org_website: "", org_email: "",
-    });
-    loadOrganizerProfile(user.id);
-  }, [user]);
 
-  const loadOrganizerProfile = async (userId) => {
-    try {
-      const { data: records, error } = await supabase
-        .from("organizers")
-        .select("*")
-        .eq("user_id", userId)
-        .limit(1);
-      if (error) throw error;
-      if (records?.length > 0) {
-        const rec = records[0];
-        setOrganizerRecord(rec);
-        setForm((prev) => ({
-          ...prev,
-          org_name: rec.org_name || "",
-          org_description: rec.org_description || "",
-          org_logo: rec.org_logo || "",
-          org_website: rec.org_website || "",
-          org_email: rec.org_email || "",
-        }));
+    const hydrate = async () => {
+      let orgFields = {
+        org_name: user.org_name || "",
+        org_description: "",
+        org_logo: "",
+        org_website: "",
+        org_email: "",
+      };
+      try {
+        const { data: records, error } = await supabase
+          .from("organizers")
+          .select("*")
+          .eq("user_id", user.id)
+          .limit(1);
+        if (error) throw error;
+        if (records?.length > 0) {
+          const rec = records[0];
+          if (!cancelled) setOrganizerRecord(rec);
+          orgFields = {
+            org_name: rec.org_name || "",
+            org_description: rec.org_description || "",
+            org_logo: rec.org_logo || "",
+            org_website: rec.org_website || "",
+            org_email: rec.org_email || "",
+          };
+        }
+      } catch {}
+
+      if (!cancelled) {
+        setForm({
+          first_name: user.first_name || "",
+          last_name: user.last_name || "",
+          zip_code: user.zip_code || "",
+          role: displayRole,
+          ...orgFields,
+        });
       }
-    } catch {}
-  };
+    };
+
+    hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role, user?.first_name, user?.last_name, user?.zip_code, user?.org_name, isAdmin]);
 
   const updateField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -114,7 +128,7 @@ export default function ProfileTab({ user, setUser }) {
           return;
         }
       }
-      if (form.zip_code && !/^\d{5}$/.test(form.zip_code.trim())) {
+      if (!form.zip_code || !/^\d{5}$/.test(form.zip_code.trim())) {
         toast({ title: "Zip Code must be exactly 5 digits", variant: "destructive" });
         setSaving(false);
         return;
@@ -126,7 +140,7 @@ export default function ProfileTab({ user, setUser }) {
         email: user.email,
         first_name: isOrganizer ? "" : form.first_name,
         last_name: isOrganizer ? "" : form.last_name,
-        zip_code: form.zip_code,
+        zip_code: form.zip_code.trim(),
         role: nextRole,
         updated_at: new Date().toISOString(),
       });
@@ -135,25 +149,28 @@ export default function ProfileTab({ user, setUser }) {
       if (isOrganizer) {
         const orgData = {
           user_id: user.id,
-          org_name: form.org_name,
-          org_description: form.org_description,
+          org_name: form.org_name.trim(),
+          org_description: form.org_description.trim(),
           org_logo: form.org_logo || null,
-          org_website: form.org_website,
-          org_email: form.org_email,
+          org_website: form.org_website.trim(),
+          org_email: form.org_email.trim(),
           updated_at: new Date().toISOString(),
         };
-        if (organizerRecord) {
-          const { error } = await supabase.from("organizers").update(orgData).eq("id", organizerRecord.id);
-          if (error) throw error;
-        } else {
-          const { data: created, error } = await supabase
-            .from("organizers")
-            .insert(orgData)
-            .select("*")
-            .single();
-          if (error) throw error;
-          setOrganizerRecord(created);
-        }
+        const { data: savedOrg, error: orgError } = await supabase
+          .from("organizers")
+          .upsert(orgData, { onConflict: "user_id" })
+          .select("*")
+          .single();
+        if (orgError) throw orgError;
+        setOrganizerRecord(savedOrg);
+        setForm((prev) => ({
+          ...prev,
+          org_name: savedOrg.org_name || "",
+          org_description: savedOrg.org_description || "",
+          org_logo: savedOrg.org_logo || "",
+          org_website: savedOrg.org_website || "",
+          org_email: savedOrg.org_email || "",
+        }));
       }
 
       const fullName = isOrganizer
@@ -163,10 +180,10 @@ export default function ProfileTab({ user, setUser }) {
         ...user,
         first_name: isOrganizer ? "" : form.first_name,
         last_name: isOrganizer ? "" : form.last_name,
-        zip_code: form.zip_code,
+        zip_code: form.zip_code.trim(),
         role: nextRole,
         full_name: fullName || user.email,
-        org_name: isOrganizer ? form.org_name : user.org_name,
+        org_name: isOrganizer ? form.org_name.trim() : user.org_name,
       });
 
       toast({ title: "Account updated!" });

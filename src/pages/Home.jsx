@@ -340,14 +340,17 @@ export default function Home() {
 
   const loadFavorites = async () => {
     try {
-      const { data: saved, error } = await supabase
-        .from("saved_events")
-        .select("*")
-        .eq("user_id", user.id);
-      if (error) throw error;
+      const [{ data: saved, error: savedError }, { data: favOrgs, error: favError }] = await Promise.all([
+        supabase.from("saved_events").select("*").eq("user_id", user.id),
+        supabase.from("favorite_organizers").select("*").eq("user_id", user.id),
+      ]);
+      if (savedError) throw savedError;
+      if (favError) throw favError;
       setSavedEventRecords(saved || []);
       setSavedEventIds(new Set((saved || []).map((s) => s.event_id)));
-      setFavoriteOrganizerIds(new Set());
+      setFavoriteOrganizerIds(
+        new Set((favOrgs || []).map((f) => f.poster_user_id || f.organizer_id).filter(Boolean))
+      );
     } catch {
       setSavedEventRecords([]);
       setSavedEventIds(new Set());

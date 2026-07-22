@@ -1,16 +1,14 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Heart } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function Footer({ user }) {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const handleLogout = async () => {
-    try {
-      await base44.auth.logout();
-    } catch {}
-    window.location.href = "/";
+    await logout(true);
   };
 
   return (

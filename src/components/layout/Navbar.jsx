@@ -4,19 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Calendar, Menu, Search, User, LogOut, Settings, Plus, Share2, BarChart3 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
 import ShareModal from "@/components/shared/ShareModal";
 
 export default function Navbar({ user }) {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
   const handleLogout = async () => {
-    try {
-      await base44.auth.logout();
-    } catch {}
-    window.location.href = "/";
+    await logout(true);
   };
 
   const isContributor = user && ["community_member", "organizer", "admin"].includes(user.role);

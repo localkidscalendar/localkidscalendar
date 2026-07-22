@@ -96,15 +96,48 @@ export default function EventDetail() {
     } catch {}
   };
 
-  const checkFavorite = async () => {
-    setIsFavorite(false);
+  const checkFavorite = async (posterId) => {
+    try {
+      const { data, error } = await supabase
+        .from("favorite_organizers")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("poster_user_id", posterId)
+        .maybeSingle();
+      if (error) throw error;
+      setIsFavorite(Boolean(data));
+    } catch {
+      setIsFavorite(false);
+    }
   };
-
-  const syncNotificationPrefs = async () => {};
 
   const handleToggleFavorite = async () => {
     if (!user) return setAuthPrompt("Sign in to favorite this poster and get notified about their activities.");
-    toast({ title: "Favorites coming soon", description: "This feature will return after the next Supabase migration step." });
+    const posterId = event?.created_by_id;
+    if (!posterId) return;
+    try {
+      if (isFavorite) {
+        const { error } = await supabase
+          .from("favorite_organizers")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("poster_user_id", posterId);
+        if (error) throw error;
+        setIsFavorite(false);
+        toast({ title: "Removed from favorites" });
+      } else {
+        const { error } = await supabase.from("favorite_organizers").insert({
+          user_id: user.id,
+          organizer_id: posterOrganizer?.id || null,
+          poster_user_id: posterId,
+        });
+        if (error) throw error;
+        setIsFavorite(true);
+        toast({ title: "Added to favorites!" });
+      }
+    } catch (err) {
+      toast({ title: "Could not update favorite", description: err.message, variant: "destructive" });
+    }
   };
 
   const checkSaved = async () => {

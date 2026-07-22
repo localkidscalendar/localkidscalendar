@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Building2, Loader2, UserPlus } from "lucide-react";
@@ -52,50 +52,59 @@ export default function Organizers() {
 
   const loadFavorites = async () => {
     try {
-      const records = await base44.entities.FavoriteOrganizer.list();
-      setFavoriteRecords(records);
-      setFavoriteIds(new Set(records.map((r) => r.organizer_id)));
-    } catch {}
-  };
-
-  const syncNotificationPrefs = async (newOrgId, remove = false) => {
-    try {
-      const prefs = await base44.entities.NotificationPreference.filter({}, "-created_date", 1);
-      if (prefs.length === 0) return;
-      const pref = prefs[0];
-      const current = pref.organizer_ids || [];
-      const updated = remove
-        ? current.filter((id) => id !== newOrgId)
-        : current.includes(newOrgId) ? current : [...current, newOrgId];
-      await base44.entities.NotificationPreference.update(pref.id, { organizer_ids: updated });
+      const { data: records, error } = await supabase
+        .from("favorite_organizers")
+        .select("*")
+        .eq("user_id", user.id);
+      if (error) throw error;
+      setFavoriteRecords(records || []);
+      setFavoriteIds(new Set((records || []).map((r) => r.organizer_id).filter(Boolean)));
     } catch {}
   };
 
   const toggleFavorite = async (orgId, posterUserId) => {
     if (!user) return setAuthPrompt(true);
-    if (favoriteIds.has(orgId)) {
-      const record = favoriteRecords.find((r) => r.organizer_id === orgId);
-      if (record) {
-        await base44.entities.FavoriteOrganizer.delete(record.id);
-        setFavoriteRecords((prev) => prev.filter((r) => r.organizer_id !== orgId));
-        setFavoriteIds((prev) => { const s = new Set(prev); s.delete(orgId); return s; });
-        syncNotificationPrefs(orgId, true);
+    try {
+      if (favoriteIds.has(orgId)) {
+        const record = favoriteRecords.find((r) => r.organizer_id === orgId);
+        if (record) {
+          const { error } = await supabase.from("favorite_organizers").delete().eq("id", record.id);
+          if (error) throw error;
+          setFavoriteRecords((prev) => prev.filter((r) => r.organizer_id !== orgId));
+          setFavoriteIds((prev) => {
+            const s = new Set(prev);
+            s.delete(orgId);
+            return s;
+          });
+        }
+      } else {
+        const { data: record, error } = await supabase
+          .from("favorite_organizers")
+          .insert({
+            user_id: user.id,
+            organizer_id: orgId,
+            poster_user_id: posterUserId || null,
+          })
+          .select("*")
+          .single();
+        if (error) throw error;
+        setFavoriteRecords((prev) => [...prev, record]);
+        setFavoriteIds((prev) => new Set([...prev, orgId]));
       }
-    } else {
-      const record = await base44.entities.FavoriteOrganizer.create({ organizer_id: orgId, poster_user_id: posterUserId || "" });
-      setFavoriteRecords((prev) => [...prev, record]);
-      setFavoriteIds((prev) => new Set([...prev, orgId]));
-      syncNotificationPrefs(orgId, false);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const loadOrganizers = async () => {
     setLoading(true);
     try {
-      const [records, events] = await Promise.all([
-        base44.entities.Organizer.list("org_name", 200),
-        base44.entities.Event.filter({ status: "active" }, "-created_date", 500),
+      const [{ data: records, error: orgError }, { data: events, error: eventError }] = await Promise.all([
+        supabase.from("organizers").select("*").order("org_name").limit(200),
+        supabase.from("events").select("*").eq("status", "active").order("created_at", { ascending: false }).limit(500),
       ]);
+      if (orgError) throw orgError;
+      if (eventError) throw eventError;
 
       const zip = (() => {
         try { return sessionStorage.getItem("session_zip_current") || ""; } catch { return ""; }
@@ -105,13 +114,13 @@ export default function Organizers() {
       })();
 
       if (!zip) {
-        setOrganizers(records);
+        setOrganizers(records || []);
         setLoading(false);
         return;
       }
 
       const filterCenter = await geocodeZip(zip);
-      const uniqueEventZips = [...new Set(events.map((e) => e.zip_code).filter((z) => z && z.length >= 5))];
+      const uniqueEventZips = [...new Set((events || []).map((e) => e.zip_code).filter((z) => z && z.length >= 5))];
       const eventZipCoords = {};
       await Promise.all(uniqueEventZips.map(async (z) => {
         const coords = await geocodeZip(z);
@@ -119,7 +128,7 @@ export default function Organizers() {
       }));
 
       const nearbyOrganizerIds = new Set();
-      events.forEach((e) => {
+      (events || []).forEach((e) => {
         if (!e.created_by_id) return;
         let inRange = false;
         if (filterCenter) {
@@ -135,7 +144,9 @@ export default function Organizers() {
         if (inRange) nearbyOrganizerIds.add(e.created_by_id);
       });
 
-      setOrganizers(records.filter((o) => nearbyOrganizerIds.has(o.user_id)));
+      const nearby = (records || []).filter((o) => nearbyOrganizerIds.has(o.user_id));
+      // If nobody is nearby yet (common during early testing), still show all organizers.
+      setOrganizers(nearby.length > 0 ? nearby : (records || []));
     } catch {
       setOrganizers([]);
     }
@@ -147,7 +158,6 @@ export default function Organizers() {
     const q = search.toLowerCase();
     return (o.org_name || "").toLowerCase().includes(q) || (o.org_description || "").toLowerCase().includes(q);
   });
-  // Fields accessed on cards: org_name, org_logo, org_description, org_email, org_website, id
 
   return (
   <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
