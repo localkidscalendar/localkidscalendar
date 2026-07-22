@@ -15,7 +15,7 @@ import NotificationsTab from "@/components/account/NotificationsTab";
 export default function Account() {
   const { user, setUser, userLoading } = useOutletContext();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("saved");
+  const [activeTab, setActiveTab] = useState("profile");
 
   useEffect(() => {
     if (userLoading) return;

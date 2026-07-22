@@ -8,8 +8,7 @@ import { useAuth } from "@/lib/AuthContext";
 
 export default function AppLayout() {
   const location = useLocation();
-  const { user, isLoadingAuth: userLoading } = useAuth();
-  // Home handles ads inline in the event feed; Supporters manages its own display
+  const { user, setUser, isLoadingAuth: userLoading, checkUserAuth } = useAuth();
   const showAd = location.pathname !== "/" && location.pathname !== "/supporters";
 
   return (
@@ -17,7 +16,7 @@ export default function AppLayout() {
       <BetaBanner />
       <Navbar user={user} />
       <main className="flex-1">
-        <Outlet context={{ user, setUser: () => {}, userLoading }} />
+        <Outlet context={{ user, setUser, userLoading, checkUserAuth }} />
       </main>
       <Footer user={user} />
       {showAd && <BannerAdDisplay user={user} userLoading={userLoading} />}

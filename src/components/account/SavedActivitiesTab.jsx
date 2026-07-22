@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import EventCard from "@/components/events/EventCard";
 import { Bookmark, ArrowUpDown } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
@@ -21,16 +21,30 @@ export default function SavedActivitiesTab({ user }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const saves = await base44.entities.SavedEvent.filter({}, "-created_date", 100);
-      setSavedRecords(saves);
-      const savedIds = saves.map((s) => s.event_id);
+      const { data: saves, error } = await supabase
+        .from("saved_events")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      setSavedRecords(saves || []);
+      const savedIds = (saves || []).map((s) => s.event_id);
       if (savedIds.length > 0) {
-        const allEvents = await base44.entities.Event.filter({ status: "active" }, "-created_date", 200);
-        setSavedEvents(allEvents.filter((e) => savedIds.includes(e.id)));
+        const { data: events, error: eventsError } = await supabase
+          .from("events")
+          .select("*")
+          .in("id", savedIds)
+          .eq("status", "active");
+        if (eventsError) throw eventsError;
+        setSavedEvents(events || []);
       } else {
         setSavedEvents([]);
       }
-    } catch {}
+    } catch {
+      setSavedRecords([]);
+      setSavedEvents([]);
+    }
     setLoading(false);
   };
 
@@ -38,8 +52,13 @@ export default function SavedActivitiesTab({ user }) {
     const record = savedRecords.find((r) => r.event_id === eventId);
     if (record) {
       const event = savedEvents.find((e) => e.id === eventId);
-      await base44.entities.SavedEvent.delete(record.id);
-      if (event) await base44.entities.Event.update(eventId, { save_count: Math.max(0, (event.save_count || 0) - 1) });
+      await supabase.from("saved_events").delete().eq("id", record.id);
+      if (event) {
+        await supabase
+          .from("events")
+          .update({ save_count: Math.max(0, (event.save_count || 0) - 1) })
+          .eq("id", eventId);
+      }
       setSavedRecords((prev) => prev.filter((r) => r.event_id !== eventId));
       setSavedEvents((prev) => prev.filter((e) => e.id !== eventId));
     }
@@ -53,8 +72,8 @@ export default function SavedActivitiesTab({ user }) {
       list.sort((a, b) => new Date(b.start_date || 0) - new Date(a.start_date || 0));
     } else {
       list.sort((a, b) => {
-        const aDate = savedRecords.find((r) => r.event_id === a.id)?.created_date || 0;
-        const bDate = savedRecords.find((r) => r.event_id === b.id)?.created_date || 0;
+        const aDate = savedRecords.find((r) => r.event_id === a.id)?.created_at || 0;
+        const bDate = savedRecords.find((r) => r.event_id === b.id)?.created_at || 0;
         return new Date(bDate) - new Date(aDate);
       });
     }
@@ -78,23 +97,29 @@ export default function SavedActivitiesTab({ user }) {
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-4">
-        <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Sort by:</span>
+    <div className="space-y-4">
+      <div className="flex items-center justify-end gap-2">
+        <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" />
         <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-[200px] rounded-xl">
-            <SelectValue placeholder="Sort by" />
+          <SelectTrigger className="w-[180px] rounded-xl h-8 text-xs">
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="date_saved">Date Saved</SelectItem>
+            <SelectItem value="start_date">Start Date</SelectItem>
             <SelectItem value="name">Name</SelectItem>
-            <SelectItem value="start_date">Activity Start Date</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {sortedEvents.map((e) => <EventCard key={e.id} event={e} isSaved={true} onToggleSave={handleToggleSave} />)}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {sortedEvents.map((event) => (
+          <EventCard
+            key={event.id}
+            event={event}
+            isSaved
+            onToggleSave={handleToggleSave}
+          />
+        ))}
       </div>
     </div>
   );

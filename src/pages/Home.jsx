@@ -339,15 +339,63 @@ export default function Home() {
   }, [activeAds]);
 
   const loadFavorites = async () => {
-    // Saved events / favorite organizers will return in a later Supabase pass.
-    setSavedEventRecords([]);
-    setSavedEventIds(new Set());
-    setFavoriteOrganizerIds(new Set());
+    try {
+      const { data: saved, error } = await supabase
+        .from("saved_events")
+        .select("*")
+        .eq("user_id", user.id);
+      if (error) throw error;
+      setSavedEventRecords(saved || []);
+      setSavedEventIds(new Set((saved || []).map((s) => s.event_id)));
+      setFavoriteOrganizerIds(new Set());
+    } catch {
+      setSavedEventRecords([]);
+      setSavedEventIds(new Set());
+      setFavoriteOrganizerIds(new Set());
+    }
   };
 
-  const toggleSave = async () => {
+  const toggleSave = async (eventId) => {
     if (!user) return setAuthPrompt(true);
-    // Saving favorites will return after the SavedEvent table is migrated.
+    const event = events.find((e) => e.id === eventId);
+    try {
+      if (savedEventIds.has(eventId)) {
+        const record = savedEventRecords.find((r) => r.event_id === eventId);
+        if (record) {
+          const { error } = await supabase.from("saved_events").delete().eq("id", record.id);
+          if (error) throw error;
+          if (event) {
+            await supabase
+              .from("events")
+              .update({ save_count: Math.max(0, (event.save_count || 0) - 1) })
+              .eq("id", eventId);
+          }
+          setSavedEventRecords((prev) => prev.filter((r) => r.event_id !== eventId));
+          setSavedEventIds((prev) => {
+            const s = new Set(prev);
+            s.delete(eventId);
+            return s;
+          });
+        }
+      } else {
+        const { data: record, error } = await supabase
+          .from("saved_events")
+          .insert({ event_id: eventId, user_id: user.id })
+          .select("*")
+          .single();
+        if (error) throw error;
+        if (event) {
+          await supabase
+            .from("events")
+            .update({ save_count: (event.save_count || 0) + 1 })
+            .eq("id", eventId);
+        }
+        setSavedEventRecords((prev) => [...prev, record]);
+        setSavedEventIds((prev) => new Set([...prev, eventId]));
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const loadEvents = async () => {

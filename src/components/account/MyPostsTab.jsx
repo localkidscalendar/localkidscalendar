@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { CalendarDays, Edit, Copy, Eye, Bookmark, MessageSquare, TrendingUp, Trash2, RotateCcw } from "lucide-react";
@@ -22,34 +22,66 @@ export default function MyPostsTab({ user }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const allMyEvents = await base44.entities.Event.filter({ created_by_id: user.id }, "-created_date", 100);
-      const activeAndDeleted = allMyEvents.filter((e) => e.status === "active" || e.status === "deleted");
+      const { data, error } = await supabase
+        .from("events")
+        .select("*")
+        .eq("created_by_id", user.id)
+        .in("status", ["active", "deleted"])
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      const activeAndDeleted = data || [];
       setMyEvents(activeAndDeleted);
-      const counts = await Promise.all(
-        activeAndDeleted.map((e) => base44.entities.Comment.filter({ event_id: e.id, status: "active" }))
-      );
+
       const countsMap = {};
-      activeAndDeleted.forEach((e, i) => { countsMap[e.id] = counts[i].length; });
+      await Promise.all(
+        activeAndDeleted.map(async (e) => {
+          const { count } = await supabase
+            .from("comments")
+            .select("*", { count: "exact", head: true })
+            .eq("event_id", e.id)
+            .eq("status", "active");
+          countsMap[e.id] = count || 0;
+        })
+      );
       setCommentCounts(countsMap);
-    } catch {}
+    } catch {
+      setMyEvents([]);
+      setCommentCounts({});
+    }
     setLoading(false);
   };
 
   const handleMarkFull = async (eventId) => {
-    await base44.entities.Event.update(eventId, { registration_full: true });
+    const { error } = await supabase.from("events").update({ registration_full: true }).eq("id", eventId);
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      return;
+    }
     loadData();
   };
 
   const handleDeactivate = async (event) => {
     if (!window.confirm(`Deactivate "${event.title}"? This will remove it from the public site until you reactivate it. NOTE: If your activity is complete, we recommend keeping it active (rather than removing it) in case users are searching for it in the past.`)) return;
-    await base44.entities.Event.update(event.id, { status: "deleted", admin_notes: "" });
+    const { error } = await supabase
+      .from("events")
+      .update({ status: "deleted", admin_notes: "" })
+      .eq("id", event.id);
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Activity deactivated" });
     loadData();
   };
 
   const handleReactivate = async (event) => {
     if (!window.confirm(`Reactivate "${event.title}"? This will make it visible on the public site again.`)) return;
-    await base44.entities.Event.update(event.id, { status: "active" });
+    const { error } = await supabase.from("events").update({ status: "active" }).eq("id", event.id);
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Activity reactivated" });
     loadData();
   };
@@ -103,17 +135,6 @@ export default function MyPostsTab({ user }) {
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">{moment(e.start_date).format("MMM D, YYYY")} · {e.city}, {e.state}</p>
-                <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <TrendingUp className="w-3.5 h-3.5" /> {e.impression_count || 0} impressions
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Eye className="w-3.5 h-3.5" /> {e.view_count || 0} views
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Bookmark className="w-3.5 h-3.5" /> {e.save_count || 0} saves
-                  </span>
-                </div>
               </div>
             )}
             {e.status === "active" && (

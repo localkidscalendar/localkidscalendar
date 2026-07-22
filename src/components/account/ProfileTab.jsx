@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,11 @@ export default function ProfileTab({ user, setUser }) {
   });
 
   useEffect(() => {
-    const displayRole = isAdmin ? "community_member" : (user.role === "user" || user.role === "community_member") ? "community_member" : (user.role || "community_member");
+    const displayRole = isAdmin
+      ? "community_member"
+      : (user.role === "user" || user.role === "community_member")
+        ? "community_member"
+        : (user.role || "community_member");
     setForm({
       first_name: user.first_name || "",
       last_name: user.last_name || "",
@@ -37,8 +41,13 @@ export default function ProfileTab({ user, setUser }) {
 
   const loadOrganizerProfile = async (userId) => {
     try {
-      const records = await base44.entities.Organizer.filter({ user_id: userId });
-      if (records.length > 0) {
+      const { data: records, error } = await supabase
+        .from("organizers")
+        .select("*")
+        .eq("user_id", userId)
+        .limit(1);
+      if (error) throw error;
+      if (records?.length > 0) {
         const rec = records[0];
         setOrganizerRecord(rec);
         setForm((prev) => ({
@@ -60,18 +69,31 @@ export default function ProfileTab({ user, setUser }) {
     if (!file) return;
     setUploadingLogo(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      updateField("org_logo", file_url);
-    } catch {}
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${user.id}/org-logo-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("event-media")
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (uploadError) throw uploadError;
+      const { data: publicData } = supabase.storage.from("event-media").getPublicUrl(path);
+      updateField("org_logo", publicData.publicUrl);
+    } catch (err) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    }
     setUploadingLogo(false);
   };
 
   const handleResetPassword = async () => {
     setSendingReset(true);
     try {
-      await base44.auth.resetPasswordRequest(user.email);
+      await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
     } catch {}
-    toast({ title: "Password reset email sent", description: `Check ${user?.email} for a link to reset your password.` });
+    toast({
+      title: "Password reset email sent",
+      description: `Check ${user?.email} for a link to reset your password.`,
+    });
     setSendingReset(false);
   };
 
@@ -98,22 +120,17 @@ export default function ProfileTab({ user, setUser }) {
         return;
       }
 
-      const fullName = isOrganizer ? form.org_name : `${form.first_name} ${form.last_name}`.trim();
-      const profileUpdate = {
-        first_name: form.first_name,
-        last_name: form.last_name,
-        full_name: fullName,
+      const nextRole = isAdmin ? user.role : form.role;
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: user.id,
+        email: user.email,
+        first_name: isOrganizer ? "" : form.first_name,
+        last_name: isOrganizer ? "" : form.last_name,
         zip_code: form.zip_code,
-      };
-      await base44.auth.updateMe(profileUpdate);
-
-      const needsRoleUpdate = user.role === "user" || form.role !== user.role;
-      if (needsRoleUpdate && form.role !== "user") {
-        await base44.functions.invoke('updateUserRole', { role: form.role });
-      }
-
-      const userUpdate = { ...profileUpdate, role: form.role };
-      setUser({ ...user, ...userUpdate });
+        role: nextRole,
+        updated_at: new Date().toISOString(),
+      });
+      if (profileError) throw profileError;
 
       if (isOrganizer) {
         const orgData = {
@@ -123,14 +140,34 @@ export default function ProfileTab({ user, setUser }) {
           org_logo: form.org_logo || null,
           org_website: form.org_website,
           org_email: form.org_email,
+          updated_at: new Date().toISOString(),
         };
         if (organizerRecord) {
-          await base44.entities.Organizer.update(organizerRecord.id, orgData);
+          const { error } = await supabase.from("organizers").update(orgData).eq("id", organizerRecord.id);
+          if (error) throw error;
         } else {
-          const created = await base44.entities.Organizer.create(orgData);
+          const { data: created, error } = await supabase
+            .from("organizers")
+            .insert(orgData)
+            .select("*")
+            .single();
+          if (error) throw error;
           setOrganizerRecord(created);
         }
       }
+
+      const fullName = isOrganizer
+        ? form.org_name
+        : `${form.first_name} ${form.last_name}`.trim();
+      setUser({
+        ...user,
+        first_name: isOrganizer ? "" : form.first_name,
+        last_name: isOrganizer ? "" : form.last_name,
+        zip_code: form.zip_code,
+        role: nextRole,
+        full_name: fullName || user.email,
+        org_name: isOrganizer ? form.org_name : user.org_name,
+      });
 
       toast({ title: "Account updated!" });
     } catch (err) {
@@ -141,7 +178,6 @@ export default function ProfileTab({ user, setUser }) {
 
   return (
     <div className="space-y-6">
-      {/* Basic info */}
       <div className="space-y-4">
         <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Profile</h3>
         <div>
@@ -176,12 +212,10 @@ export default function ProfileTab({ user, setUser }) {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {form.role === "organizer" ? (
-            <>
-              <div className="sm:col-span-2">
-                <Label className="text-sm">Organization Name *</Label>
-                <Input value={form.org_name} onChange={(e) => updateField("org_name", e.target.value)} className="rounded-xl mt-1" />
-              </div>
-            </>
+            <div className="sm:col-span-2">
+              <Label className="text-sm">Organization Name *</Label>
+              <Input value={form.org_name} onChange={(e) => updateField("org_name", e.target.value)} className="rounded-xl mt-1" />
+            </div>
           ) : (
             <>
               <div>
@@ -196,12 +230,18 @@ export default function ProfileTab({ user, setUser }) {
           )}
           <div>
             <Label className="text-sm">Zip Code *</Label>
-            <Input value={form.zip_code} onChange={(e) => updateField("zip_code", e.target.value.replace(/\D/g, "").slice(0, 5))} className="rounded-xl mt-1" maxLength={5} inputMode="numeric" placeholder="5 digits" />
+            <Input
+              value={form.zip_code}
+              onChange={(e) => updateField("zip_code", e.target.value.replace(/\D/g, "").slice(0, 5))}
+              className="rounded-xl mt-1"
+              maxLength={5}
+              inputMode="numeric"
+              placeholder="5 digits"
+            />
           </div>
         </div>
       </div>
 
-      {/* Organizer-only fields */}
       {!isAdmin && form.role === "organizer" && (
         <div className="space-y-4 pt-2">
           <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">
@@ -241,7 +281,6 @@ export default function ProfileTab({ user, setUser }) {
         Save Changes
       </Button>
 
-      {/* Security */}
       <div className="space-y-3 pt-2">
         <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Security</h3>
         <div>

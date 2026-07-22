@@ -63,8 +63,19 @@ export default function EventDetail() {
   };
 
   const loadComments = async () => {
-    // Comments table will be migrated later.
-    setComments([]);
+    try {
+      const { data, error } = await supabase
+        .from("comments")
+        .select("*")
+        .eq("event_id", id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setComments(data || []);
+    } catch {
+      setComments([]);
+    }
   };
 
   const loadPosterUser = async (posterId) => {
@@ -97,17 +108,72 @@ export default function EventDetail() {
   };
 
   const checkSaved = async () => {
-    setSaved(false);
+    try {
+      const { data, error } = await supabase
+        .from("saved_events")
+        .select("id")
+        .eq("event_id", id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+      setSaved(Boolean(data));
+    } catch {
+      setSaved(false);
+    }
   };
 
   const handleSave = async () => {
     if (!user) return setAuthPrompt("Sign in to save activities to your personal dashboard.");
-    toast({ title: "Saving coming soon", description: "This feature will return after the next Supabase migration step." });
+    try {
+      if (saved) {
+        const { error } = await supabase
+          .from("saved_events")
+          .delete()
+          .eq("event_id", id)
+          .eq("user_id", user.id);
+        if (error) throw error;
+        setSaved(false);
+        const nextCount = Math.max(0, (event.save_count || 0) - 1);
+        await supabase.from("events").update({ save_count: nextCount }).eq("id", id);
+        setEvent((prev) => ({ ...prev, save_count: nextCount }));
+        toast({ title: "Removed from saved" });
+      } else {
+        const { error } = await supabase.from("saved_events").insert({
+          event_id: id,
+          user_id: user.id,
+        });
+        if (error) throw error;
+        setSaved(true);
+        const nextCount = (event.save_count || 0) + 1;
+        await supabase.from("events").update({ save_count: nextCount }).eq("id", id);
+        setEvent((prev) => ({ ...prev, save_count: nextCount }));
+        toast({ title: "Event saved!" });
+      }
+    } catch (err) {
+      toast({ title: "Could not update saved state", description: err.message, variant: "destructive" });
+    }
   };
 
   const handleAddComment = async () => {
     if (!user) return setAuthPrompt("Sign in to post a comment.");
-    toast({ title: "Comments coming soon", description: "This feature will return after the next Supabase migration step." });
+    if (!newComment.trim()) return;
+    setSubmittingComment(true);
+    try {
+      const { error } = await supabase.from("comments").insert({
+        event_id: id,
+        content: newComment.trim(),
+        author_name: user.full_name || "Community Member",
+        created_by_id: user.id,
+        status: "active",
+      });
+      if (error) throw error;
+      setNewComment("");
+      loadComments();
+      toast({ title: "Comment posted!" });
+    } catch (err) {
+      toast({ title: "Could not post comment", description: err.message, variant: "destructive" });
+    }
+    setSubmittingComment(false);
   };
 
   const handleFlagEvent = async () => {
