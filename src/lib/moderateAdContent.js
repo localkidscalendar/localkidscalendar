@@ -1,20 +1,20 @@
 import { supabase } from "@/lib/supabaseClient";
 
-const PRODUCTION_API = "https://localkidscalendar.vercel.app/api/moderate-ad-content";
+// Path avoids the substring "ad" so browser ad-blockers don't return fake 404s.
+const PRODUCTION_API = "https://localkidscalendar.vercel.app/api/creative-review";
 
 function candidateUrls() {
   const urls = [];
   if (typeof window !== "undefined" && window.location?.origin) {
-    urls.push(`${window.location.origin}/api/moderate-ad-content`);
+    urls.push(`${window.location.origin}/api/creative-review`);
   }
-  // Vite local has no /api routes; also covers custom-domain routing gaps.
   if (!urls.includes(PRODUCTION_API)) {
     urls.push(PRODUCTION_API);
   }
   return urls;
 }
 
-async function postModeration(url, token, adLibraryId) {
+async function postReview(url, token, adLibraryId) {
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -32,15 +32,15 @@ async function postModeration(url, token, adLibraryId) {
       ok: false,
       status: res.status,
       error: res.ok
-        ? "Moderation API returned a non-JSON response."
-        : `Moderation failed (${res.status}).`,
+        ? "Review API returned a non-JSON response."
+        : `Review failed (${res.status}).`,
     };
   }
   return { ok: res.ok, status: res.status, payload };
 }
 
 /**
- * Runs automated ad creative moderation (URL + image) via Vercel API.
+ * Runs automated creative moderation (URL + image) via Vercel API.
  */
 export async function moderateAdContent(adLibraryId) {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -48,19 +48,19 @@ export async function moderateAdContent(adLibraryId) {
   const token = sessionData?.session?.access_token;
   if (!token) throw new Error("Not authenticated — please sign in again.");
 
-  let lastError = "Moderation failed.";
+  let lastError = "Automated review failed.";
   for (const url of candidateUrls()) {
-    const result = await postModeration(url, token, adLibraryId);
+    const result = await postReview(url, token, adLibraryId);
     if (result.status === 404) {
-      lastError = `Moderation failed (404) at ${url}`;
+      lastError = `Review failed (404) at ${url}`;
       continue;
     }
     if (!result.ok) {
-      throw new Error(result.payload?.error || result.error || `Moderation failed (${result.status})`);
+      throw new Error(result.payload?.error || result.error || `Review failed (${result.status})`);
     }
     const status = result.payload?.status;
     if (status !== "approved" && status !== "declined") {
-      throw new Error(result.payload?.error || "Moderation did not return an approve/decline result.");
+      throw new Error(result.payload?.error || "Review did not return an approve/decline result.");
     }
     return { status, reason: result.payload.reason || "" };
   }
