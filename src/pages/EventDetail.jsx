@@ -211,15 +211,69 @@ export default function EventDetail() {
 
   const handleFlagEvent = async () => {
     if (!user) return setAuthPrompt("Sign in to report this event.");
-    toast({ title: "Reporting coming soon", description: "This feature will return after the next Supabase migration step." });
+    if (!selectedFlagReason) return;
+    if (selectedFlagReason === "other" && !otherReasonText.trim()) {
+      toast({ title: "Please provide a reason", variant: "destructive" });
+      return;
+    }
+    try {
+      const { data, error } = await supabase.rpc("submit_flag", {
+        p_target_type: "event",
+        p_target_id: id,
+        p_reason: selectedFlagReason,
+        p_details: selectedFlagReason === "other" ? otherReasonText.trim() : null,
+      });
+      if (error) throw error;
+      toast({
+        title: data?.archived
+          ? "Activity removed pending review"
+          : "Report submitted. Thank you for helping keep our community safe.",
+      });
+      if (data?.archived) {
+        navigate("/");
+      } else {
+        loadEvent();
+      }
+    } catch (err) {
+      toast({
+        title: "Could not submit report",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
     setFlagOpen(false);
     setSelectedFlagReason(null);
     setOtherReasonText("");
   };
 
-  const handleFlagComment = async () => {
+  const handleFlagComment = async (commentId) => {
     if (!user) return setAuthPrompt("Sign in to report a comment.");
-    toast({ title: "Reporting coming soon" });
+    if (!selectedFlagReason) return;
+    if (selectedFlagReason === "other" && !otherReasonText.trim()) {
+      toast({ title: "Please provide a reason", variant: "destructive" });
+      return;
+    }
+    try {
+      const { data, error } = await supabase.rpc("submit_flag", {
+        p_target_type: "comment",
+        p_target_id: commentId,
+        p_reason: selectedFlagReason,
+        p_details: selectedFlagReason === "other" ? otherReasonText.trim() : null,
+      });
+      if (error) throw error;
+      toast({
+        title: data?.archived
+          ? "Comment removed pending review"
+          : "Report submitted. Thank you for helping keep our community safe.",
+      });
+      loadComments();
+    } catch (err) {
+      toast({
+        title: "Could not submit report",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
     setFlaggingCommentId(null);
     setSelectedFlagReason(null);
     setOtherReasonText("");
@@ -330,6 +384,7 @@ export default function EventDetail() {
               <Button variant="outline" size="icon" className="rounded-xl" onClick={() => setShareOpen(true)}>
                 <Share2 className="w-4 h-4" />
               </Button>
+              {!isOwner && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -339,11 +394,12 @@ export default function EventDetail() {
               >
                 <Flag className="w-4 h-4" />
               </Button>
+              )}
             </div>
           </div>
 
           {/* Flag dropdown */}
-          {flagOpen && (
+          {flagOpen && !isOwner && (
             <div className="bg-peach-50 rounded-xl p-4 mb-4 animate-settle">
               <p className="text-sm font-medium mb-2">Why are you flagging this event?</p>
               <div className="flex flex-wrap gap-2 mb-3">
@@ -568,6 +624,7 @@ export default function EventDetail() {
                       <span className="text-xs font-medium">{c.author_name}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{moment(c.created_date).fromNow()}</span>
+                        {user?.id !== c.created_by_id && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -577,11 +634,12 @@ export default function EventDetail() {
                         >
                           <Flag className="w-3 h-3" />
                         </Button>
+                        )}
                       </div>
                     </div>
                     <p className="text-sm">{c.content}</p>
                   </div>
-                  {flaggingCommentId === c.id && (
+                  {flaggingCommentId === c.id && user?.id !== c.created_by_id && (
                     <div className="bg-peach-50 rounded-xl p-3 mt-2 animate-settle text-xs">
                       <p className="font-medium mb-2">Why are you flagging this comment?</p>
                       <div className="flex flex-wrap gap-2 mb-3">
@@ -613,7 +671,7 @@ export default function EventDetail() {
                           <Button 
                             size="sm" 
                             className="rounded-lg text-xs h-7"
-                            onClick={() => handleFlagComment(c.id, c, selectedFlagReason)}
+                            onClick={() => handleFlagComment(c.id)}
                             disabled={selectedFlagReason === "other" && !otherReasonText.trim()}
                           >
                             Submit

@@ -70,21 +70,23 @@ export default function Admin() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [evtsRes, usersRes, msgsRes, orgRes] = await Promise.all([
+      const [evtsRes, usersRes, msgsRes, orgRes, flagsRes] = await Promise.all([
         supabase.from("events").select("*").order("created_at", { ascending: false }).limit(100),
         supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(200),
         supabase.from("contact_messages").select("*").order("created_at", { ascending: false }).limit(100),
         supabase.from("organizers").select("*").order("created_at", { ascending: false }).limit(200),
+        supabase.from("flag_reports").select("*").order("created_at", { ascending: false }).limit(100),
       ]);
 
       if (evtsRes.error) throw evtsRes.error;
       if (usersRes.error) throw usersRes.error;
       if (msgsRes.error) throw msgsRes.error;
       if (orgRes.error) throw orgRes.error;
+      if (flagsRes.error) throw flagsRes.error;
 
       const evts = (evtsRes.data || []).map(withCreatedDate);
-      // Flag reports + ads tables are not migrated yet — keep empty for this slice
-      const flg = [];
+      // Ads tables are not migrated yet — keep empty for this slice
+      const flg = (flagsRes.data || []).map(withCreatedDate);
       const adsList = [];
       const usersList = (usersRes.data || []).map((u) => {
         const full_name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
@@ -104,7 +106,7 @@ export default function Admin() {
       setStats({
         totalEvents: evts.filter((e) => e.status === "active").length,
         totalUsers: usersList.length,
-        totalFlags: evts.filter((e) => (e.flag_count || 0) > 0 && e.status !== "archived").length,
+        totalFlags: (flagsRes.data || []).filter((f) => !f.reviewed).length,
         activeAds: adsList.filter((a) => a.status === "active").length,
         organizers: usersList.filter((u) => u.role === "organizer").length,
         unreadMessages: msgs.filter((m) => m.status === "unread").length,
@@ -202,28 +204,27 @@ export default function Admin() {
 
   const loadFlaggingUsers = async () => {
     try {
+      // Count each flag report once (do not also tally events.flagged_by — that double-counts)
       const tally = {};
-      events.forEach((e) => {
-        if (Array.isArray(e.flagged_by)) {
-          e.flagged_by.forEach((userId) => {
-            if (!tally[userId]) tally[userId] = { id: userId, count: 0 };
-            tally[userId].count += 1;
-          });
-        }
-      });
       flags.forEach((f) => {
-        if (f.reporter_id) {
-          if (!tally[f.reporter_id]) tally[f.reporter_id] = { id: f.reporter_id, name: f.reporter_name, count: 0 };
-          else tally[f.reporter_id].name = tally[f.reporter_id].name || f.reporter_name;
-          tally[f.reporter_id].count += 1;
+        if (!f.reporter_id) return;
+        if (!tally[f.reporter_id]) {
+          tally[f.reporter_id] = { id: f.reporter_id, name: null, count: 0 };
         }
+        tally[f.reporter_id].count += 1;
+        if (f.reporter_name) tally[f.reporter_id].name = tally[f.reporter_id].name || f.reporter_name;
       });
-      const userNameMap = {};
-      users.forEach((u) => { userNameMap[u.id] = u.full_name || u.email || "Unknown"; });
-      const result = Object.values(tally).map((t) => ({
-        ...t,
-        name: t.name || userNameMap[t.id] || "Unknown",
-      })).sort((a, b) => b.count - a.count);
+      const result = Object.values(tally).map((t) => {
+        const profile = users.find((u) => u.id === t.id);
+        const name =
+          organizerMap[t.id]
+          || t.name
+          || profile?.full_name
+          || (profile ? [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() : "")
+          || profile?.email
+          || "Unknown";
+        return { ...t, name };
+      }).sort((a, b) => b.count - a.count);
       setFlaggingUsers(result);
     } catch {}
   };
@@ -324,7 +325,9 @@ export default function Admin() {
       toast({ title: "Failed to archive", description: error.message, variant: "destructive" });
       return;
     }
-    if (flagId) setFlags((prev) => prev.filter((f) => f.id !== flagId));
+    if (flagId) {
+      await supabase.from("flag_reports").delete().eq("id", flagId);
+    }
     toast({ title: `${targetType === "event" ? "Event" : "Comment"} archived` });
     loadAll();
   };
@@ -355,10 +358,68 @@ export default function Admin() {
     loadAll();
   };
 
-  const handleReviewedFlag = async (flagId) => {
-    setFlags((prev) => prev.filter((f) => f.id !== flagId));
-    toast({ title: "Flag marked as reviewed" });
+  const handleClearFlag = async (flagId) => {
+    const report = flags.find((f) => f.id === flagId);
+    if (!report) return;
+
+    const { error } = await supabase.from("flag_reports").delete().eq("id", flagId);
+    if (error) {
+      toast({ title: "Failed to clear flag", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    // Fully remove this report so the user can flag again if needed
+    if (report.target_type === "event" || report.target_type === "comment") {
+      const table = report.target_type === "event" ? "events" : "comments";
+      const { data: row } = await supabase
+        .from(table)
+        .select("flag_count, flagged_by")
+        .eq("id", report.target_id)
+        .maybeSingle();
+      if (row) {
+        const nextBy = (row.flagged_by || []).filter((id) => id !== report.reporter_id);
+        await supabase.from(table).update({
+          flag_count: Math.max(0, Number(row.flag_count || 0) - 1),
+          flagged_by: nextBy,
+          updated_at: new Date().toISOString(),
+        }).eq("id", report.target_id);
+      }
+    }
+
+    toast({ title: "Flag cleared" });
+    loadAll();
   };
+
+  const handleReviewedFlag = async (flagId) => {
+    // Soft-dismiss: hide from admin list, keep the report so re-flagging stays blocked
+    const { error } = await supabase
+      .from("flag_reports")
+      .update({ reviewed: true })
+      .eq("id", flagId);
+    if (error) {
+      toast({ title: "Failed to mark reviewed", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Marked as reviewed" });
+    loadAll();
+  };
+
+  const resolveReporterName = (f) =>
+    organizerMap[f.reporter_id]
+    || f.reporter_name
+    || users.find((u) => u.id === f.reporter_id)?.full_name
+    || "—";
+
+  const resolveContributorName = (f) => {
+    if (f.target_type === "event") {
+      const ev = events.find((e) => e.id === f.target_id);
+      if (ev?.org_name) return ev.org_name;
+      if (ev?.created_by_id && organizerMap[ev.created_by_id]) return organizerMap[ev.created_by_id];
+    }
+    return f.target_contributor_name || "—";
+  };
+
+  const openFlags = useMemo(() => flags.filter((f) => !f.reviewed), [flags]);
 
   const filteredAndSortedEvents = useMemo(() => {
     let filtered = events;
@@ -561,44 +622,14 @@ export default function Admin() {
               <AdminSectionHeader title="Flagged Content (Activities & Comments)" icon={Flag} />
               <div className="bg-white rounded-2xl border border-border p-4">
               {(() => {
-                const flaggedEvents = events.filter(e => (e.flag_count || 0) > 0 && e.status !== "archived");
-                const allFlaggedItems = [...flaggedEvents.map(e => ({ _type: "event", data: e })), ...flags.map(f => ({ _type: "flag", data: f }))];
-                const pageItems = allFlaggedItems.slice((flaggedContentPage - 1) * PAGE_SIZE, flaggedContentPage * PAGE_SIZE);
-                return allFlaggedItems.length === 0 ? (
+                // Show open (not yet reviewed) flag reports only
+                const pageItems = openFlags.slice((flaggedContentPage - 1) * PAGE_SIZE, flaggedContentPage * PAGE_SIZE);
+                return openFlags.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">No flags reported</p>
                 ) : (
                   <>
                 <div className="space-y-3">
-                  {pageItems.filter(i => i._type === "event").map(({ data: e }) => (
-                    <div key={e.id} className="p-3 bg-peach-50/50 rounded-xl border border-peach-100">
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-mint-100 text-mint-600">Activity</span>
-                          <span className="text-xs font-medium text-peach-600">{e.flag_count} flag{e.flag_count !== 1 ? "s" : ""}</span>
-                        </div>
-                        <Link to={`/event/${e.id}`} className="text-sm font-medium text-mint-500 hover:underline block">{e.title}</Link>
-                        <div className="text-xs bg-white/50 rounded p-2 space-y-1">
-                          <p><span className="font-medium">Org / Contributor:</span> {e.org_name || "—"}</p>
-                          <p><span className="font-medium">Location:</span> {e.city}, {e.state}</p>
-                        </div>
-                        <div className="flex gap-2 pt-1">
-                          <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 text-destructive border-destructive/20"
-                            onClick={() => handleRemoveFlaggedItem(null, e.id, "event")}>
-                            Archive Event
-                          </Button>
-                          <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 text-gray-600 border-gray-200"
-                            onClick={async () => {
-                              const { error } = await supabase.from("events").update({ flag_count: 0, flagged_by: [] }).eq("id", e.id);
-                              if (error) toast({ title: "Failed to clear flags", description: error.message, variant: "destructive" });
-                              else { toast({ title: "Flags cleared" }); loadAll(); }
-                            }}>
-                            Clear Flags
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {pageItems.filter(i => i._type === "flag").map(({ data: f }) => (
+                  {pageItems.map((f) => (
                     <div key={f.id} className="p-3 bg-peach-50/50 rounded-xl border border-peach-100">
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-2 mb-2">
@@ -622,31 +653,37 @@ export default function Admin() {
                         </div>
                         <div className="text-xs space-y-1 bg-white/50 rounded p-2">
                           {f.target_type === "event" ? (
-                            <p><span className="font-medium">Contributor:</span> {f.target_contributor_name || "—"}</p>
+                            <p><span className="font-medium">Contributor:</span> {resolveContributorName(f)}</p>
                           ) : f.target_type === "comment" ? (
                             <>
-                              <p><span className="font-medium">User:</span> {f.target_contributor_name || "—"}</p>
+                              <p><span className="font-medium">User:</span> {resolveContributorName(f)}</p>
                               <p><span className="font-medium">Comment:</span> {eventMap[f.target_id]?.content?.substring(0, 150) || "—"}</p>
                             </>
                           ) : (
                             <p><span className="font-medium">Business:</span> {f.target_contributor_name || "—"}</p>
                           )}
-                          <p><span className="font-medium">Reported by:</span> {f.reporter_name || "—"}</p>
+                          <p><span className="font-medium">Reported by:</span> {resolveReporterName(f)}</p>
                           <p><span className="font-medium">Reason:</span> <span className="capitalize">{f.reason}</span></p>
                           {f.details && <p><span className="font-medium">Details:</span> {f.details}</p>}
                         </div>
-                        <div className="flex gap-2 pt-2">
+                        <div className="flex gap-2 pt-2 flex-wrap">
                           {f.target_type !== "ad" && (
-                            <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 text-destructive border-destructive/20" onClick={() => handleRemoveFlaggedItem(f.id, f.target_id, f.target_type)}>Admin Manual Delete</Button>
+                            <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 text-destructive border-destructive/20" onClick={() => handleRemoveFlaggedItem(f.id, f.target_id, f.target_type)} title="Hide this activity/comment from the public site">
+                              Deactivate
+                            </Button>
                           )}
-                          <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 text-gray-600 border-gray-200" onClick={() => handleReviewedFlag(f.id)}>Reviewed</Button>
-                          <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 text-amber-600 border-amber-200" onClick={() => handleReviewedFlag(f.id)}>Remove Flag</Button>
+                          <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 text-gray-600 border-gray-200" onClick={() => handleClearFlag(f.id)} title="Remove only this report (user may flag again)">
+                            Clear Flag
+                          </Button>
+                          <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 text-mint-600 border-mint-200" onClick={() => handleReviewedFlag(f.id)} title="Hide from this list; keeps the flag on record">
+                            Reviewed/Dismiss
+                          </Button>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-                <Paginator total={allFlaggedItems.length} page={flaggedContentPage} onPage={setFlaggedContentPage} />
+                <Paginator total={openFlags.length} page={flaggedContentPage} onPage={setFlaggedContentPage} />
                   </>
                 );
               })()}
@@ -655,7 +692,7 @@ export default function Admin() {
 
             {/* Disabled Items */}
             <div>
-              <AdminSectionHeader title="Disabled Content (Flagged 3+ times)" icon={Ban} />
+              <AdminSectionHeader title="Deactivated Content (Flagged 3+ times)" icon={Ban} />
               <div className="bg-white rounded-2xl border border-border p-4">
               {deletedItems.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">No disabled items</p>

@@ -9,7 +9,6 @@ import { Search, SlidersHorizontal, X, MapPin, CalendarDays, Heart, Bookmark, Us
 import moment from "moment";
 import { cn } from "@/lib/utils";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
-import { base44 } from "@/api/base44Client";
 import { useToast } from "@/components/ui/use-toast";
 
 const CATEGORIES = [
@@ -65,34 +64,11 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   const loadSavedFilters = async () => {
     if (!user) { setAuthPrompt(true); return; }
     setLoadingSavedFilters(true);
-    try {
-      const records = await base44.entities.SavedFilter.filter({ created_by_id: user.id });
-      if (records.length > 0) {
-        const sf = records[0];
-        setLocalSearch(sf.search || "");
-        onFiltersChange({
-          ...filters,
-          search: sf.search || "",
-          category: sf.category || "all",
-          subcategory: sf.subcategory || "",
-          sortBy: sf.sortBy || "posted",
-          zipCode: sf.zipCode || filters.zipCode,
-          radiusMiles: sf.radiusMiles || 15,
-          ageMin: sf.ageMin || "",
-          ageMax: sf.ageMax || "",
-          priceMin: sf.priceMin || "",
-          priceMax: sf.priceMax || "",
-        });
-        if (sf.ageMin || sf.ageMax || sf.priceMin || sf.priceMax) {
-          onExpandedChange(true);
-        }
-        toast({ title: "Saved filters applied" });
-      } else {
-        toast({ title: "No saved filters found", description: "Save your preferred filters in My Account → My Filters." });
-      }
-    } finally {
-      setLoadingSavedFilters(false);
-    }
+    toast({
+      title: "Saved filters coming soon",
+      description: "This will return after a later migration step. Use the filter controls for now.",
+    });
+    setLoadingSavedFilters(false);
   };
 
   const subcategoryOptions = filters.category && filters.category !== "all" ? SUBCATEGORIES[filters.category] || [] : [];
