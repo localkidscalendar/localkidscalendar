@@ -20,14 +20,12 @@ export default function Supporters() {
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
   const [showSupporterModal, setShowSupporterModal] = useState(false);
   const [maxSlots, setMaxSlots] = useState(3);
-  const [creativeAspect, setCreativeAspect] = useState(null);
 
   useEffect(() => {
     loadPricing();
   }, []);
 
   useEffect(() => {
-    setCreativeAspect(null);
     loadAds();
   }, [userZip]);
 
