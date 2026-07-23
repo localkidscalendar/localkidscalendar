@@ -156,10 +156,13 @@ export default function Supporters() {
         <div className="flex flex-col items-center gap-3 mb-4">
           <Button
             className="rounded-xl bg-peach-500 hover:bg-peach-400 text-white px-6"
-            onClick={() => (user ? navigate("/ad-manager") : setShowSupporterModal(true))}
+            onClick={() => {
+              if (user?.is_advertiser) navigate("/ad-manager");
+              else setShowSupporterModal(true);
+            }}
           >
             <Heart className="w-4 h-4 mr-2" />
-            {user ? "Open Ad Manager" : "Become a Supporter"}
+            {user?.is_advertiser ? "Open Ad Manager" : "Become a Supporter"}
           </Button>
           <Link
             to="/advertiser-terms"

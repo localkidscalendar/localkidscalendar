@@ -49,8 +49,8 @@ export default function BecomeASupporterModal({ open, onClose, user }) {
 
         <div className="space-y-4 pt-1">
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Becoming a Supporter adds Ad Manager to your account menu so you can upload creatives and request zip placements.
-            During beta, billing is waived and an admin activates approved ads.
+            Becoming a Supporter adds Ad Manager to your account menu so you can upload creatives and publish zip placements.
+            During beta, billing is waived and approved creatives can go live after you publish.
           </p>
           <div className="flex flex-col gap-2">
             {!user ? (
