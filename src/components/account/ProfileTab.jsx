@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,20 @@ import { useToast } from "@/components/ui/use-toast";
 import HelpTip from "@/components/shared/HelpTip";
 import { Upload, Save, AlertTriangle, Loader2, KeyRound } from "lucide-react";
 
+function namesFromMetadata(meta = {}) {
+  const full = (meta.full_name || meta.name || "").trim();
+  const first = (meta.first_name || meta.given_name || (full ? full.split(/\s+/)[0] : "") || "").trim();
+  const last = (
+    meta.last_name
+    || meta.family_name
+    || (full.includes(" ") ? full.split(/\s+/).slice(1).join(" ") : "")
+    || ""
+  ).trim();
+  return { first, last };
+}
+
 export default function ProfileTab({ user, setUser }) {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -16,7 +30,9 @@ export default function ProfileTab({ user, setUser }) {
   const [organizerRecord, setOrganizerRecord] = useState(null);
 
   const isAdmin = user?.role === "admin" || user?.is_owner;
-  const isRoleLocked = !isAdmin && (user?.role === "organizer" || user?.role === "community_member");
+  // Google (and other) signups land with a default role but no zip — treat as incomplete setup
+  const needsSetup = !isAdmin && !user?.zip_code;
+  const isRoleLocked = !isAdmin && !needsSetup && (user?.role === "organizer" || user?.role === "community_member");
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", zip_code: "", role: "community_member",
@@ -39,6 +55,12 @@ export default function ProfileTab({ user, setUser }) {
         org_website: "",
         org_email: "",
       };
+      let metaNames = { first: "", last: "" };
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        metaNames = namesFromMetadata(authData?.user?.user_metadata || {});
+      } catch {}
+
       try {
         const { data: records, error } = await supabase
           .from("organizers")
@@ -61,8 +83,8 @@ export default function ProfileTab({ user, setUser }) {
 
       if (!cancelled) {
         setForm({
-          first_name: user.first_name || "",
-          last_name: user.last_name || "",
+          first_name: user.first_name || metaNames.first || "",
+          last_name: user.last_name || metaNames.last || "",
           zip_code: user.zip_code || "",
           role: displayRole,
           ...orgFields,
@@ -122,7 +144,7 @@ export default function ProfileTab({ user, setUser }) {
           return;
         }
       } else if (!isAdmin) {
-        if (!form.first_name || !form.last_name) {
+        if (!form.first_name?.trim() || !form.last_name?.trim()) {
           toast({ title: "Please enter your first and last name", variant: "destructive" });
           setSaving(false);
           return;
@@ -138,8 +160,8 @@ export default function ProfileTab({ user, setUser }) {
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: user.id,
         email: user.email,
-        first_name: isOrganizer ? "" : form.first_name,
-        last_name: isOrganizer ? "" : form.last_name,
+        first_name: isOrganizer ? "" : form.first_name.trim(),
+        last_name: isOrganizer ? "" : form.last_name.trim(),
         zip_code: form.zip_code.trim(),
         role: nextRole,
         updated_at: new Date().toISOString(),
@@ -178,15 +200,18 @@ export default function ProfileTab({ user, setUser }) {
         : `${form.first_name} ${form.last_name}`.trim();
       setUser({
         ...user,
-        first_name: isOrganizer ? "" : form.first_name,
-        last_name: isOrganizer ? "" : form.last_name,
+        first_name: isOrganizer ? "" : form.first_name.trim(),
+        last_name: isOrganizer ? "" : form.last_name.trim(),
         zip_code: form.zip_code.trim(),
         role: nextRole,
         full_name: fullName || user.email,
         org_name: isOrganizer ? form.org_name.trim() : user.org_name,
       });
 
-      toast({ title: "Account updated!" });
+      toast({ title: needsSetup ? "Welcome! Your account is ready." : "Account updated!" });
+      if (needsSetup) {
+        navigate("/", { replace: true });
+      }
     } catch (err) {
       toast({ title: "Failed to save", description: err?.message || String(err), variant: "destructive" });
     }
@@ -195,6 +220,11 @@ export default function ProfileTab({ user, setUser }) {
 
   return (
     <div className="space-y-6">
+      {needsSetup && (
+        <div className="rounded-xl border border-mint-200 bg-mint-50 px-4 py-3 text-sm text-mint-800">
+          Finish setting up your account: choose your account type, confirm your name, and add your 5-digit zip code, then save.
+        </div>
+      )}
       <div className="space-y-4">
         <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Profile</h3>
         <div>
@@ -295,19 +325,21 @@ export default function ProfileTab({ user, setUser }) {
 
       <Button className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={handleSave} disabled={saving}>
         {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-        Save Changes
+        {needsSetup ? "Save and continue" : "Save Changes"}
       </Button>
 
-      <div className="space-y-3 pt-2">
-        <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Security</h3>
-        <div>
-          <p className="text-sm font-medium mb-2">Password</p>
-          <Button type="button" className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={handleResetPassword} disabled={sendingReset}>
-            {sendingReset ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <KeyRound className="w-4 h-4 mr-2" />}
-            Email Password Reset
-          </Button>
+      {!needsSetup && (
+        <div className="space-y-3 pt-2">
+          <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Security</h3>
+          <div>
+            <p className="text-sm font-medium mb-2">Password</p>
+            <Button type="button" className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={handleResetPassword} disabled={sendingReset}>
+              {sendingReset ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <KeyRound className="w-4 h-4 mr-2" />}
+              Email Password Reset
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

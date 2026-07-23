@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useOutletContext, useNavigate } from "react-router-dom";
+import { useOutletContext, useNavigate, useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Bookmark, Heart, CalendarDays, ShieldAlert, Bell, UserCog } from "lucide-react";
 import LoadingState from "@/components/shared/LoadingState";
@@ -11,16 +11,31 @@ import SavedFiltersTab from "@/components/account/SavedFiltersTab";
 import MyPostsTab from "@/components/account/MyPostsTab";
 import FlaggedContentTab from "@/components/account/FlaggedContentTab";
 import NotificationsTab from "@/components/account/NotificationsTab";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function Account() {
   const { user, setUser, userLoading } = useOutletContext();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("profile");
 
   useEffect(() => {
     if (userLoading) return;
     if (!user) navigate("/login");
   }, [user, userLoading]);
+
+  useEffect(() => {
+    if (searchParams.get("setup") === "1") {
+      setActiveTab("profile");
+      toast({
+        title: "Finish your profile",
+        description: "Add your zip code (and name if needed) so local activities work correctly.",
+      });
+      searchParams.delete("setup");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, []);
 
   if (userLoading) {
     return <LoadingState text="Loading your account..." />;
