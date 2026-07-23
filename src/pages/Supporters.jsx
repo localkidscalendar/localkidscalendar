@@ -20,12 +20,14 @@ export default function Supporters() {
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
   const [showSupporterModal, setShowSupporterModal] = useState(false);
   const [maxSlots, setMaxSlots] = useState(3);
+  const [creativeAspect, setCreativeAspect] = useState(null);
 
   useEffect(() => {
     loadPricing();
   }, []);
 
   useEffect(() => {
+    setCreativeAspect(null);
     loadAds();
   }, [userZip]);
 
@@ -114,12 +116,27 @@ export default function Supporters() {
         )}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => <div key={i} className="h-48 bg-muted rounded-2xl animate-pulse" />)}
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="bg-muted rounded-2xl animate-pulse w-full"
+                style={{ aspectRatio: String(creativeAspect || 4 / 3) }}
+              />
+            ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {ads.map((ad) => <SupporterAdCard key={ad.id} ad={ad} user={user} />)}
-            {Array.from({ length: placeholderCount }).map((_, i) => <SupporterAdPlaceholder key={`ph-${i}`} />)}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
+            {ads.map((ad) => (
+              <SupporterAdCard
+                key={ad.id}
+                ad={ad}
+                user={user}
+                onCreativeAspect={(ratio) => setCreativeAspect((prev) => prev || ratio)}
+              />
+            ))}
+            {Array.from({ length: placeholderCount }).map((_, i) => (
+              <SupporterAdPlaceholder key={`ph-${i}`} aspectRatio={creativeAspect || 4 / 3} />
+            ))}
           </div>
         )}
       </div>
