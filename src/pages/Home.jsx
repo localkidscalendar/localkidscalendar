@@ -30,10 +30,14 @@ function rotatedShuffle(arr, seed) {
 function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, onToggleSave, user }) {
   const COLS = 3; // grid columns on lg
 
-  // ads is already {type, ad} objects — filter paid ads by zip, keep defaults always
-  const relevantAds = ads.filter(({ type, ad }) =>
-    type === "default" || !zipCode || ad.zip_code === zipCode
-  );
+  // ads is { type: "paid"|"default", ad } — filter paid ads by zip, keep defaults always
+  const relevantAds = (ads || []).filter((item) => {
+    if (!item || typeof item !== "object") return false;
+    if (item.type === "default") return true;
+    if (!zipCode) return true;
+    const ad = item.ad;
+    return !!ad && ad.zip_code === zipCode;
+  });
 
   const rotatedAds = rotatedShuffle(relevantAds, rotationIndex);
 
@@ -334,7 +338,8 @@ export default function Home() {
       if (zip) query = query.eq("zip_code", zip);
       const { data, error } = await query;
       if (error) throw error;
-      setActiveAds(data || []);
+      // AdInjectedFeed expects { type: "paid"|"default", ad } wrappers
+      setActiveAds((data || []).map((ad) => ({ type: "paid", ad })));
     } catch {
       setActiveAds([]);
     }
