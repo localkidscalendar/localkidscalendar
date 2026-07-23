@@ -38,6 +38,8 @@ export default function SupporterAdCard({ ad, user }) {
   const [otherText, setOtherText] = useState("");
   const [authPrompt, setAuthPrompt] = useState(false);
 
+  const isOwner = !!(user?.id && ad?.user_id && user.id === ad.user_id);
+
   const trackClick = async () => {
     if (!clickedRef.current) {
       clickedRef.current = true;
@@ -101,47 +103,73 @@ export default function SupporterAdCard({ ad, user }) {
 
   return (
     <div className="group rounded-2xl border-2 border-black transition-all duration-300 hover:shadow-lg hover:shadow-black/15 hover:-translate-y-0.5 animate-settle bg-white overflow-hidden">
+      {/* Ad image — clickable, full width, unobstructed */}
       <div
         className="h-48 overflow-hidden cursor-pointer"
         onClick={handleImageClick}
         title="Visit advertiser"
       >
-        <img src={ad.image_url} alt={ad.business_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        {ad.image_url ? (
+          <img
+            src={ad.image_url}
+            alt="Supporter ad"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-peach-50 to-peach-100 flex items-center justify-center">
+            <Heart className="w-10 h-10 text-peach-300" />
+          </div>
+        )}
       </div>
-      <div className="px-3 py-2 flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold truncate">{ad.business_name}</p>
+
+      {/* Owner-only creative name (not shown to the public) */}
+      {isOwner && ad.business_name && (
+        <div className="px-3 py-1 bg-muted/40 border-b border-border">
+          <p className="text-[11px] text-muted-foreground truncate">
+            Your ad: <span className="font-medium text-foreground">{ad.business_name}</span>
+          </p>
+        </div>
+      )}
+
+      {/* Footer bar — compact with zip code and actions */}
+      <div className="bg-black/90 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs font-semibold text-white">{ad.zip_code}</span>
+          <span className="text-xs text-gray-300">Supporter</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleFlagButtonClick}
+            title={user ? "Report this ad if it's inaccurate, inappropriate, or spam." : "Report this ad if it's inaccurate, inappropriate, or spam. Requires a registered, signed-in account."}
+            className={`text-gray-400 hover:text-red-400 transition-colors ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            <Flag className="w-3.5 h-3.5" />
+          </button>
           <a
             href={ad.link_url}
             target="_blank"
             rel="noopener noreferrer"
             onClick={trackClick}
-            className="inline-flex items-center gap-1 text-xs text-mint-600 hover:underline"
+            title="Visit advertiser"
+            className="text-gray-400 hover:text-white transition-colors"
           >
-            Visit site <ExternalLink className="w-3 h-3" />
+            <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-          onClick={handleFlagButtonClick}
-          title="Report this ad"
-        >
-          <Flag className="w-3.5 h-3.5" />
-        </Button>
       </div>
+
       {flagOpen && (
-        <form onSubmit={handleSubmitFlag} className="px-3 pb-3 space-y-2 border-t border-border pt-2">
-          <p className="text-xs font-medium">Why are you flagging this ad?</p>
-          <div className="flex flex-wrap gap-1.5">
+        <div className="bg-peach-50 p-3 animate-settle" onClick={(e) => e.stopPropagation()}>
+          <p className="text-xs font-medium mb-2">Why are you flagging this ad?</p>
+          <div className="flex flex-wrap gap-1.5 mb-2">
             {FLAG_REASONS.map((r) => (
               <Button
                 key={r}
                 type="button"
-                size="sm"
                 variant={selectedReason === r ? "default" : "outline"}
-                className="rounded-lg text-xs h-7 capitalize"
+                size="sm"
+                className="rounded-lg text-xs capitalize h-6 px-2"
                 onClick={() => setSelectedReason(r)}
               >
                 {r}
@@ -150,19 +178,41 @@ export default function SupporterAdCard({ ad, user }) {
           </div>
           {selectedReason === "other" && (
             <textarea
+              placeholder="Please describe the issue..."
               value={otherText}
               onChange={(e) => setOtherText(e.target.value)}
-              placeholder="Please describe the issue..."
-              className="w-full rounded-lg border border-border p-2 text-xs"
+              className="w-full rounded-lg border border-peach-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-peach-500 mb-2"
               rows={2}
             />
           )}
           {selectedReason && (
-            <Button type="submit" size="sm" className="rounded-lg text-xs h-7">Submit Report</Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="rounded-lg text-xs h-6"
+                onClick={handleSubmitFlag}
+                disabled={selectedReason === "other" && !otherText.trim()}
+              >
+                Submit
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-lg text-xs h-6"
+                onClick={() => { setFlagOpen(false); setSelectedReason(null); setOtherText(""); }}
+              >
+                Cancel
+              </Button>
+            </div>
           )}
-        </form>
+        </div>
       )}
-      <AuthPromptModal open={authPrompt} onClose={() => setAuthPrompt(false)} message="Sign in to report this ad." />
+
+      <AuthPromptModal
+        open={authPrompt}
+        onOpenChange={setAuthPrompt}
+        message="Sign in to report this ad if it's inaccurate, inappropriate, or spam."
+      />
     </div>
   );
 }
