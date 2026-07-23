@@ -1,16 +1,17 @@
 import React from "react";
 
 /**
- * Default/filler ad — same creative frame as paid ads (h-48 + black bar).
- * Images use object-cover: fill the frame, crop overflow (keep subject centered).
+ * Default/filler ad — photo only (no footer).
+ * h-56 ≈ paid SupporterAdCard total (h-48 creative + black footer).
+ * object-cover fills the taller frame; keep subject centered when uploading.
  */
 export default function DefaultAdCard({ ad }) {
   return (
     <a
       href={ad.link_url}
-      className="group block rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 animate-settle bg-white border-2 border-transparent"
+      className="group block rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 animate-settle bg-white"
     >
-      <div className="h-48 overflow-hidden">
+      <div className="h-56 overflow-hidden">
         {ad.image_url ? (
           <img
             src={ad.image_url}
@@ -22,10 +23,6 @@ export default function DefaultAdCard({ ad }) {
             <span className="font-heading font-bold text-lg text-mint-600">{ad.ad_name}</span>
           </div>
         )}
-      </div>
-      {/* Height-matched bar so filler cards align with paid ads (zip / flag / link footer) */}
-      <div className="bg-black/90 backdrop-blur-sm px-3 py-1.5">
-        <span className="text-xs text-gray-300">Community</span>
       </div>
     </a>
   );

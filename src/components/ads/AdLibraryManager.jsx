@@ -462,7 +462,7 @@ function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, o
       <div>
         <Label>Ad Image *</Label>
         <p className="text-xs text-muted-foreground mt-0.5 mb-1">
-          Recommended: 600 × 400 px (3:2 landscape), JPG or PNG, under 2 MB. Keep the main subject centered — images fill the ad frame and may crop edges if the ratio differs.
+          Recommended: 600 × 400 px (3:2 landscape), JPG or PNG, under 2 MB. Keep the main subject centered — the image fills the frame and may crop edges if the ratio differs.
         </p>
         <div className="mt-2 space-y-2">
           {form.image_url ? (

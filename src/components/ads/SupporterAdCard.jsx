@@ -100,7 +100,7 @@ export default function SupporterAdCard({ ad, user }) {
 
   return (
     <div className="group rounded-2xl border-2 border-black transition-all duration-300 hover:shadow-lg hover:shadow-black/15 hover:-translate-y-0.5 animate-settle bg-white overflow-hidden flex flex-col">
-      {/* Creative frame — object-cover fills frame and crops overflow; h-48 + footer matches DefaultAdCard */}
+      {/* Creative frame — h-48 + footer ≈ DefaultAdCard h-56; object-cover fills and crops */}
       <div
         className="h-48 overflow-hidden cursor-pointer"
         onClick={handleImageClick}

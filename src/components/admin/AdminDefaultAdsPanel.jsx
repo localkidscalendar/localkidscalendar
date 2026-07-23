@@ -153,7 +153,7 @@ export default function AdminDefaultAdsPanel({ toast }) {
               {ad ? (
                 <>
                   {ad.image_url && (
-                    <div className="w-full aspect-[3/2] rounded-lg border border-border mb-1 overflow-hidden">
+                    <div className="w-full aspect-[600/467] rounded-lg border border-border mb-1 overflow-hidden">
                       <img src={ad.image_url} alt={ad.ad_name} className="w-full h-full object-cover" />
                     </div>
                   )}
@@ -186,15 +186,15 @@ export default function AdminDefaultAdsPanel({ toast }) {
           <div>
             <Label>Ad Image</Label>
             <p className="text-xs text-muted-foreground mt-0.5 mb-1">
-              Recommended: 600 × 400 px (3:2 landscape), JPG or PNG, under 2 MB. Keep the main subject centered — images fill the ad frame and may crop edges if the ratio differs.
+              Recommended: 600 × 467 px (taller than Supporter ads — full photo, no footer bar), JPG or PNG, under 2 MB. Keep the main subject centered — the image fills the frame and may crop edges if the ratio differs.
             </p>
             <div className="mt-2 space-y-2">
               {form.image_url ? (
-                <div className="w-full max-w-sm aspect-[3/2] rounded-xl border border-border overflow-hidden">
+                <div className="w-full max-w-sm aspect-[600/467] rounded-xl border border-border overflow-hidden">
                   <img src={form.image_url} alt="Preview" className="w-full h-full object-cover" />
                 </div>
               ) : (
-                <div className="w-full max-w-sm aspect-[3/2] rounded-xl bg-muted flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border">
+                <div className="w-full max-w-sm aspect-[600/467] rounded-xl bg-muted flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border">
                   No image
                 </div>
               )}
@@ -232,7 +232,7 @@ export default function AdminDefaultAdsPanel({ toast }) {
               <div key={ad.id} className="bg-muted/20 rounded-2xl border border-border p-4">
                 <div className="flex items-start gap-4">
                   {ad.image_url && (
-                    <div className="w-28 aspect-[3/2] rounded-xl border border-border shrink-0 overflow-hidden">
+                    <div className="w-28 aspect-[600/467] rounded-xl border border-border shrink-0 overflow-hidden">
                       <img src={ad.image_url} alt={ad.ad_name} className="w-full h-full object-cover" />
                     </div>
                   )}
