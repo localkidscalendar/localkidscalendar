@@ -5,26 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, CheckCircle, Images, List, Shield, ChevronDown, ChevronUp,
-  MapPin, AlertTriangle, Timer, Plus, Eye, MousePointerClick,
+  MapPin, AlertTriangle, Timer, Plus, Eye, MousePointerClick, BarChart3,
+  PauseCircle, RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import moment from "moment";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
+import ActiveAdCard from "@/components/ads/ActiveAdCard";
+import InactiveAdCard from "@/components/ads/InactiveAdCard";
 import { SUPPORTER_RULES, TOS_INTRO, TOS_SECTIONS, TOS_FOOTER } from "@/lib/supporterContent";
 
 const SLOT_HOLDING_STATUSES = ["active", "pending_payment", "pending_review", "flagged", "past_due"];
 const RESERVATION_MINUTES = 10;
-
-const STATUS_LABEL = {
-  pending_review: { label: "Pending review", color: "bg-yellow-100 text-yellow-700" },
-  active: { label: "Active", color: "bg-mint-100 text-mint-600" },
-  rejected: { label: "Rejected", color: "bg-red-100 text-red-600" },
-  flagged: { label: "Flagged", color: "bg-peach-100 text-peach-600" },
-  cancelled: { label: "Cancelled", color: "bg-muted text-muted-foreground" },
-  expired: { label: "Expired", color: "bg-muted text-muted-foreground" },
-  pending_payment: { label: "Pending payment", color: "bg-yellow-100 text-yellow-700" },
-};
 
 function RulesAndTerms() {
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -95,14 +87,12 @@ function RulesAndTerms() {
 
 function StatCard({ icon: Icon, label, value }) {
   return (
-    <div className="bg-white rounded-2xl border border-border p-4 flex items-center gap-3">
-      <div className="w-9 h-9 rounded-xl bg-mint-50 flex items-center justify-center shrink-0">
-        <Icon className="w-4 h-4 text-mint-500" />
+    <div className="bg-white rounded-2xl border border-border p-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className="w-4 h-4 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">{label}</span>
       </div>
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="font-heading font-bold text-lg leading-tight">{value}</p>
-      </div>
+      <p className="font-heading font-bold text-2xl">{value}</p>
     </div>
   );
 }
@@ -595,8 +585,10 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
 
 export default function AdManager() {
   const { user, userLoading } = useOutletContext();
+  const { toast } = useToast();
   const [ads, setAds] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [activeTab, setActiveTab] = useState("ads");
 
@@ -604,8 +596,9 @@ export default function AdManager() {
     if (!userLoading && user) loadAds();
   }, [user, userLoading]);
 
-  const loadAds = async () => {
-    setLoading(true);
+  const loadAds = async ({ silent } = {}) => {
+    if (silent) setRefreshing(true);
+    else setLoading(true);
     try {
       const { data, error } = await supabase
         .from("banner_ads")
@@ -615,10 +608,13 @@ export default function AdManager() {
         .limit(50);
       if (error) throw error;
       setAds(data || []);
+      if (silent) toast({ title: "Ads refreshed" });
     } catch {
       setAds([]);
+      if (silent) toast({ title: "Refresh failed", variant: "destructive" });
     }
-    setLoading(false);
+    if (silent) setRefreshing(false);
+    else setLoading(false);
   };
 
   if (userLoading) {
@@ -656,25 +652,44 @@ export default function AdManager() {
   }
 
   const activeAds = ads.filter((a) => a.status === "active");
+  const inactiveAds = ads
+    .filter((a) => a.status !== "active")
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
   const impressions = ads.reduce((sum, a) => sum + Number(a.impressions || 0), 0);
   const clicks = ads.reduce((sum, a) => sum + Number(a.clicks || 0), 0);
+  const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(1) : "0.0";
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="font-heading font-bold text-2xl">Ad Manager</h1>
-        <p className="text-sm text-muted-foreground">
-          Beta mode: upload creatives, check zip availability, and request activation. Paid Stripe checkout returns after beta.
-        </p>
-      </div>
-
-      {!showNewForm && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-          <StatCard icon={CheckCircle} label="Active Ads" value={activeAds.length} />
-          <StatCard icon={Eye} label="Impressions" value={impressions} />
-          <StatCard icon={MousePointerClick} label="Clicks" value={clicks} />
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <h1 className="font-heading font-bold text-2xl">Ad Manager</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage your Supporter advertising campaigns
+          </p>
         </div>
-      )}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl"
+            disabled={refreshing || showNewForm}
+            onClick={() => loadAds({ silent: true })}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          {!showNewForm && (
+            <Button
+              size="sm"
+              className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
+              onClick={() => setShowNewForm(true)}
+            >
+              <Plus className="w-4 h-4 mr-1" /> New Ad
+            </Button>
+          )}
+        </div>
+      </div>
 
       {showNewForm ? (
         <NewAdForm
@@ -691,70 +706,106 @@ export default function AdManager() {
           }}
         />
       ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="rounded-xl mb-4">
-            <TabsTrigger value="ads" className="rounded-lg flex items-center gap-1.5"><List className="w-3.5 h-3.5" />My Ads</TabsTrigger>
-            <TabsTrigger value="library" className="rounded-lg flex items-center gap-1.5"><Images className="w-3.5 h-3.5" />Ad Library</TabsTrigger>
-            <TabsTrigger value="rules" className="rounded-lg flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Rules & Terms</TabsTrigger>
-          </TabsList>
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            <StatCard icon={Eye} label="Total Impressions" value={impressions.toLocaleString()} />
+            <StatCard icon={MousePointerClick} label="Total Clicks" value={clicks.toLocaleString()} />
+            <StatCard icon={BarChart3} label="Click-Through Rate" value={`${ctr}%`} />
+            <StatCard icon={CheckCircle} label="Active Ads" value={activeAds.length} />
+          </div>
 
-          <TabsContent value="ads" className="space-y-4">
-            <div className="flex justify-end">
-              <Button size="sm" className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={() => setShowNewForm(true)}>
-                <Plus className="w-4 h-4 mr-1" /> Submit a New Ad
-              </Button>
-            </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="rounded-xl mb-4 flex-wrap h-auto">
+              <TabsTrigger value="ads" className="rounded-lg flex items-center gap-1.5">
+                <List className="w-3.5 h-3.5" />My Ads ({ads.length})
+              </TabsTrigger>
+              <TabsTrigger value="library" className="rounded-lg flex items-center gap-1.5">
+                <Images className="w-3.5 h-3.5" />Ad Library
+              </TabsTrigger>
+              <TabsTrigger value="rules" className="rounded-lg flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5" />Rules & Terms
+              </TabsTrigger>
+            </TabsList>
 
-            <div className="bg-white rounded-2xl border border-border p-5">
-              <AdminSectionHeader title="My Ads" icon={List} />
+            <TabsContent value="ads" className="space-y-8">
               {loading ? (
-                <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-mint-500" /></div>
-              ) : ads.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-10">
-                  No ads yet. Add an approved creative in Ad Library, then Submit a New Ad to check zip availability.
-                </p>
-              ) : (
-                <div className="space-y-3 mt-3">
-                  {ads.map((ad) => {
-                    const st = STATUS_LABEL[ad.status] || STATUS_LABEL.pending_review;
-                    return (
-                      <div key={ad.id} className="flex gap-3 p-3 rounded-xl border border-border">
-                        <img src={ad.image_url} alt={ad.business_name} className="w-20 h-14 rounded-lg object-cover border" />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{ad.business_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Zip {ad.zip_code} · {moment(ad.created_at).format("MMM D, YYYY")}
-                          </p>
-                          <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>{st.label}</span>
-                          {ad.moderation_notes && <p className="text-xs text-destructive mt-1">{ad.moderation_notes}</p>}
-                        </div>
-                        <div className="text-right text-xs text-muted-foreground shrink-0">
-                          <div className="flex items-center gap-1 justify-end"><Eye className="w-3 h-3" />{ad.impressions || 0}</div>
-                          <div className="flex items-center gap-1 justify-end mt-1"><MousePointerClick className="w-3 h-3" />{ad.clicks || 0}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex justify-center py-10">
+                  <Loader2 className="w-5 h-5 animate-spin text-mint-500" />
                 </div>
+              ) : ads.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-2xl border border-border">
+                  <BarChart3 className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+                  <p className="font-heading font-semibold mb-1">No ads yet</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Add an approved creative in Ad Library, then submit a new ad for a zip code.
+                  </p>
+                  <Button
+                    className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
+                    onClick={() => setShowNewForm(true)}
+                  >
+                    Submit Your First Ad
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <AdminSectionHeader title="My Active Ads" icon={CheckCircle} />
+                    <div className="bg-white rounded-2xl border border-border p-5">
+                      {activeAds.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No active ads.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {activeAds.map((ad) => (
+                            <ActiveAdCard
+                              key={ad.id}
+                              ad={ad}
+                              user={user}
+                              onRefresh={() => loadAds({ silent: true })}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <AdminSectionHeader title="My Inactive Ads" icon={PauseCircle} />
+                    <div className="bg-white rounded-2xl border border-border p-5">
+                      {inactiveAds.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No inactive ads.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {inactiveAds.map((ad) => (
+                            <InactiveAdCard
+                              key={ad.id}
+                              ad={ad}
+                              user={user}
+                              onRefresh={() => loadAds({ silent: true })}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
-            </div>
-          </TabsContent>
+            </TabsContent>
 
-          <TabsContent value="library">
-            <div className="bg-white rounded-2xl border border-border p-5">
-              <AdLibraryManager user={user} />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="rules">
-            <div className="bg-white rounded-2xl border border-border p-5">
-              <AdminSectionHeader title="Rules & Terms" icon={Shield} />
-              <div className="mt-3">
-                <RulesAndTerms />
+            <TabsContent value="library">
+              <div className="bg-white rounded-2xl border border-border p-5">
+                <AdLibraryManager user={user} />
               </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+            </TabsContent>
+
+            <TabsContent value="rules">
+              <div className="bg-white rounded-2xl border border-border p-5">
+                <AdminSectionHeader title="Rules & Terms" icon={Shield} />
+                <div className="mt-3">
+                  <RulesAndTerms />
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </>
       )}
     </div>
   );
