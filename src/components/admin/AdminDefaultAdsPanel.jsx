@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Upload, Trash2, ExternalLink, Plus, Star } from "lucide-react";
+import { DEFAULT_AD_IMAGE_RECOMMENDED } from "@/lib/supporterContent";
+import HelpTip from "@/components/shared/HelpTip";
 
 const SLOT_LABELS = { is_slot_1: "Ad 1", is_slot_2: "Ad 2", is_slot_3: "Ad 3" };
 
@@ -184,10 +186,11 @@ export default function AdminDefaultAdsPanel({ toast }) {
             <Input className="mt-1" placeholder="Promote Advertising" value={form.ad_name} onChange={(e) => setForm((f) => ({ ...f, ad_name: e.target.value }))} />
           </div>
           <div>
-            <Label>Ad Image</Label>
-            <p className="text-xs text-muted-foreground mt-0.5 mb-1">
-              Recommended: 600 × 467 px (taller than Supporter ads — full photo, no footer bar), JPG or PNG, under 2 MB. Keep the main subject centered — the image fills the frame and may crop edges if the ratio differs.
-            </p>
+            <Label className="flex items-center gap-1">
+              Ad Image
+              <HelpTip text={DEFAULT_AD_IMAGE_RECOMMENDED} />
+            </Label>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-1">{DEFAULT_AD_IMAGE_RECOMMENDED}</p>
             <div className="mt-2 space-y-2">
               {form.image_url ? (
                 <div className="w-full max-w-sm aspect-[600/467] rounded-xl border border-border overflow-hidden">
