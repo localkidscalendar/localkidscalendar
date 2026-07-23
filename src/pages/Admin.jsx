@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useOutletContext, useNavigate, Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -62,25 +62,44 @@ export default function Admin() {
     loadAll();
   }, [user]);
 
+  const withCreatedDate = (row) => ({
+    ...row,
+    created_date: row.created_at || row.created_date,
+  });
+
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [evts, flg, adsList, usersList, msgs, orgList] = await Promise.all([
-        base44.entities.Event.list("-created_date", 100),
-        base44.entities.FlagReport.list("-created_date", 50),
-        base44.entities.BannerAd.list("-created_date", 50),
-        base44.entities.User.list("-created_date", 100),
-        base44.entities.ContactMessage.list("-created_date", 100),
-        base44.entities.Organizer.list("-created_date", 100),
+      const [evtsRes, usersRes, msgsRes, orgRes] = await Promise.all([
+        supabase.from("events").select("*").order("created_at", { ascending: false }).limit(100),
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(200),
+        supabase.from("contact_messages").select("*").order("created_at", { ascending: false }).limit(100),
+        supabase.from("organizers").select("*").order("created_at", { ascending: false }).limit(200),
       ]);
+
+      if (evtsRes.error) throw evtsRes.error;
+      if (usersRes.error) throw usersRes.error;
+      if (msgsRes.error) throw msgsRes.error;
+      if (orgRes.error) throw orgRes.error;
+
+      const evts = (evtsRes.data || []).map(withCreatedDate);
+      // Flag reports + ads tables are not migrated yet — keep empty for this slice
+      const flg = [];
+      const adsList = [];
+      const usersList = (usersRes.data || []).map((u) => {
+        const full_name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
+        return { ...withCreatedDate(u), full_name: full_name || u.email || "—" };
+      });
+      const msgs = (msgsRes.data || []).map(withCreatedDate);
+      const orgList = orgRes.data || [];
+
       setEvents(evts);
       setFlags(flg);
       setAds(adsList);
       setUsers(usersList);
       setMessages(msgs);
-      // Build a map of user_id -> org_name for organizers
       const map = {};
-      orgList.forEach(o => { if (o.user_id) map[o.user_id] = o.org_name; });
+      orgList.forEach((o) => { if (o.user_id) map[o.user_id] = o.org_name; });
       setOrganizerMap(map);
       setStats({
         totalEvents: evts.filter((e) => e.status === "active").length,
@@ -90,38 +109,31 @@ export default function Admin() {
         organizers: usersList.filter((u) => u.role === "organizer").length,
         unreadMessages: msgs.filter((m) => m.status === "unread").length,
       });
-    } catch {}
+    } catch (err) {
+      console.error("Admin load failed", err);
+      toast({ title: "Failed to load admin data", description: err.message, variant: "destructive" });
+    }
     setLoading(false);
   };
 
-  const sendEventDeletionEmail = async (event, notes) => {
-    try {
-      if (!event.created_by_id) return;
-      const contributor = await base44.entities.User.get(event.created_by_id);
-      if (!contributor?.email) return;
-      const subject = "Your activity has been removed from LocalKidsCalendar";
-      const html = `
-        <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;">
-          <h2 style="margin:0 0 12px;">Your activity was removed</h2>
-          <p>Hi ${contributor.full_name || "there"},</p>
-          <p>Your posted activity "<strong>${event.title}</strong>" has been removed from LocalKidsCalendar by our Admin team.</p>
-          <p><strong>Reason:</strong> ${notes}</p>
-          <p>You can view this note on your Account page under My Posts. If you believe this was a mistake, please contact us.</p>
-          <p><a href="https://app.localkidscalendar.com/account" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to My Account</a></p>
-        </div>
-      `;
-      await base44.integrations.Core.SendEmail({ to: contributor.email, subject, body: html, from_name: "LocalKidsCalendar" });
-    } catch (err) {
-      console.error("Failed to send activity removal email", err);
-    }
+  const sendEventDeletionEmail = async (_event, _notes) => {
+    // Email delivery is not wired on Supabase yet; removal notes still show on My Posts.
   };
 
   const handleDeleteEvent = async (event) => {
     if (!window.confirm(`Delete "${event.title}"? This will remove it from the public site immediately.`)) return;
-    const notes = window.prompt("Provide an explanation for removing this activity. This will be shown to the contributor on their Dashboard and emailed to them:");
+    const notes = window.prompt("Provide an explanation for removing this activity. This will be shown to the contributor on their Dashboard:");
     if (notes === null) return;
     if (!notes.trim()) { toast({ title: "An explanation is required to delete this activity.", variant: "destructive" }); return; }
-    await base44.entities.Event.update(event.id, { status: "deleted", admin_notes: notes.trim() });
+    const { error } = await supabase.from("events").update({
+      status: "deleted",
+      admin_notes: notes.trim(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", event.id);
+    if (error) {
+      toast({ title: "Failed to remove activity", description: error.message, variant: "destructive" });
+      return;
+    }
     sendEventDeletionEmail(event, notes.trim());
     toast({ title: "Activity removed" });
     loadAll();
@@ -149,18 +161,20 @@ export default function Admin() {
       const eventIds = [...new Set(flags.filter((f) => f.target_type === "event").map((f) => f.target_id))];
       const commentIds = [...new Set(flags.filter((f) => f.target_type === "comment").map((f) => f.target_id))];
       const titles = {};
-      
-      for (const eventId of eventIds) {
-        const e = await base44.entities.Event.get(eventId);
-        if (e) titles[eventId] = { type: "event", title: e.title };
+
+      if (eventIds.length) {
+        const { data } = await supabase.from("events").select("id, title").in("id", eventIds);
+        (data || []).forEach((e) => { titles[e.id] = { type: "event", title: e.title }; });
       }
-      
-      for (const commentId of commentIds) {
-        const c = await base44.entities.Comment.get(commentId);
-        if (c) {
-          titles[commentId] = { type: "comment", content: c.content, event_id: c.event_id };
-          const e = await base44.entities.Event.get(c.event_id);
-          if (e && !titles[c.event_id]) titles[c.event_id] = { type: "event", title: e.title };
+
+      if (commentIds.length) {
+        const { data: comments } = await supabase.from("comments").select("id, content, event_id").in("id", commentIds);
+        for (const c of comments || []) {
+          titles[c.id] = { type: "comment", content: c.content, event_id: c.event_id };
+          if (c.event_id && !titles[c.event_id]) {
+            const { data: e } = await supabase.from("events").select("id, title").eq("id", c.event_id).maybeSingle();
+            if (e) titles[e.id] = { type: "event", title: e.title };
+          }
         }
       }
       setEventMap(titles);
@@ -169,16 +183,18 @@ export default function Admin() {
 
   const loadDeletedItems = async () => {
     try {
-      const archivedEvents = await base44.entities.Event.filter({ status: "archived" }, "-created_date", 50);
-      const archivedComments = await base44.entities.Comment.filter({ status: "archived" }, "-created_date", 50);
-      const itemsWithFlags = archivedEvents.map((e) => {
+      const [{ data: archivedEvents }, { data: archivedComments }] = await Promise.all([
+        supabase.from("events").select("*").eq("status", "archived").order("created_at", { ascending: false }).limit(50),
+        supabase.from("comments").select("*").eq("status", "archived").order("created_at", { ascending: false }).limit(50),
+      ]);
+      const itemsWithFlags = (archivedEvents || []).map((e) => {
         const relatedFlags = flags.filter((f) => f.target_id === e.id && f.target_type === "event");
-        return { type: "event", item: e, flags: relatedFlags };
+        return { type: "event", item: withCreatedDate(e), flags: relatedFlags };
       });
-      const commentsWithFlags = archivedComments.map((c) => {
+      const commentsWithFlags = (archivedComments || []).map((c) => {
         const relatedFlags = flags.filter((f) => f.target_id === c.id && f.target_type === "comment");
         const eventTitle = eventMap[c.event_id] || "—";
-        return { type: "comment", item: c, flags: relatedFlags, eventTitle };
+        return { type: "comment", item: withCreatedDate(c), flags: relatedFlags, eventTitle };
       });
       setDeletedItems([...itemsWithFlags, ...commentsWithFlags]);
     } catch {}
@@ -186,7 +202,6 @@ export default function Admin() {
 
   const loadFlaggingUsers = async () => {
     try {
-      // Tally flagging users from flagged_by arrays on Event records
       const tally = {};
       events.forEach((e) => {
         if (Array.isArray(e.flagged_by)) {
@@ -196,7 +211,6 @@ export default function Admin() {
           });
         }
       });
-      // Also tally from FlagReport records if any exist
       flags.forEach((f) => {
         if (f.reporter_id) {
           if (!tally[f.reporter_id]) tally[f.reporter_id] = { id: f.reporter_id, name: f.reporter_name, count: 0 };
@@ -204,10 +218,8 @@ export default function Admin() {
           tally[f.reporter_id].count += 1;
         }
       });
-      // Resolve names from the users list already loaded
-      const allUsers = await base44.entities.User.list("-created_date", 200);
       const userNameMap = {};
-      allUsers.forEach((u) => { userNameMap[u.id] = u.full_name || u.email || "Unknown"; });
+      users.forEach((u) => { userNameMap[u.id] = u.full_name || u.email || "Unknown"; });
       const result = Object.values(tally).map((t) => ({
         ...t,
         name: t.name || userNameMap[t.id] || "Unknown",
@@ -217,55 +229,51 @@ export default function Admin() {
   };
 
   const handleSendTestEmail = async () => {
-    if (!window.confirm(`Are you sure you want to send notification emails to all matching users with ${testEmailFreq} frequency? This action cannot be undone.`)) {
-      return;
-    }
-    setSendingTest(true);
-    try {
-      const response = await base44.functions.invoke("sendNotificationEmails", { frequency: testEmailFreq });
-      const { sent, eventsConsidered } = response.data;
-      toast({ title: `Test run complete: ${sent} email(s) sent`, description: `${eventsConsidered} upcoming events were considered.` });
-    } catch (e) {
-      toast({ title: "Failed to send test", description: e.message, variant: "destructive" });
-    }
-    setSendingTest(false);
+    toast({
+      title: "Not available yet",
+      description: "Notification emails will be wired after the email engine is moved off Base44.",
+      variant: "destructive",
+    });
   };
 
   const handleSendPreviewToMe = async () => {
-    setSendingPreview(true);
-    try {
-      const response = await base44.functions.invoke("sendNotificationEmails", { frequency: testEmailFreq, preview_to: user.email });
-      const { sent } = response.data;
-      if (sent > 0) {
-        toast({ title: "Preview email sent!", description: `Check your inbox at ${user.email}` });
-      } else {
-        toast({ title: "No matching events found", description: "There are no upcoming active events to include in the preview.", variant: "destructive" });
-      }
-    } catch (e) {
-      toast({ title: "Failed to send preview", description: e.message, variant: "destructive" });
-    }
-    setSendingPreview(false);
+    toast({
+      title: "Not available yet",
+      description: "Preview emails will be wired after the email engine is moved off Base44.",
+      variant: "destructive",
+    });
   };
 
-  const handleAdStatus = async (id, status) => {
-    await base44.entities.BannerAd.update(id, { status });
-    toast({ title: `Ad ${status}` });
-    loadAll();
+  const handleAdStatus = async (_id, _status) => {
+    toast({
+      title: "Not available yet",
+      description: "Supporter ads are not on Supabase yet.",
+      variant: "destructive",
+    });
   };
 
   const handleReactivateItem = async (itemId, itemType) => {
-    const updates = { status: "active" };
+    const table = itemType === "event" ? "events" : "comments";
+    const updates = { status: "active", updated_at: new Date().toISOString() };
     if (itemType === "event") updates.admin_notes = "";
-    await base44.entities[itemType === "event" ? "Event" : "Comment"].update(itemId, updates);
+    const { error } = await supabase.from(table).update(updates).eq("id", itemId);
+    if (error) {
+      toast({ title: "Failed to reactivate", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: `${itemType === "event" ? "Event" : "Comment"} reactivated` });
     loadAll();
   };
 
   const handleApproveDelete = async (itemId) => {
-    // Approve deletion by permanently deleting the item
     const item = deletedItems.find((d) => d.item.id === itemId);
     if (item) {
-      await base44.entities[item.type === "event" ? "Event" : "Comment"].delete(itemId);
+      const table = item.type === "event" ? "events" : "comments";
+      const { error } = await supabase.from(table).delete().eq("id", itemId);
+      if (error) {
+        toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
+        return;
+      }
       toast({ title: `${item.type === "event" ? "Event" : "Comment"} permanently deleted` });
       loadAll();
     }
@@ -273,44 +281,83 @@ export default function Admin() {
 
   const handleDisableUser = async (userId) => {
     if (!window.confirm("Are you sure you want to disable this user? They will be unable to access the platform.")) return;
-    await base44.entities.User.update(userId, { role: "disabled" });
+    const { error } = await supabase.from("profiles").update({
+      role: "disabled",
+      updated_at: new Date().toISOString(),
+    }).eq("id", userId);
+    if (error) {
+      toast({ title: "Failed to disable user", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "User account disabled" });
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: "disabled" } : u));
+    setDisabledUsers((prev) => new Set([...prev, userId]));
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role: "disabled" } : u)));
   };
 
   const handleReactivateUser = async (userId) => {
     if (!window.confirm("Are you sure you want to reactivate this user?")) return;
-    await base44.entities.User.update(userId, { role: "user" });
+    const { error } = await supabase.from("profiles").update({
+      role: "community_member",
+      updated_at: new Date().toISOString(),
+    }).eq("id", userId);
+    if (error) {
+      toast({ title: "Failed to reactivate user", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "User account reactivated" });
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: "user" } : u));
+    setDisabledUsers((prev) => {
+      const next = new Set(prev);
+      next.delete(userId);
+      return next;
+    });
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, role: "community_member" } : u)));
   };
 
   const handleRemoveFlaggedItem = async (flagId, targetId, targetType) => {
     if (!window.confirm("Archive this item? You can restore it later from the Archived Items section.")) return;
-    await base44.entities[targetType === "event" ? "Event" : "Comment"].update(targetId, { status: "archived" });
-    if (flagId) await base44.entities.FlagReport.delete(flagId);
+    const table = targetType === "event" ? "events" : "comments";
+    const { error } = await supabase.from(table).update({
+      status: "archived",
+      updated_at: new Date().toISOString(),
+    }).eq("id", targetId);
+    if (error) {
+      toast({ title: "Failed to archive", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (flagId) setFlags((prev) => prev.filter((f) => f.id !== flagId));
     toast({ title: `${targetType === "event" ? "Event" : "Comment"} archived` });
     loadAll();
   };
 
   const handleRestoreArchivedItem = async (itemId, itemType) => {
-    await base44.entities[itemType === "event" ? "Event" : "Comment"].update(itemId, { status: "active" });
+    const table = itemType === "event" ? "events" : "comments";
+    const { error } = await supabase.from(table).update({
+      status: "active",
+      updated_at: new Date().toISOString(),
+    }).eq("id", itemId);
+    if (error) {
+      toast({ title: "Failed to restore", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: `${itemType === "event" ? "Event" : "Comment"} restored` });
     loadAll();
   };
 
   const handlePermanentlyDeleteArchivedItem = async (itemId, itemType) => {
     if (!window.confirm("Permanently delete this item? This cannot be undone.")) return;
-    await base44.entities[itemType === "event" ? "Event" : "Comment"].delete(itemId);
+    const table = itemType === "event" ? "events" : "comments";
+    const { error } = await supabase.from(table).delete().eq("id", itemId);
+    if (error) {
+      toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: `${itemType === "event" ? "Event" : "Comment"} permanently deleted` });
     loadAll();
   };
 
   const handleReviewedFlag = async (flagId) => {
-    await base44.entities.FlagReport.delete(flagId);
+    setFlags((prev) => prev.filter((f) => f.id !== flagId));
     toast({ title: "Flag marked as reviewed" });
-    const updatedFlags = await base44.entities.FlagReport.list("-created_date", 50);
-    setFlags(updatedFlags);
   };
 
   const filteredAndSortedEvents = useMemo(() => {
@@ -342,7 +389,12 @@ export default function Admin() {
     let filtered = users;
     if (userSearch.trim()) {
       const search = userSearch.toLowerCase();
-      filtered = users.filter((u) => (u.full_name || "").toLowerCase().includes(search) || u.email.toLowerCase().includes(search));
+      filtered = users.filter((u) =>
+        (u.full_name || "").toLowerCase().includes(search)
+        || (u.first_name || "").toLowerCase().includes(search)
+        || (u.last_name || "").toLowerCase().includes(search)
+        || (u.email || "").toLowerCase().includes(search)
+      );
     }
     let sorted = [...filtered];
     if (userSortBy === "name") {
@@ -535,7 +587,11 @@ export default function Admin() {
                             Archive Event
                           </Button>
                           <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 text-gray-600 border-gray-200"
-                            onClick={async () => { await base44.entities.Event.update(e.id, { flag_count: 0, flagged_by: [] }); toast({ title: "Flags cleared" }); loadAll(); }}>
+                            onClick={async () => {
+                              const { error } = await supabase.from("events").update({ flag_count: 0, flagged_by: [] }).eq("id", e.id);
+                              if (error) toast({ title: "Failed to clear flags", description: error.message, variant: "destructive" });
+                              else { toast({ title: "Flags cleared" }); loadAll(); }
+                            }}>
                             Clear Flags
                           </Button>
                         </div>
@@ -875,9 +931,17 @@ export default function Admin() {
                             variant="outline"
                             className={`rounded-lg text-xs h-7 ${u.is_advertiser ? "text-peach-500 border-peach-200" : "text-muted-foreground border-border"}`}
                             onClick={async () => {
-                              await base44.entities.User.update(u.id, { is_advertiser: !u.is_advertiser });
-                              setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_advertiser: !x.is_advertiser } : x));
-                              toast({ title: u.is_advertiser ? "Supporter role removed" : "Supporter role granted" });
+                              const next = !u.is_advertiser;
+                              const { error } = await supabase.from("profiles").update({
+                                is_advertiser: next,
+                                updated_at: new Date().toISOString(),
+                              }).eq("id", u.id);
+                              if (error) {
+                                toast({ title: "Failed to update supporter", description: error.message, variant: "destructive" });
+                                return;
+                              }
+                              setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_advertiser: next } : x)));
+                              toast({ title: next ? "Supporter role granted" : "Supporter role removed" });
                             }}
                           >
                             {u.is_advertiser ? "✦ Supporter" : "Grant Supporter"}
@@ -1002,16 +1066,28 @@ export default function Admin() {
                   </div>
                   <div className="flex gap-2 shrink-0">
                     {m.status === "unread" && (
-                      <Button variant="outline" size="sm" className="rounded-lg text-xs h-7" onClick={async () => { await base44.entities.ContactMessage.update(m.id, { status: "read" }); loadAll(); }}>
+                      <Button variant="outline" size="sm" className="rounded-lg text-xs h-7" onClick={async () => {
+                        const { error } = await supabase.from("contact_messages").update({ status: "read", updated_at: new Date().toISOString() }).eq("id", m.id);
+                        if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
+                        else loadAll();
+                      }}>
                         Mark Read
                       </Button>
                     )}
                     {m.status !== "resolved" && (
-                      <Button variant="outline" size="sm" className="rounded-lg text-xs h-7 text-mint-500 border-mint-200" onClick={async () => { await base44.entities.ContactMessage.update(m.id, { status: "resolved" }); loadAll(); }}>
+                      <Button variant="outline" size="sm" className="rounded-lg text-xs h-7 text-mint-500 border-mint-200" onClick={async () => {
+                        const { error } = await supabase.from("contact_messages").update({ status: "resolved", updated_at: new Date().toISOString() }).eq("id", m.id);
+                        if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
+                        else loadAll();
+                      }}>
                         Resolve
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={async () => { await base44.entities.ContactMessage.delete(m.id); loadAll(); }}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={async () => {
+                      const { error } = await supabase.from("contact_messages").delete().eq("id", m.id);
+                      if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
+                      else loadAll();
+                    }}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
