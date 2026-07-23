@@ -253,8 +253,9 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
         image_url: selectedAsset.image_url,
         link_url: selectedAsset.link_url,
         zip_code: form.zip_code.trim(),
-        status: "pending_review",
-        moderation_status: "needs_review",
+        // Beta: billing waived + creative already approved → go live immediately.
+        status: "active",
+        moderation_status: "approved",
         plan_type: form.plan_type,
         rate_at_purchase: rate,
         ad_library_id: selectedAsset.id,
@@ -266,8 +267,8 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
       if (error) throw error;
 
       toast({
-        title: "Placement requested",
-        description: "An admin will review and activate it for beta (billing waived).",
+        title: "Ad is live!",
+        description: `Your Supporter ad for zip ${form.zip_code.trim()} is now active on the homepage for that zip.`,
       });
       onSuccess();
     } catch (err) {
@@ -418,7 +419,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
               <button type="button" onClick={onGoToLibrary} className="text-mint-500 underline font-semibold">Ad Library</button>
               {" "}(image + destination URL pre-approved)
             </p>
-            <p>✦ During beta, billing is waived — an admin activates approved placements</p>
+            <p>✦ During beta, billing is waived and your ad goes live as soon as you publish</p>
             <p>✦ Once you confirm a zip code, you'll have <strong>{RESERVATION_MINUTES} minutes</strong> to complete your request</p>
             <p>
               ✦ Please review our <a href="/supporters" target="_blank" rel="noreferrer" className="text-mint-500 underline">Supporter Community Rules</a>
@@ -568,7 +569,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
             </div>
             <div className="flex justify-between pt-2 border-t border-border">
               <span className="text-muted-foreground font-medium">Beta billing</span>
-              <span className="font-semibold text-mint-600">Waived</span>
+              <span className="font-semibold text-mint-600">Waived — goes live now</span>
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -582,8 +583,8 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
               onClick={handleSubmitRequest}
             >
               {submitting
-                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Submitting…</>
-                : "Request Activation →"}
+                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Publishing…</>
+                : "Publish Ad →"}
             </Button>
           </div>
         </div>
