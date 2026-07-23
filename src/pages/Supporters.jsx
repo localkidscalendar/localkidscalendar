@@ -117,25 +117,16 @@ export default function Supporters() {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="bg-muted rounded-2xl animate-pulse w-full"
-                style={{ aspectRatio: String(creativeAspect || 4 / 3) }}
-              />
+              <div key={i} className="bg-muted rounded-2xl animate-pulse w-full h-56" />
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
             {ads.map((ad) => (
-              <SupporterAdCard
-                key={ad.id}
-                ad={ad}
-                user={user}
-                onCreativeAspect={(ratio) => setCreativeAspect((prev) => prev || ratio)}
-              />
+              <SupporterAdCard key={ad.id} ad={ad} user={user} />
             ))}
             {Array.from({ length: placeholderCount }).map((_, i) => (
-              <SupporterAdPlaceholder key={`ph-${i}`} aspectRatio={creativeAspect || 4 / 3} />
+              <SupporterAdPlaceholder key={`ph-${i}`} />
             ))}
           </div>
         )}

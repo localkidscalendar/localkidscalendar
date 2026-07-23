@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { ExternalLink, Heart, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,16 +7,11 @@ import AuthPromptModal from "@/components/shared/AuthPromptModal";
 
 const FLAG_REASONS = ["inaccurate", "inappropriate", "spam", "other"];
 
-const DEFAULT_CREATIVE_ASPECT = 4 / 3; // width / height fallback when no live ad is present
-
-export function SupporterAdPlaceholder({ aspectRatio = DEFAULT_CREATIVE_ASPECT }) {
-  // Image area matches live creatives (measured aspect when available); footer matches ad card.
+export function SupporterAdPlaceholder() {
+  // Image area + footer match paid SupporterAdCard (h-48 + black bar ≈ default filler h-56).
   return (
     <div className="bg-white rounded-2xl border-2 border-dashed border-peach-200 overflow-hidden animate-settle flex flex-col">
-      <div
-        className="bg-gradient-to-br from-peach-50 to-mint-50 flex flex-col items-center justify-center gap-2 px-4 text-center w-full"
-        style={{ aspectRatio: String(aspectRatio) }}
-      >
+      <div className="h-48 bg-gradient-to-br from-peach-50 to-mint-50 flex flex-col items-center justify-center gap-2 px-4 text-center w-full">
         <Heart className="w-10 h-10 text-peach-300" />
         <p className="font-heading font-semibold text-sm text-peach-600">Your business could shine here!</p>
         <p className="text-xs text-muted-foreground max-w-[200px]">Support local kids. Reach local families.</p>
@@ -34,34 +29,13 @@ export function SupporterAdPlaceholder({ aspectRatio = DEFAULT_CREATIVE_ASPECT }
   );
 }
 
-export default function SupporterAdCard({ ad, user, onCreativeAspect }) {
+export default function SupporterAdCard({ ad, user }) {
   const clickedRef = useRef(false);
   const { toast } = useToast();
   const [flagOpen, setFlagOpen] = useState(false);
   const [selectedReason, setSelectedReason] = useState(null);
   const [otherText, setOtherText] = useState("");
   const [authPrompt, setAuthPrompt] = useState(false);
-
-  const isOwner = !!(user?.id && ad?.user_id && user.id === ad.user_id);
-  const reportedAspect = useRef(false);
-
-  const reportCreativeAspect = (img) => {
-    if (reportedAspect.current || !onCreativeAspect || !img) return;
-    const { naturalWidth: w, naturalHeight: h } = img;
-    if (w > 0 && h > 0) {
-      reportedAspect.current = true;
-      onCreativeAspect(w / h);
-    }
-  };
-
-  const handleCreativeLoad = (e) => reportCreativeAspect(e.currentTarget);
-
-  // Cached images may not fire onLoad after mount
-  const imageRef = useRef(null);
-  useEffect(() => {
-    reportedAspect.current = false;
-    reportCreativeAspect(imageRef.current);
-  }, [ad.image_url]);
 
   const trackClick = async () => {
     if (!clickedRef.current) {
@@ -126,35 +100,24 @@ export default function SupporterAdCard({ ad, user, onCreativeAspect }) {
 
   return (
     <div className="group rounded-2xl border-2 border-black transition-all duration-300 hover:shadow-lg hover:shadow-black/15 hover:-translate-y-0.5 animate-settle bg-white overflow-hidden flex flex-col">
-      {/* Ad image — full creative at its natural height (no fixed crop) */}
+      {/* Creative frame — h-48 + footer ≈ DefaultAdCard h-56 */}
       <div
-        className="overflow-hidden cursor-pointer"
+        className="h-48 bg-muted/30 overflow-hidden cursor-pointer flex items-center justify-center"
         onClick={handleImageClick}
         title="Visit advertiser"
       >
         {ad.image_url ? (
           <img
-            ref={imageRef}
             src={ad.image_url}
             alt="Supporter ad"
-            onLoad={handleCreativeLoad}
-            className="w-full h-auto block group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
-          <div className="w-full aspect-[4/3] bg-gradient-to-br from-peach-50 to-peach-100 flex items-center justify-center">
+          <div className="w-full h-full bg-gradient-to-br from-peach-50 to-peach-100 flex items-center justify-center">
             <Heart className="w-10 h-10 text-peach-300" />
           </div>
         )}
       </div>
-
-      {/* Owner-only creative name (not shown to the public) */}
-      {isOwner && ad.business_name && (
-        <div className="px-3 py-1 bg-muted/40 border-b border-border">
-          <p className="text-[11px] text-muted-foreground truncate">
-            Your ad: <span className="font-medium text-foreground">{ad.business_name}</span>
-          </p>
-        </div>
-      )}
 
       {/* Footer bar — compact with zip code and actions */}
       <div className="bg-black/90 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between gap-2">
