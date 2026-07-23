@@ -70,7 +70,7 @@ async function checkUrlSafety(linkUrl) {
     const headCheck = await fetch(normalizedUrl, {
       method: "HEAD",
       redirect: "follow",
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout?.(8000),
     });
     urlStatus = headCheck.status;
   } catch {
@@ -78,7 +78,7 @@ async function checkUrlSafety(linkUrl) {
       const getCheck = await fetch(normalizedUrl, {
         method: "GET",
         redirect: "follow",
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout?.(10000),
       });
       urlStatus = getCheck.status;
     } catch {
@@ -202,11 +202,10 @@ export default async function handler(req, res) {
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
     if (!token) return res.status(401).json({ error: "Unauthorized" });
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-    const { data: userData, error: userError } = await userClient.auth.getUser();
+    const userClient = createClient(supabaseUrl, anonKey);
+    const { data: userData, error: userError } = await userClient.auth.getUser(token);
     if (userError || !userData?.user) {
+      console.error("auth.getUser failed:", userError?.message || "no user");
       return res.status(401).json({ error: "Unauthorized" });
     }
 

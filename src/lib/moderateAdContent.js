@@ -1,31 +1,15 @@
 import { supabase } from "@/lib/supabaseClient";
 
 /**
- * Runs automated ad creative moderation (URL + image).
- * Prefer Supabase Edge Function; fall back to Vercel /api route.
+ * Runs automated ad creative moderation (URL + image) via Vercel API.
  */
 export async function moderateAdContent(adLibraryId) {
-  const { data: sessionData } = await supabase.auth.getSession();
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw new Error(sessionError.message);
   const token = sessionData?.session?.access_token;
-  if (!token) throw new Error("Not authenticated");
+  if (!token) throw new Error("Not authenticated — please sign in again.");
 
-  // 1) Supabase Edge Function
-  try {
-    const { data, error } = await supabase.functions.invoke("moderate-ad-content", {
-      body: { ad_library_id: adLibraryId },
-    });
-    if (!error && data?.status) {
-      return { status: data.status, reason: data.reason || "" };
-    }
-    // Fall through on missing function / invoke errors
-    if (error && !/not found|404|Failed to send/i.test(error.message || "")) {
-      console.warn("moderate-ad-content edge function:", error.message);
-    }
-  } catch (err) {
-    console.warn("moderate-ad-content edge invoke failed:", err?.message || err);
-  }
-
-  // 2) Vercel serverless API (production / vercel dev)
+  // Prefer Vercel API (env vars + OpenAI live there). Edge function is optional fallback.
   const res = await fetch("/api/moderate-ad-content", {
     method: "POST",
     headers: {
@@ -35,9 +19,24 @@ export async function moderateAdContent(adLibraryId) {
     body: JSON.stringify({ ad_library_id: adLibraryId }),
   });
 
-  const payload = await res.json().catch(() => ({}));
+  const raw = await res.text();
+  let payload = {};
+  try {
+    payload = raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error(
+      res.ok
+        ? "Moderation API returned a non-JSON response. Redeploy may still be in progress."
+        : `Moderation failed (${res.status}).`
+    );
+  }
+
   if (!res.ok) {
     throw new Error(payload.error || `Moderation failed (${res.status})`);
   }
+  if (payload.status !== "approved" && payload.status !== "declined") {
+    throw new Error(payload.error || "Moderation did not return an approve/decline result.");
+  }
+
   return { status: payload.status, reason: payload.reason || "" };
 }

@@ -344,10 +344,26 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                 {!onSelectAsset && asset.moderation_status === "pending" && !isEditing && (
                   <div className="px-3 pb-3">
                     <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-800 flex flex-wrap items-center gap-2 justify-between">
-                      <span>Automated review didn’t finish. Edit & resubmit to run it again.</span>
-                      <Button size="sm" variant="outline" className="rounded-xl h-7 text-xs" onClick={() => startEdit(asset)}>
-                        <Pencil className="w-3 h-3 mr-1" /> Resubmit
-                      </Button>
+                      <span>Automated review didn’t finish. Retry, or edit & resubmit.</span>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white"
+                          disabled={moderating === asset.id}
+                          onClick={async () => {
+                            setModerating(asset.id);
+                            await runAutomatedReview(asset.id);
+                            loadAssets();
+                            setModerating(null);
+                          }}
+                        >
+                          {moderating === asset.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                          Retry review
+                        </Button>
+                        <Button size="sm" variant="outline" className="rounded-xl h-7 text-xs" onClick={() => startEdit(asset)}>
+                          <Pencil className="w-3 h-3 mr-1" /> Edit
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
