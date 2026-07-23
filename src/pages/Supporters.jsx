@@ -1,53 +1,25 @@
-import React, { useState, useEffect } from "react";
-import { useOutletContext, useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { useOutletContext, useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Heart, Shield, Star, CheckCircle, AlertCircle, ExternalLink, UserPlus } from "lucide-react";
-import SupporterAdCard, { SupporterAdPlaceholder } from "@/components/ads/SupporterAdCard";
+import { Heart, Shield, Star, CheckCircle, ExternalLink, UserPlus } from "lucide-react";
+import { SupporterAdPlaceholder } from "@/components/ads/SupporterAdCard";
 import BecomeASupporterModal from "@/components/ads/BecomeASupporterModal";
 import ZipRequiredModal from "@/components/shared/ZipRequiredModal";
 import useSessionZip from "@/lib/useSessionZip";
-import moment from "moment";
 import { SUPPORTER_RULES } from "@/lib/supporterContent";
+
+const DEFAULT_PRICING = { monthly_rate: 150, annual_discount_percent: 30 };
 
 export default function Supporters() {
   const { user, userLoading } = useOutletContext();
   const navigate = useNavigate();
   const { zip: userZip, resolved, setCurrentZip } = useSessionZip(user, userLoading);
-  const [ads, setAds] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pricing, setPricing] = useState({ monthly_rate: 150, annual_discount_percent: 30 });
   const [showSupporterModal, setShowSupporterModal] = useState(false);
+  const pricing = DEFAULT_PRICING;
 
-  useEffect(() => {
-    loadAds();
-    loadPricing();
-  }, []);
-
-  const loadPricing = async () => {
-    try {
-      const configs = await base44.entities.AdPricingConfig.filter({ config_key: "global" });
-      if (configs.length > 0) setPricing(configs[0]);
-    } catch {}
-  };
-
-  const loadAds = async () => {
-    setLoading(false);
-    try {
-      const activeAds = await base44.entities.BannerAd.filter({ status: "active" }, "-created_date", 50);
-      setAds(activeAds);
-    } catch {
-      setAds([]);
-    }
-    setLoading(false);
-  };
-
-  const zipAds = userZip
-    ? ads.filter((a) => a.zip_code === userZip)
-    : [];
-
+  // Ads are not on Supabase yet — show open slots for beta
   const maxSlots = 3;
-  const placeholderCount = Math.max(0, maxSlots - zipAds.length);
+  const placeholderCount = maxSlots;
 
   if (resolved && !userZip) {
     return <ZipRequiredModal onSubmit={(zip) => setCurrentZip(zip)} />;
@@ -56,7 +28,6 @@ export default function Supporters() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
 
-      {/* Hero */}
       <div className="mb-10">
         <h1 className="font-heading font-bold text-3xl sm:text-4xl mb-4">Our Supporters</h1>
         <p className="text-muted-foreground leading-relaxed">
@@ -78,7 +49,6 @@ export default function Supporters() {
         </div>
       </div>
 
-      {/* Current Supporter Ads */}
       <div className="mb-10">
         <div className="flex items-center gap-2 mb-1">
           <Star className="w-5 h-5 text-peach-500" />
@@ -96,19 +66,14 @@ export default function Supporters() {
             Your zip code is established on the <a href="/" className="text-mint-500 hover:underline">Activities page</a>.
           </p>
         )}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => <div key={i} className="h-48 bg-muted rounded-2xl animate-pulse" />)}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {zipAds.map((ad) => <SupporterAdCard key={ad.id} ad={ad} />)}
-            {Array.from({ length: placeholderCount }).map((_, i) => <SupporterAdPlaceholder key={`ph-${i}`} />)}
-          </div>
-        )}
+        <p className="text-sm text-muted-foreground mb-4 rounded-xl bg-mint-50 border border-mint-100 px-4 py-3">
+          Supporter ads are paused during our beta while we finish the advertising system. Open slots below show where ads will appear.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {Array.from({ length: placeholderCount }).map((_, i) => <SupporterAdPlaceholder key={`ph-${i}`} />)}
+        </div>
       </div>
 
-      {/* Supporter Rules */}
       <div className="mb-10 bg-white rounded-2xl border border-border p-6 sm:p-8">
         <div className="flex items-center gap-3 mb-5">
           <Shield className="w-6 h-6 text-peach-500" />
@@ -130,7 +95,6 @@ export default function Supporters() {
         </div>
       </div>
 
-      {/* Become a Supporter CTA */}
       <div className="bg-gradient-to-br from-peach-50 to-mint-50 rounded-2xl border border-peach-200 p-6 sm:p-8 text-center">
         <div className="flex items-center justify-center gap-2 mb-3">
           <CheckCircle className="w-6 h-6 text-peach-500" />
@@ -142,19 +106,18 @@ export default function Supporters() {
         <div className="flex flex-col items-center gap-3 mb-4">
           <Button
             className="rounded-xl bg-peach-500 hover:bg-peach-400 text-white px-6"
-            onClick={() => user?.is_advertiser ? navigate("/ad-manager") : setShowSupporterModal(true)}
+            onClick={() => setShowSupporterModal(true)}
           >
             <Heart className="w-4 h-4 mr-2" />
             Become a Supporter
           </Button>
-          <a
-            href="/advertiser-terms"
-            target="_blank"
+          <Link
+            to="/advertiser-terms"
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             View Supporter Terms of Service
-          </a>
+          </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6 text-left">
           {[

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Users, Megaphone, Star } from "lucide-react";
 import BecomeASupporterModal from "@/components/ads/BecomeASupporterModal";
 
@@ -57,15 +57,10 @@ function buildGroups(onSupporterClick) {
 }
 
 export default function GrowingCommunitySection({ user }) {
-  const navigate = useNavigate();
   const [showSupporterModal, setShowSupporterModal] = useState(false);
 
   const handleSupporterClick = () => {
-    if (user?.is_advertiser) {
-      navigate("/ad-manager");
-    } else {
-      setShowSupporterModal(true);
-    }
+    setShowSupporterModal(true);
   };
 
   const groups = buildGroups(handleSupporterClick);
