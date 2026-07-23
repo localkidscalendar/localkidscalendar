@@ -162,7 +162,7 @@ export default function Supporters() {
         </div>
       </div>
 
-      <div className="bg-gradient-to-br from-peach-50 to-mint-50 rounded-2xl border border-peach-200 p-6 sm:p-8 text-center">
+      <div id="become-a-supporter" className="bg-gradient-to-br from-peach-50 to-mint-50 rounded-2xl border border-peach-200 p-6 sm:p-8 text-center scroll-mt-24">
         <div className="flex items-center justify-center gap-2 mb-3">
           <CheckCircle className="w-6 h-6 text-peach-500" />
           <h2 className="font-heading font-bold text-xl">Become a Supporter</h2>

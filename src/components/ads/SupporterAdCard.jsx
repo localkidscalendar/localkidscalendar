@@ -24,7 +24,7 @@ export function SupporterAdPlaceholder({ aspectRatio = DEFAULT_CREATIVE_ASPECT }
       <div className="bg-black/90 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between gap-2">
         <span className="text-xs text-gray-300">Open spot</span>
         <a
-          href="/supporters"
+          href="/supporters#become-a-supporter"
           className="text-xs font-medium text-peach-300 hover:text-peach-200 transition-colors shrink-0"
         >
           Learn more →
