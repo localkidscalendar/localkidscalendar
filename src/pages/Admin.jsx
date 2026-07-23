@@ -884,7 +884,7 @@ export default function Admin() {
           <div className="space-y-8">
             <nav
               aria-label="Ads sections"
-              className="sticky top-0 z-20 -mx-1 px-1 py-2.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border"
+              className="sticky top-16 z-20 -mx-1 px-1 py-2.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border"
             >
               <div className="flex flex-wrap gap-1.5">
                 {ADS_SECTIONS.map((section) => (
@@ -900,43 +900,43 @@ export default function Admin() {
               </div>
             </nav>
 
-            <div id="ads-photo-review" className="scroll-mt-16">
+            <div id="ads-photo-review" className="scroll-mt-32">
               <AdminSectionHeader title="Advertising Photo Manual Review" icon={Image} />
               <AdminPanelShell>
                 <ManualReviewPanel toast={toast} />
               </AdminPanelShell>
             </div>
-            <div id="ads-supporter-ads" className="scroll-mt-16">
+            <div id="ads-supporter-ads" className="scroll-mt-32">
               <AdminSectionHeader title="All Supporter Ads" icon={Megaphone} />
               <AdminPanelShell>
                 <AdminAdsPanel ads={ads} onRefresh={loadAll} toast={toast} />
               </AdminPanelShell>
             </div>
-            <div id="ads-zip-config" className="scroll-mt-16">
+            <div id="ads-zip-config" className="scroll-mt-32">
               <AdminSectionHeader title="Custom Zip Code Configurations" icon={MapPin} />
               <AdminPanelShell>
                 <AdminZipConfigPanel ads={ads} toast={toast} />
               </AdminPanelShell>
             </div>
-            <div id="ads-waitlist" className="scroll-mt-16">
+            <div id="ads-waitlist" className="scroll-mt-32">
               <AdminSectionHeader title="Waitlist Management" icon={Clock} />
               <AdminPanelShell wipNote="Automated offer emails return with billing. Manual Offer Spot works when a slot is already open.">
                 <AdminWaitlistPanel toast={toast} />
               </AdminPanelShell>
             </div>
-            <div id="ads-rates" className="scroll-mt-16">
+            <div id="ads-rates" className="scroll-mt-32">
               <AdminSectionHeader title="Ad Rates" icon={DollarSign} />
               <AdminPanelShell>
                 <AdminAdRatesPanel toast={toast} />
               </AdminPanelShell>
             </div>
-            <div id="ads-discounts" className="scroll-mt-16">
+            <div id="ads-discounts" className="scroll-mt-32">
               <AdminSectionHeader title="Discount Codes" icon={Tag} />
               <AdminPanelShell wipNote="Admin CRUD works; applying codes at Stripe checkout returns after beta.">
                 <DiscountCodesPanel toast={toast} />
               </AdminPanelShell>
             </div>
-            <div id="ads-default-filler" className="scroll-mt-16">
+            <div id="ads-default-filler" className="scroll-mt-32">
               <AdminSectionHeader title="Default/Filler Ads" icon={ImagePlus} />
               <AdminPanelShell>
                 <AdminDefaultAdsPanel toast={toast} />
