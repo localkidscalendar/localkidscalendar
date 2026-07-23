@@ -289,7 +289,7 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                   onClick={() => onSelectAsset && isSelectable && onSelectAsset(asset)}
                 >
                   {asset.image_url && (
-                    <img src={asset.image_url} alt={asset.ad_name} className="w-20 aspect-[2/1] object-contain rounded-lg border border-border shrink-0 bg-muted/30" />
+                    <img src={asset.image_url} alt={asset.ad_name} className="w-20 aspect-[3/2] object-cover rounded-lg border border-border shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{asset.ad_name}</p>
@@ -461,14 +461,16 @@ function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, o
       </div>
       <div>
         <Label>Ad Image *</Label>
-        <p className="text-xs text-muted-foreground mt-0.5 mb-1">Recommended: 600 × 300 px (landscape). PNG or JPG. Other sizes still work — the full image is shown without cropping.</p>
+        <p className="text-xs text-muted-foreground mt-0.5 mb-1">
+          Recommended: 600 × 400 px (3:2 landscape), JPG or PNG, under 2 MB. Keep the main subject centered — images fill the ad frame and may crop edges if the ratio differs.
+        </p>
         <div className="mt-2 space-y-2">
           {form.image_url ? (
-            <div className="w-full max-w-sm aspect-[2/1] rounded-xl border border-border bg-muted/40 overflow-hidden flex items-center justify-center">
-              <img src={form.image_url} alt="Preview" className="max-w-full max-h-full object-contain" />
+            <div className="w-full max-w-sm aspect-[3/2] rounded-xl border border-border overflow-hidden">
+              <img src={form.image_url} alt="Preview" className="w-full h-full object-cover" />
             </div>
           ) : (
-            <div className="w-full max-w-sm aspect-[2/1] rounded-xl bg-muted flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border">
+            <div className="w-full max-w-sm aspect-[3/2] rounded-xl bg-muted flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border">
               No image
             </div>
           )}

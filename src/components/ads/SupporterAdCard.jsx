@@ -100,9 +100,9 @@ export default function SupporterAdCard({ ad, user }) {
 
   return (
     <div className="group rounded-2xl border-2 border-black transition-all duration-300 hover:shadow-lg hover:shadow-black/15 hover:-translate-y-0.5 animate-settle bg-white overflow-hidden flex flex-col">
-      {/* Creative frame — h-48 + footer ≈ DefaultAdCard h-56 */}
+      {/* Creative frame — object-cover fills frame and crops overflow; h-48 + footer matches DefaultAdCard */}
       <div
-        className="h-48 bg-muted/30 overflow-hidden cursor-pointer flex items-center justify-center"
+        className="h-48 overflow-hidden cursor-pointer"
         onClick={handleImageClick}
         title="Visit advertiser"
       >
@@ -110,7 +110,7 @@ export default function SupporterAdCard({ ad, user }) {
           <img
             src={ad.image_url}
             alt="Supporter ad"
-            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-peach-50 to-peach-100 flex items-center justify-center">
