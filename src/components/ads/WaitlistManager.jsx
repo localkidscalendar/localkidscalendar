@@ -1,51 +1,151 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Loader2, Clock, CheckCircle, XCircle, MapPin, AlertCircle, PartyPopper, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Loader2, Clock, XCircle, MapPin, AlertCircle,
+  PartyPopper, ArrowUpDown, ArrowUp, ArrowDown,
+} from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 
 const STATUS_CONFIG = {
-  waiting:  { label: "Waiting",         color: "bg-yellow-100 text-yellow-700",  icon: Clock },
-  offered:  { label: "Offer Sent!",     color: "bg-mint-100 text-mint-600",      icon: AlertCircle },
-  accepted: { label: "Claimed! ✓",      color: "bg-mint-100 text-mint-600",      icon: PartyPopper },
-  expired:  { label: "Offer Expired",   color: "bg-gray-100 text-gray-500",      icon: XCircle },
-  declined: { label: "Declined",        color: "bg-gray-100 text-gray-500",      icon: XCircle },
-  cancelled:{ label: "Cancelled",       color: "bg-gray-100 text-gray-500",      icon: XCircle },
+  waiting: { label: "Waiting", color: "bg-yellow-100 text-yellow-700", icon: Clock },
+  offered: { label: "Offer Sent!", color: "bg-mint-100 text-mint-600", icon: AlertCircle },
+  accepted: { label: "Claimed! ✓", color: "bg-mint-100 text-mint-600", icon: PartyPopper },
+  expired: { label: "Offer Expired", color: "bg-gray-100 text-gray-500", icon: XCircle },
+  declined: { label: "Declined", color: "bg-gray-100 text-gray-500", icon: XCircle },
+  cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-500", icon: XCircle },
 };
 
-// Active = anything the user should still actively see/act on
 const ACTIVE_STATUSES = ["waiting", "offered", "accepted"];
-const PAST_STATUSES   = ["expired", "declined", "cancelled"];
+const PAST_STATUSES = ["expired", "declined", "cancelled"];
+const SLOT_HOLDING = ["active", "pending_payment", "pending_review", "flagged", "past_due"];
 
-export default function WaitlistManager({ user, onCheckoutForZip }) {
+async function nextPositionForZip(zip) {
+  const { count } = await supabase
+    .from("ad_waitlist")
+    .select("id", { count: "exact", head: true })
+    .eq("zip_code", zip)
+    .eq("status", "waiting");
+  return (count || 0) + 1;
+}
+
+async function zipHasOpenSlot(zip) {
+  const [{ data: zipConfig }, { data: holding }] = await Promise.all([
+    supabase.from("ad_zip_config").select("max_slots").eq("zip_code", zip).maybeSingle(),
+    supabase.from("banner_ads").select("id").eq("zip_code", zip).in("status", SLOT_HOLDING),
+  ]);
+  const maxSlots = Number(zipConfig?.max_slots) || 3;
+  return (holding || []).length < maxSlots;
+}
+
+/** Join a zip waitlist. Returns the created/updated entry or throws. */
+export async function joinAdWaitlist({ user, zipCode, planType = "monthly", businessName }) {
+  const zip = (zipCode || "").trim();
+  if (!/^\d{5}$/.test(zip)) throw new Error("Enter a valid 5-digit zip code");
+
+  const { data: existing } = await supabase
+    .from("ad_waitlist")
+    .select("id, status")
+    .eq("user_id", user.id)
+    .eq("zip_code", zip)
+    .in("status", ["waiting", "offered", "accepted"])
+    .maybeSingle();
+  if (existing) throw new Error(`You're already on the waitlist for ${zip}`);
+
+  const open = await zipHasOpenSlot(zip);
+  if (open) throw new Error(`Zip ${zip} currently has an open spot — submit a new ad instead of joining the waitlist.`);
+
+  const position = await nextPositionForZip(zip);
+  const { data, error } = await supabase
+    .from("ad_waitlist")
+    .insert({
+      user_id: user.id,
+      email: user.email || "",
+      business_name: businessName || user.full_name || user.business_name || "Supporter",
+      zip_code: zip,
+      plan_type: planType,
+      position,
+      status: "waiting",
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export default function WaitlistManager({ user, onClaimSpot }) {
+  const { toast } = useToast();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const [sortField, setSortField] = useState(null); // "zip_code" | "status"
+  const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
+  const [joinZip, setJoinZip] = useState("");
+  const [joinPlan, setJoinPlan] = useState("monthly");
+  const [joining, setJoining] = useState(false);
 
-  useEffect(() => { loadEntries(); }, [user]);
+  useEffect(() => {
+    if (user) loadEntries();
+  }, [user]);
 
   const loadEntries = async () => {
     setLoading(true);
     try {
-      const items = await base44.entities.AdWaitlist.filter({ user_id: user.id }, "-created_date", 50);
-      setEntries(items);
-    } catch { setEntries([]); }
+      const { data, error } = await supabase
+        .from("ad_waitlist")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setEntries(data || []);
+    } catch {
+      setEntries([]);
+    }
     setLoading(false);
+  };
+
+  const handleJoin = async () => {
+    setJoining(true);
+    try {
+      await joinAdWaitlist({
+        user,
+        zipCode: joinZip,
+        planType: joinPlan,
+      });
+      toast({ title: "Joined waitlist", description: `You're in line for zip ${joinZip.trim()}.` });
+      setJoinZip("");
+      loadEntries();
+    } catch (err) {
+      toast({ title: "Could not join", description: err.message, variant: "destructive" });
+    }
+    setJoining(false);
   };
 
   const handleCancel = async (entry) => {
     if (!window.confirm("Remove yourself from this waitlist?")) return;
-    await base44.entities.AdWaitlist.update(entry.id, { status: "cancelled" });
-    setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: "cancelled" } : e));
-    toast({ title: "Removed from waitlist" });
+    try {
+      const { error } = await supabase
+        .from("ad_waitlist")
+        .update({ status: "cancelled" })
+        .eq("id", entry.id)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, status: "cancelled" } : e)));
+      toast({ title: "Removed from waitlist" });
+    } catch (err) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
   };
 
   const handleSort = (field) => {
-    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortField(field); setSortDir("asc"); }
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortField(field);
+      setSortDir("asc");
+    }
   };
 
   const sortEntries = (list) => {
@@ -62,19 +162,60 @@ export default function WaitlistManager({ user, onCheckoutForZip }) {
     return sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
   };
 
-  const activeEntries = sortEntries(entries.filter(e => ACTIVE_STATUSES.includes(e.status)));
-  const pastEntries   = entries.filter(e => PAST_STATUSES.includes(e.status));
+  const activeEntries = sortEntries(entries.filter((e) => ACTIVE_STATUSES.includes(e.status)));
+  const pastEntries = entries.filter((e) => PAST_STATUSES.includes(e.status));
 
-  if (loading) return <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-mint-500" /></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-5 h-5 animate-spin text-mint-500" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="font-heading font-semibold">Waitlisted Zip Codes</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">Join the queue for full zip codes — we'll email you when a spot opens.</p>
-        </div>
+    <div className="space-y-5">
+      <div>
+        <h3 className="font-heading font-semibold">Waitlisted Zip Codes</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Join the queue for full zip codes. During beta, an admin may offer you a spot when one opens; automated email offers return with billing.
+        </p>
+      </div>
 
+      <div className="bg-muted/30 rounded-2xl border border-border p-4 space-y-3">
+        <p className="text-sm font-medium">Join a waitlist</p>
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+          <div className="space-y-1">
+            <Label className="text-xs">Zip code</Label>
+            <Input
+              className="rounded-xl w-32"
+              placeholder="89448"
+              maxLength={5}
+              value={joinZip}
+              onChange={(e) => setJoinZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Preferred plan</Label>
+            <select
+              className="h-9 rounded-xl border border-input bg-transparent px-3 text-sm"
+              value={joinPlan}
+              onChange={(e) => setJoinPlan(e.target.value)}
+            >
+              <option value="monthly">Monthly</option>
+              <option value="annual">Annual</option>
+            </select>
+          </div>
+          <Button
+            size="sm"
+            className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
+            disabled={joinZip.length !== 5 || joining}
+            onClick={handleJoin}
+          >
+            {joining ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+            Join Waitlist
+          </Button>
+        </div>
       </div>
 
       {activeEntries.length === 0 && (
@@ -83,59 +224,90 @@ export default function WaitlistManager({ user, onCheckoutForZip }) {
 
       {activeEntries.length > 0 && (
         <div className="space-y-2">
-          {/* Sort header */}
           <div className="flex items-center gap-2 px-1 pb-1">
-            <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium" onClick={() => handleSort("zip_code")}>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium"
+              onClick={() => handleSort("zip_code")}
+            >
               Zip <SortIcon field="zip_code" />
             </button>
             <span className="text-muted-foreground/40">·</span>
-            <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium" onClick={() => handleSort("status")}>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium"
+              onClick={() => handleSort("status")}
+            >
               Status <SortIcon field="status" />
             </button>
           </div>
-          {activeEntries.map(entry => {
+          {activeEntries.map((entry) => {
             const cfg = STATUS_CONFIG[entry.status] || STATUS_CONFIG.waiting;
             const Icon = cfg.icon;
-            const isOffered   = entry.status === "offered";
-            const isAccepted  = entry.status === "accepted";
+            const isOffered = entry.status === "offered";
+            const isAccepted = entry.status === "accepted";
 
             return (
-              <div key={entry.id} className={`p-4 rounded-2xl border bg-white ${isOffered ? "border-mint-300 ring-1 ring-mint-200" : isAccepted ? "border-mint-200 bg-mint-50/30" : ""}`}>
+              <div
+                key={entry.id}
+                className={`p-4 rounded-2xl border bg-white ${isOffered ? "border-mint-300 ring-1 ring-mint-200" : isAccepted ? "border-mint-200 bg-mint-50/30" : ""}`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <span className="font-medium text-sm">{entry.zip_code}</span>
                       <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>
-                        <Icon className="w-3 h-3" />{cfg.label}
+                        <Icon className="w-3 h-3" />
+                        {cfg.label}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{entry.business_name} · {entry.plan_type} plan{!isAccepted && ` · Position #${entry.position}`}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {entry.business_name} · {entry.plan_type} plan
+                      {!isAccepted && ` · Position #${entry.position}`}
+                    </p>
 
-                    {isOffered && entry.offer_expires_date && (
+                    {isOffered && (
                       <div className="mt-2 p-2.5 bg-mint-50 rounded-xl border border-mint-200 text-xs text-mint-700">
-                        <p className="font-semibold flex items-center gap-1"><AlertCircle className="w-3 h-3" /> A spot is available — act now!</p>
-                        <p className="mt-0.5">Offer expires: {moment(entry.offer_expires_date).format("MMM D, YYYY h:mm A")}</p>
-                        <p className="mt-0.5">Offer attempt: {entry.offer_count || 0}/3 — after 3 missed offers your entry is cancelled</p>
+                        <p className="font-semibold flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" /> A spot is available — act now!
+                        </p>
+                        {entry.offer_expires_date && (
+                          <p className="mt-0.5">
+                            Offer expires: {moment(entry.offer_expires_date).format("MMM D, YYYY h:mm A")}
+                          </p>
+                        )}
+                        <p className="mt-0.5">
+                          Offer attempt: {entry.offer_count || 0}/3 — after 3 missed offers your entry is cancelled
+                        </p>
                       </div>
                     )}
 
                     {isAccepted && (
                       <div className="mt-2 p-2.5 bg-mint-50 rounded-xl border border-mint-200 text-xs text-mint-700">
-                        <p className="font-semibold">You successfully claimed this spot! Your ad is now in review.</p>
+                        <p className="font-semibold">You successfully claimed this spot!</p>
                         <p className="mt-0.5 text-muted-foreground">Check the My Ads tab for status updates.</p>
                       </div>
                     )}
                   </div>
 
                   <div className="flex flex-col gap-1.5 shrink-0">
-                    {isOffered && onCheckoutForZip && (
-                      <Button size="sm" className="rounded-xl bg-peach-400 hover:bg-peach-500 text-white text-xs h-7" onClick={() => onCheckoutForZip(entry)}>
-                        Subscribe Now →
+                    {isOffered && onClaimSpot && (
+                      <Button
+                        size="sm"
+                        className="rounded-xl bg-peach-400 hover:bg-peach-500 text-white text-xs h-7"
+                        onClick={() => onClaimSpot(entry)}
+                      >
+                        Claim Spot →
                       </Button>
                     )}
                     {["waiting", "offered"].includes(entry.status) && (
-                      <Button variant="ghost" size="sm" className="rounded-xl h-7 text-xs text-muted-foreground" onClick={() => handleCancel(entry)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-xl h-7 text-xs text-muted-foreground"
+                        onClick={() => handleCancel(entry)}
+                      >
                         Leave
                       </Button>
                     )}
@@ -150,11 +322,12 @@ export default function WaitlistManager({ user, onCheckoutForZip }) {
       {pastEntries.length > 0 && (
         <details className="group">
           <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground list-none flex items-center gap-1">
-            <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span>
+            <span className="group-open:hidden">▸</span>
+            <span className="hidden group-open:inline">▾</span>
             {pastEntries.length} past entr{pastEntries.length === 1 ? "y" : "ies"}
           </summary>
           <div className="mt-2 space-y-2">
-            {pastEntries.map(entry => {
+            {pastEntries.map((entry) => {
               const cfg = STATUS_CONFIG[entry.status] || STATUS_CONFIG.cancelled;
               const Icon = cfg.icon;
               return (
@@ -162,9 +335,12 @@ export default function WaitlistManager({ user, onCheckoutForZip }) {
                   <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                   <span className="font-medium">{entry.zip_code}</span>
                   <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>
-                    <Icon className="w-3 h-3" />{cfg.label}
+                    <Icon className="w-3 h-3" />
+                    {cfg.label}
                   </span>
-                  <span className="text-xs text-muted-foreground ml-auto">{moment(entry.created_date).format("MMM D, YYYY")}</span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {moment(entry.created_at).format("MMM D, YYYY")}
+                  </span>
                 </div>
               );
             })}

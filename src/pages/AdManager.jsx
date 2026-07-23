@@ -6,13 +6,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, CheckCircle, Images, List, Shield, ChevronDown, ChevronUp,
   MapPin, AlertTriangle, Timer, Plus, Eye, MousePointerClick, BarChart3,
-  PauseCircle, RefreshCw,
+  PauseCircle, RefreshCw, Clock, DollarSign,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
 import ActiveAdCard from "@/components/ads/ActiveAdCard";
 import InactiveAdCard from "@/components/ads/InactiveAdCard";
+import WaitlistManager, { joinAdWaitlist } from "@/components/ads/WaitlistManager";
+import CurrentAdRates from "@/components/ads/CurrentAdRates";
 import { SUPPORTER_RULES, TOS_INTRO, TOS_SECTIONS, TOS_FOOTER } from "@/lib/supporterContent";
 
 const SLOT_HOLDING_STATUSES = ["active", "pending_payment", "pending_review", "flagged", "past_due"];
@@ -133,20 +135,21 @@ function CountdownBanner({ expiresAt, onExpired }) {
   );
 }
 
-function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
+function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoinedWaitlist }) {
   const { toast } = useToast();
   const [pricing, setPricing] = useState({ monthly_rate: 150, annual_discount_percent: 30 });
   const [step, setStep] = useState(1);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [form, setForm] = useState({
-    zip_code: user?.zip_code || "",
-    plan_type: "monthly",
+    zip_code: prefill?.zip_code || user?.zip_code || "",
+    plan_type: prefill?.plan_type || "monthly",
   });
   const [zipChecking, setZipChecking] = useState(false);
   const [zipStatus, setZipStatus] = useState(null);
   const [reservationExpiry, setReservationExpiry] = useState(null);
   const [expired, setExpired] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [joiningWaitlist, setJoiningWaitlist] = useState(false);
   const [approvedAssets, setApprovedAssets] = useState(null);
   const [libraryRefreshKey, setLibraryRefreshKey] = useState(0);
 
@@ -155,6 +158,49 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
       .then(({ data }) => { if (data) setPricing(data); })
       .catch(() => {});
   }, []);
+
+  // Prefill from waitlist claim: skip to creative step after a quick availability check
+  useEffect(() => {
+    if (!prefill?.zip_code) return;
+    (async () => {
+      setForm({
+        zip_code: prefill.zip_code,
+        plan_type: prefill.plan_type || "monthly",
+      });
+      setZipChecking(true);
+      try {
+        const zip = prefill.zip_code.trim();
+        const [{ data: zipConfig }, { data: existing }] = await Promise.all([
+          supabase.from("ad_zip_config").select("max_slots").eq("zip_code", zip).maybeSingle(),
+          supabase.from("banner_ads").select("id, status, user_id").eq("zip_code", zip),
+        ]);
+        const maxSlots = Number(zipConfig?.max_slots) || 3;
+        const holding = (existing || []).filter((ad) => SLOT_HOLDING_STATUSES.includes(ad.status));
+        const available = holding.length < maxSlots && !holding.some((ad) => ad.user_id === user.id);
+        setZipStatus({
+          available,
+          slots_total: maxSlots,
+          slots_used: holding.length,
+          userAlreadyHasAd: holding.some((ad) => ad.user_id === user.id),
+        });
+        if (available) {
+          setReservationExpiry(Date.now() + RESERVATION_MINUTES * 60 * 1000);
+          setExpired(false);
+          const { data } = await supabase
+            .from("ad_library")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("moderation_status", "approved")
+            .order("created_at", { ascending: false });
+          setApprovedAssets(data || []);
+          setStep(2);
+        }
+      } catch {
+        setZipStatus({ error: true });
+      }
+      setZipChecking(false);
+    })();
+  }, [prefill?.zip_code, prefill?.plan_type, prefill?.waitlist_entry_id, user?.id]);
 
   const annualPrice = Math.round(Number(pricing.monthly_rate) * 12 * (1 - Number(pricing.annual_discount_percent) / 100));
 
@@ -256,6 +302,14 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
       });
       if (error) throw error;
 
+      if (prefill?.waitlist_entry_id) {
+        await supabase
+          .from("ad_waitlist")
+          .update({ status: "accepted" })
+          .eq("id", prefill.waitlist_entry_id)
+          .eq("user_id", user.id);
+      }
+
       toast({
         title: "Ad is live!",
         description: `Your Supporter ad for zip ${form.zip_code.trim()} is now active on the homepage for that zip.`,
@@ -265,6 +319,25 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
       toast({ title: "Request failed", description: err.message, variant: "destructive" });
       setSubmitting(false);
     }
+  };
+
+  const handleJoinWaitlist = async () => {
+    setJoiningWaitlist(true);
+    try {
+      await joinAdWaitlist({
+        user,
+        zipCode: form.zip_code,
+        planType: form.plan_type,
+      });
+      toast({
+        title: "Joined waitlist",
+        description: `You're in line for zip ${form.zip_code}.`,
+      });
+      onJoinedWaitlist?.();
+    } catch (err) {
+      toast({ title: "Could not join waitlist", description: err.message, variant: "destructive" });
+    }
+    setJoiningWaitlist(false);
   };
 
   const STEP_LABELS = ["Zip Code", "Creative", "Plan", "Review"];
@@ -385,9 +458,18 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary }) {
               ) : (
                 <div className="flex items-start gap-2 text-red-700">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <div>
+                  <div className="flex-1">
                     <p className="font-semibold">No slots available in {form.zip_code}</p>
-                    <p className="text-xs mt-1">All {zipStatus.slots_total} spots are filled. Waitlist returns after beta.</p>
+                    <p className="text-xs mt-1">All {zipStatus.slots_total} spots are filled. Join the waitlist to be notified when a spot opens.</p>
+                    <Button
+                      size="sm"
+                      className="mt-3 rounded-xl h-7 text-xs bg-peach-500 hover:bg-peach-400 text-white"
+                      disabled={joiningWaitlist}
+                      onClick={handleJoinWaitlist}
+                    >
+                      {joiningWaitlist ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
+                      Join Waitlist for {form.zip_code}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -590,6 +672,7 @@ export default function AdManager() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
+  const [waitlistPrefill, setWaitlistPrefill] = useState(null);
   const [activeTab, setActiveTab] = useState("ads");
 
   useEffect(() => {
@@ -615,6 +698,19 @@ export default function AdManager() {
     }
     if (silent) setRefreshing(false);
     else setLoading(false);
+  };
+
+  const handleClaimWaitlistSpot = (entry) => {
+    setWaitlistPrefill({
+      zip_code: entry.zip_code,
+      plan_type: entry.plan_type,
+      waitlist_entry_id: entry.id,
+    });
+    setShowNewForm(true);
+    toast({
+      title: `Claiming spot for zip ${entry.zip_code}`,
+      description: "Select your ad creative to proceed.",
+    });
   };
 
   if (userLoading) {
@@ -694,15 +790,26 @@ export default function AdManager() {
       {showNewForm ? (
         <NewAdForm
           user={user}
-          onCancel={() => setShowNewForm(false)}
+          prefill={waitlistPrefill}
+          onCancel={() => {
+            setShowNewForm(false);
+            setWaitlistPrefill(null);
+          }}
           onSuccess={() => {
             setShowNewForm(false);
+            setWaitlistPrefill(null);
             setActiveTab("ads");
             loadAds();
           }}
           onGoToLibrary={() => {
             setShowNewForm(false);
+            setWaitlistPrefill(null);
             setActiveTab("library");
+          }}
+          onJoinedWaitlist={() => {
+            setShowNewForm(false);
+            setWaitlistPrefill(null);
+            setActiveTab("waitlist");
           }}
         />
       ) : (
@@ -722,8 +829,14 @@ export default function AdManager() {
               <TabsTrigger value="library" className="rounded-lg flex items-center gap-1.5">
                 <Images className="w-3.5 h-3.5" />Ad Library
               </TabsTrigger>
+              <TabsTrigger value="waitlist" className="rounded-lg flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />Waitlist
+              </TabsTrigger>
               <TabsTrigger value="rules" className="rounded-lg flex items-center gap-1.5">
                 <Shield className="w-3.5 h-3.5" />Rules & Terms
+              </TabsTrigger>
+              <TabsTrigger value="rates" className="rounded-lg flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5" />Current Ad Rates
               </TabsTrigger>
             </TabsList>
 
@@ -796,12 +909,26 @@ export default function AdManager() {
               </div>
             </TabsContent>
 
+            <TabsContent value="waitlist">
+              <AdminSectionHeader title="Waitlist" icon={Clock} />
+              <div className="bg-white rounded-2xl border border-border p-5">
+                <WaitlistManager user={user} onClaimSpot={handleClaimWaitlistSpot} />
+              </div>
+            </TabsContent>
+
             <TabsContent value="rules">
               <div className="bg-white rounded-2xl border border-border p-5">
                 <AdminSectionHeader title="Rules & Terms" icon={Shield} />
                 <div className="mt-3">
                   <RulesAndTerms />
                 </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="rates">
+              <AdminSectionHeader title="Current Ad Rates" icon={DollarSign} />
+              <div className="bg-white rounded-2xl border border-border p-5">
+                <CurrentAdRates />
               </div>
             </TabsContent>
           </Tabs>
