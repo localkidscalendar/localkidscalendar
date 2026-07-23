@@ -1,6 +1,6 @@
-// BETA MODE — temporary admin controls, safe to remove along with useBetaConfig.js and BetaBanner.jsx
+// BETA MODE — temporary admin controls
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -18,26 +18,64 @@ export default function AdminBetaPanel({ toast }) {
   const load = async () => {
     setLoading(true);
     try {
-      const rows = await base44.entities.BetaConfig.filter({ config_key: "global" });
-      if (rows.length > 0) {
-        setConfig(rows[0]);
-        setCodeInput(rows[0].access_code || "");
+      const { data, error } = await supabase
+        .from("beta_config")
+        .select("*")
+        .eq("config_key", "global")
+        .maybeSingle();
+      if (error) throw error;
+
+      if (data) {
+        const normalized = {
+          ...data,
+          zip_codes: Array.isArray(data.zip_codes) ? data.zip_codes : [],
+        };
+        setConfig(normalized);
+        setCodeInput(normalized.access_code || "");
       } else {
-        const created = await base44.entities.BetaConfig.create({ config_key: "global", enabled: true, zip_codes: [], stage1_enabled: false, access_code: "" });
-        setConfig(created);
+        const { data: created, error: createError } = await supabase
+          .from("beta_config")
+          .insert({
+            config_key: "global",
+            enabled: false,
+            zip_codes: [],
+            stage1_enabled: false,
+            access_code: "",
+          })
+          .select("*")
+          .single();
+        if (createError) throw createError;
+        setConfig({ ...created, zip_codes: created.zip_codes || [] });
+        setCodeInput("");
       }
-    } catch {}
+    } catch (err) {
+      toast?.({ title: "Failed to load beta settings", description: err.message, variant: "destructive" });
+    }
     setLoading(false);
   };
 
   const save = async (updates) => {
+    if (!config?.id) return;
     setSaving(true);
     try {
-      const updated = await base44.entities.BetaConfig.update(config.id, updates);
-      setConfig(updated);
+      const { data: updated, error } = await supabase
+        .from("beta_config")
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq("id", config.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      const normalized = {
+        ...updated,
+        zip_codes: Array.isArray(updated.zip_codes) ? updated.zip_codes : [],
+      };
+      setConfig(normalized);
+      if (Object.prototype.hasOwnProperty.call(updates, "access_code")) {
+        setCodeInput(normalized.access_code || "");
+      }
       toast?.({ title: "Beta settings updated" });
-    } catch {
-      toast?.({ title: "Failed to update", variant: "destructive" });
+    } catch (err) {
+      toast?.({ title: "Failed to update", description: err.message, variant: "destructive" });
     }
     setSaving(false);
   };
@@ -45,13 +83,13 @@ export default function AdminBetaPanel({ toast }) {
   const addZip = () => {
     const zip = newZip.trim();
     if (zip.length !== 5) return;
-    if (config.zip_codes.includes(zip)) { setNewZip(""); return; }
-    save({ zip_codes: [...config.zip_codes, zip] });
+    if ((config.zip_codes || []).includes(zip)) { setNewZip(""); return; }
+    save({ zip_codes: [...(config.zip_codes || []), zip] });
     setNewZip("");
   };
 
   const removeZip = (zip) => {
-    save({ zip_codes: config.zip_codes.filter((z) => z !== zip) });
+    save({ zip_codes: (config.zip_codes || []).filter((z) => z !== zip) });
   };
 
   const generateCode = () => {
@@ -70,7 +108,6 @@ export default function AdminBetaPanel({ toast }) {
 
   return (
     <div className="space-y-6">
-      {/* Stage 1: site-wide access code gate */}
       <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium">Enable Beta Mode Stage 1</p>
@@ -117,12 +154,14 @@ export default function AdminBetaPanel({ toast }) {
         </div>
       </div>
 
-      {/* Stage 2: zip-code limited beta */}
       <div className="bg-white rounded-2xl border border-border p-6 space-y-6">
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium">Enable Beta Mode Stage 2</p>
           <Switch checked={!!config.enabled} disabled={saving} onCheckedChange={(v) => save({ enabled: v })} />
         </div>
+        <p className="text-xs text-muted-foreground">
+          When enabled, an orange banner shows at the top of the site, the activity feed filters to allowed zips, and posting is blocked outside those zips.
+        </p>
 
         <div>
           <label className="text-sm font-medium block mb-2">Allowed Zip Codes</label>
@@ -131,7 +170,7 @@ export default function AdminBetaPanel({ toast }) {
               placeholder="89448"
               maxLength={5}
               value={newZip}
-              onChange={(e) => setNewZip(e.target.value)}
+              onChange={(e) => setNewZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
               onKeyDown={(e) => { if (e.key === "Enter") addZip(); }}
               className="rounded-xl"
             />
@@ -139,14 +178,14 @@ export default function AdminBetaPanel({ toast }) {
               <Plus className="w-4 h-4" />
             </Button>
           </div>
-          {config.zip_codes.length === 0 ? (
+          {(config.zip_codes || []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No zip codes added — beta mode has no restriction until you add at least one.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {config.zip_codes.map((z) => (
                 <span key={z} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-mint-50 text-mint-600 text-sm font-medium">
                   {z}
-                  <button onClick={() => removeZip(z)} className="hover:text-mint-800">
+                  <button type="button" onClick={() => removeZip(z)} className="hover:text-mint-800">
                     <X className="w-3 h-3" />
                   </button>
                 </span>
