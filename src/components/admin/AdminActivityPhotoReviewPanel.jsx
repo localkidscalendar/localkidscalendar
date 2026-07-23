@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
-import { Check, X, ImageIcon, Loader2, MessageSquare } from "lucide-react";
+import { Check, X, Loader2, MessageSquare } from "lucide-react";
 import moment from "moment";
 
 async function sendPhotoDecisionEmail(event, decision, notes) {
