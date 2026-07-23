@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Loader2, Clock, XCircle, MapPin, AlertCircle,
   PartyPopper, ArrowUpDown, ArrowUp, ArrowDown,
@@ -41,7 +39,7 @@ async function zipHasOpenSlot(zip) {
   return (holding || []).length < maxSlots;
 }
 
-/** Join a zip waitlist. Returns the created/updated entry or throws. */
+/** Join a zip waitlist from New Ad when zip is full. */
 export async function joinAdWaitlist({ user, zipCode, planType = "monthly", businessName }) {
   const zip = (zipCode || "").trim();
   if (!/^\d{5}$/.test(zip)) throw new Error("Enter a valid 5-digit zip code");
@@ -82,9 +80,6 @@ export default function WaitlistManager({ user, onClaimSpot }) {
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
-  const [joinZip, setJoinZip] = useState("");
-  const [joinPlan, setJoinPlan] = useState("monthly");
-  const [joining, setJoining] = useState(false);
 
   useEffect(() => {
     if (user) loadEntries();
@@ -105,23 +100,6 @@ export default function WaitlistManager({ user, onClaimSpot }) {
       setEntries([]);
     }
     setLoading(false);
-  };
-
-  const handleJoin = async () => {
-    setJoining(true);
-    try {
-      await joinAdWaitlist({
-        user,
-        zipCode: joinZip,
-        planType: joinPlan,
-      });
-      toast({ title: "Joined waitlist", description: `You're in line for zip ${joinZip.trim()}.` });
-      setJoinZip("");
-      loadEntries();
-    } catch (err) {
-      toast({ title: "Could not join", description: err.message, variant: "destructive" });
-    }
-    setJoining(false);
   };
 
   const handleCancel = async (entry) => {
@@ -174,48 +152,12 @@ export default function WaitlistManager({ user, onClaimSpot }) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
         <h3 className="font-heading font-semibold">Waitlisted Zip Codes</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Join the queue for full zip codes. During beta, an admin may offer you a spot when one opens; automated email offers return with billing.
+          Join from <strong>New Ad</strong> when a zip is full. When a spot is offered, claim it here.
         </p>
-      </div>
-
-      <div className="bg-muted/30 rounded-2xl border border-border p-4 space-y-3">
-        <p className="text-sm font-medium">Join a waitlist</p>
-        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-          <div className="space-y-1">
-            <Label className="text-xs">Zip code</Label>
-            <Input
-              className="rounded-xl w-32"
-              placeholder="89448"
-              maxLength={5}
-              value={joinZip}
-              onChange={(e) => setJoinZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Preferred plan</Label>
-            <select
-              className="h-9 rounded-xl border border-input bg-transparent px-3 text-sm"
-              value={joinPlan}
-              onChange={(e) => setJoinPlan(e.target.value)}
-            >
-              <option value="monthly">Monthly</option>
-              <option value="annual">Annual</option>
-            </select>
-          </div>
-          <Button
-            size="sm"
-            className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
-            disabled={joinZip.length !== 5 || joining}
-            onClick={handleJoin}
-          >
-            {joining ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-            Join Waitlist
-          </Button>
-        </div>
       </div>
 
       {activeEntries.length === 0 && (

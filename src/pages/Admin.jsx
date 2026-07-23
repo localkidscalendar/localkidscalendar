@@ -877,9 +877,7 @@ export default function Admin() {
             </div>
             <div>
               <AdminSectionHeader title="Waitlist Management" icon={Clock} />
-              <div className="bg-white rounded-2xl border border-border p-4">
-                <AdminWaitlistPanel toast={toast} />
-              </div>
+              <AdminWaitlistPanel toast={toast} />
             </div>
             <div>
               <AdminSectionHeader title="Ad Rates" icon={DollarSign} />
