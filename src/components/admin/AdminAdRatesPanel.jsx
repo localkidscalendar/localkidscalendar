@@ -31,11 +31,18 @@ export default function AdminAdRatesPanel({ toast }) {
           .from("ad_pricing_history")
           .select("*")
           .order("effective_date", { ascending: false })
+          .order("created_at", { ascending: false })
           .limit(50),
       ]);
       if (configs?.length) setCurrent(configs[0]);
       else setCurrent(null);
-      setHistory(hist || []);
+      // Ensure same-day rows stay newest-first even if the DB only honors one order clause
+      const sorted = [...(hist || [])].sort((a, b) => {
+        const byDate = String(b.effective_date || "").localeCompare(String(a.effective_date || ""));
+        if (byDate !== 0) return byDate;
+        return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+      });
+      setHistory(sorted);
     } catch {
       setCurrent(null);
       setHistory([]);
@@ -62,12 +69,17 @@ export default function AdminAdRatesPanel({ toast }) {
       } = await supabase.auth.getUser();
 
       if (current?.id) {
-        const openRecord = history.find((h) => !h.end_date);
-        if (openRecord) {
-          const dayBefore = moment(form.effective_date).subtract(1, "day").format("YYYY-MM-DD");
+        // Close every open history row (normally one). Same-day changes use created_at
+        // to decide which row was active; live display always reads ad_pricing_config.
+        const openRecords = history.filter((h) => !h.end_date);
+        for (const openRecord of openRecords) {
+          const sameDay = moment(form.effective_date).isSame(moment(openRecord.effective_date), "day");
+          const endDate = sameDay
+            ? form.effective_date
+            : moment(form.effective_date).subtract(1, "day").format("YYYY-MM-DD");
           const { error: closeErr } = await supabase
             .from("ad_pricing_history")
-            .update({ end_date: dayBefore, updated_at: new Date().toISOString() })
+            .update({ end_date: endDate, updated_at: new Date().toISOString() })
             .eq("id", openRecord.id);
           if (closeErr) throw closeErr;
         }

@@ -56,6 +56,12 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
   }
+  /* Keep sample/placeholder text lighter than real input so empty fields are obvious */
+  input::placeholder,
+  textarea::placeholder {
+    color: hsl(var(--muted-foreground) / 0.45);
+    opacity: 1;
+  }
 }
 
 /* Custom scrollbar */
