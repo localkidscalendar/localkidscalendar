@@ -27,6 +27,20 @@ import ManualReviewPanel from "@/components/admin/ManualReviewPanel";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
 import moment from "moment";
 
+const ADS_SECTIONS = [
+  { id: "ads-photo-review", label: "Photo Review" },
+  { id: "ads-supporter-ads", label: "Supporter Ads" },
+  { id: "ads-zip-config", label: "Zip Config" },
+  { id: "ads-waitlist", label: "Waitlist" },
+  { id: "ads-rates", label: "Ad Rates" },
+  { id: "ads-discounts", label: "Discounts" },
+  { id: "ads-default-filler", label: "Default/Filler" },
+];
+
+function scrollToAdsSection(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 export default function Admin() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
@@ -868,43 +882,61 @@ export default function Admin() {
 
         <TabsContent value="ads">
           <div className="space-y-8">
-            <div>
+            <nav
+              aria-label="Ads sections"
+              className="sticky top-0 z-20 -mx-1 px-1 py-2.5 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border"
+            >
+              <div className="flex flex-wrap gap-1.5">
+                {ADS_SECTIONS.map((section) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => scrollToAdsSection(section.id)}
+                    className="text-xs px-2.5 py-1.5 rounded-lg border border-border bg-white hover:bg-mint-50 hover:border-mint-200 hover:text-mint-700 text-muted-foreground font-medium transition-colors"
+                  >
+                    {section.label}
+                  </button>
+                ))}
+              </div>
+            </nav>
+
+            <div id="ads-photo-review" className="scroll-mt-16">
               <AdminSectionHeader title="Advertising Photo Manual Review" icon={Image} />
               <AdminPanelShell>
                 <ManualReviewPanel toast={toast} />
               </AdminPanelShell>
             </div>
-            <div>
+            <div id="ads-supporter-ads" className="scroll-mt-16">
               <AdminSectionHeader title="All Supporter Ads" icon={Megaphone} />
               <AdminPanelShell>
                 <AdminAdsPanel ads={ads} onRefresh={loadAll} toast={toast} />
               </AdminPanelShell>
             </div>
-            <div>
+            <div id="ads-zip-config" className="scroll-mt-16">
               <AdminSectionHeader title="Custom Zip Code Configurations" icon={MapPin} />
               <AdminPanelShell>
                 <AdminZipConfigPanel ads={ads} toast={toast} />
               </AdminPanelShell>
             </div>
-            <div>
+            <div id="ads-waitlist" className="scroll-mt-16">
               <AdminSectionHeader title="Waitlist Management" icon={Clock} />
               <AdminPanelShell wipNote="Automated offer emails return with billing. Manual Offer Spot works when a slot is already open.">
                 <AdminWaitlistPanel toast={toast} />
               </AdminPanelShell>
             </div>
-            <div>
+            <div id="ads-rates" className="scroll-mt-16">
               <AdminSectionHeader title="Ad Rates" icon={DollarSign} />
               <AdminPanelShell>
                 <AdminAdRatesPanel toast={toast} />
               </AdminPanelShell>
             </div>
-            <div>
+            <div id="ads-discounts" className="scroll-mt-16">
               <AdminSectionHeader title="Discount Codes" icon={Tag} />
               <AdminPanelShell wipNote="Admin CRUD works; applying codes at Stripe checkout returns after beta.">
                 <DiscountCodesPanel toast={toast} />
               </AdminPanelShell>
             </div>
-            <div>
+            <div id="ads-default-filler" className="scroll-mt-16">
               <AdminSectionHeader title="Default/Filler Ads" icon={ImagePlus} />
               <AdminPanelShell>
                 <AdminDefaultAdsPanel toast={toast} />
