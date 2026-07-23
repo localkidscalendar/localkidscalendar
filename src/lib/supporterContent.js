@@ -15,6 +15,16 @@ export const SUPPORTER_RULES = [
   { title: "No Refunds for Policy Violations", text: "Ads removed due to policy violations, community flags, or Terms of Service breaches are not eligible for refunds or credits, regardless of remaining plan time." },
 ];
 
+/** Shown on Ad Library upload so advertisers know what will be declined. */
+export const AD_IMAGE_REVIEW_GUIDELINES = [
+  "No nudity, sexual content, or sexually suggestive imagery",
+  "No graphic violence, gore, weapons, or hate symbols",
+  "No drugs, alcohol-focused marketing, gambling, or illegal products",
+  "Images must be clear and professional — not blank, blurry, or illegible",
+  "Content must be appropriate for children and families viewing the calendar",
+  "Destination links must be safe, working, and related to your business",
+];
+
 export const TOS_EFFECTIVE_DATE = "July 1, 2026";
 
 export const TOS_INTRO = "These Supporter Terms of Service (\"Terms\") govern your participation as an advertiser (\"Supporter\") on LocalKidsCalendar (\"Platform,\" \"we,\" \"us,\" or \"our\"). By submitting an advertisement, completing payment, or clicking \"I Agree,\" you accept these Terms in full. If you do not agree, do not proceed with your Supporter application.";

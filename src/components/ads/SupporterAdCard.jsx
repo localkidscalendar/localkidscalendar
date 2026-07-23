@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { ExternalLink, Heart, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -7,7 +7,6 @@ import AuthPromptModal from "@/components/shared/AuthPromptModal";
 
 const FLAG_REASONS = ["inaccurate", "inappropriate", "spam", "other"];
 
-// Placeholder shown when no ad fills a slot
 export function SupporterAdPlaceholder() {
   return (
     <div className="bg-white rounded-2xl border-2 border-dashed border-peach-200 overflow-hidden animate-settle">
@@ -43,7 +42,10 @@ export default function SupporterAdCard({ ad, user }) {
     if (!clickedRef.current) {
       clickedRef.current = true;
       try {
-        await base44.entities.BannerAd.update(ad.id, { clicks: (ad.clicks || 0) + 1 });
+        await supabase
+          .from("banner_ads")
+          .update({ clicks: (ad.clicks || 0) + 1 })
+          .eq("id", ad.id);
       } catch {}
     }
   };
@@ -77,23 +79,21 @@ export default function SupporterAdCard({ ad, user }) {
       return;
     }
     try {
-      const flagData = {
-        target_type: "ad",
-        target_id: ad.id,
-        reason: selectedReason,
-        reporter_id: user.id,
-        reporter_name: user.full_name,
-        target_contributor_name: ad.business_name,
-      };
-      if (selectedReason === "other") flagData.details = otherText.trim();
-      await base44.entities.FlagReport.create(flagData);
-      const newFlaggedBy = [...(ad.flagged_by || []), user.id];
-      const newFlagCount = (ad.flag_count || 0) + 1;
-      const updates = { flag_count: newFlagCount, flagged_by: newFlaggedBy };
-      if (newFlagCount >= 3) updates.status = "flagged";
-      await base44.entities.BannerAd.update(ad.id, updates);
-      toast({ title: newFlagCount >= 3 ? "Ad flagged for review" : "Ad flagged. Thank you for helping keep our community safe." });
-    } catch {}
+      const { data, error } = await supabase.rpc("submit_flag", {
+        p_target_type: "ad",
+        p_target_id: ad.id,
+        p_reason: selectedReason,
+        p_details: selectedReason === "other" ? otherText.trim() : null,
+      });
+      if (error) throw error;
+      toast({
+        title: data?.archived
+          ? "Ad flagged for review"
+          : "Ad flagged. Thank you for helping keep our community safe.",
+      });
+    } catch (err) {
+      toast({ title: "Could not submit report", description: err.message, variant: "destructive" });
+    }
     setFlagOpen(false);
     setSelectedReason(null);
     setOtherText("");
@@ -101,64 +101,47 @@ export default function SupporterAdCard({ ad, user }) {
 
   return (
     <div className="group rounded-2xl border-2 border-black transition-all duration-300 hover:shadow-lg hover:shadow-black/15 hover:-translate-y-0.5 animate-settle bg-white overflow-hidden">
-      {/* Ad image — clickable, full width, unobstructed */}
       <div
         className="h-48 overflow-hidden cursor-pointer"
         onClick={handleImageClick}
         title="Visit advertiser"
       >
-        {ad.image_url ? (
-          <img
-            src={ad.image_url}
-            alt="Supporter ad"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-peach-50 to-peach-100 flex items-center justify-center">
-            <Heart className="w-10 h-10 text-peach-300" />
-          </div>
-        )}
+        <img src={ad.image_url} alt={ad.business_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
       </div>
-
-      {/* Footer bar — compact with zip code and actions */}
-      <div className="bg-black/90 backdrop-blur-sm px-3 py-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-white">{ad.zip_code}</span>
-          <span className="text-xs text-gray-300">Supporter</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleFlagButtonClick}
-            title={user ? "Report this ad if it's inaccurate, inappropriate, or spam." : "Report this ad if it's inaccurate, inappropriate, or spam. Requires a registered, signed-in account."}
-            className={`text-gray-400 hover:text-red-400 transition-colors ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            <Flag className="w-3.5 h-3.5" />
-          </button>
+      <div className="px-3 py-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold truncate">{ad.business_name}</p>
           <a
             href={ad.link_url}
             target="_blank"
             rel="noopener noreferrer"
             onClick={trackClick}
-            title="Visit advertiser"
-            className="text-gray-400 hover:text-white transition-colors"
+            className="inline-flex items-center gap-1 text-xs text-mint-600 hover:underline"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
+            Visit site <ExternalLink className="w-3 h-3" />
           </a>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+          onClick={handleFlagButtonClick}
+          title="Report this ad"
+        >
+          <Flag className="w-3.5 h-3.5" />
+        </Button>
       </div>
-
-      {/* Flag dropdown */}
       {flagOpen && (
-        <div className="bg-peach-50 p-3 animate-settle" onClick={(e) => e.stopPropagation()}>
-          <p className="text-xs font-medium mb-2">Why are you flagging this ad?</p>
-          <div className="flex flex-wrap gap-1.5 mb-2">
+        <form onSubmit={handleSubmitFlag} className="px-3 pb-3 space-y-2 border-t border-border pt-2">
+          <p className="text-xs font-medium">Why are you flagging this ad?</p>
+          <div className="flex flex-wrap gap-1.5">
             {FLAG_REASONS.map((r) => (
               <Button
                 key={r}
                 type="button"
-                variant={selectedReason === r ? "default" : "outline"}
                 size="sm"
-                className="rounded-lg text-xs capitalize h-6 px-2"
+                variant={selectedReason === r ? "default" : "outline"}
+                className="rounded-lg text-xs h-7 capitalize"
                 onClick={() => setSelectedReason(r)}
               >
                 {r}
@@ -167,27 +150,19 @@ export default function SupporterAdCard({ ad, user }) {
           </div>
           {selectedReason === "other" && (
             <textarea
-              placeholder="Please describe the issue..."
               value={otherText}
               onChange={(e) => setOtherText(e.target.value)}
-              className="w-full rounded-lg border border-peach-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-peach-500 mb-2"
+              placeholder="Please describe the issue..."
+              className="w-full rounded-lg border border-border p-2 text-xs"
               rows={2}
             />
           )}
           {selectedReason && (
-            <div className="flex gap-2">
-              <Button size="sm" className="rounded-lg text-xs h-6" onClick={handleSubmitFlag} disabled={selectedReason === "other" && !otherText.trim()}>
-                Submit
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-lg text-xs h-6" onClick={() => { setFlagOpen(false); setSelectedReason(null); setOtherText(""); }}>
-                Cancel
-              </Button>
-            </div>
+            <Button type="submit" size="sm" className="rounded-lg text-xs h-7">Submit Report</Button>
           )}
-        </div>
+        </form>
       )}
-
-      <AuthPromptModal open={authPrompt} onOpenChange={setAuthPrompt} message="Sign in to report this ad if it's inaccurate, inappropriate, or spam." />
+      <AuthPromptModal open={authPrompt} onClose={() => setAuthPrompt(false)} message="Sign in to report this ad." />
     </div>
   );
 }

@@ -70,12 +70,13 @@ export default function Admin() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [evtsRes, usersRes, msgsRes, orgRes, flagsRes] = await Promise.all([
+      const [evtsRes, usersRes, msgsRes, orgRes, flagsRes, adsRes] = await Promise.all([
         supabase.from("events").select("*").order("created_at", { ascending: false }).limit(100),
         supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(200),
         supabase.from("contact_messages").select("*").order("created_at", { ascending: false }).limit(100),
         supabase.from("organizers").select("*").order("created_at", { ascending: false }).limit(200),
         supabase.from("flag_reports").select("*").order("created_at", { ascending: false }).limit(100),
+        supabase.from("banner_ads").select("*").order("created_at", { ascending: false }).limit(100),
       ]);
 
       if (evtsRes.error) throw evtsRes.error;
@@ -83,11 +84,11 @@ export default function Admin() {
       if (msgsRes.error) throw msgsRes.error;
       if (orgRes.error) throw orgRes.error;
       if (flagsRes.error) throw flagsRes.error;
+      if (adsRes.error) throw adsRes.error;
 
       const evts = (evtsRes.data || []).map(withCreatedDate);
-      // Ads tables are not migrated yet — keep empty for this slice
       const flg = (flagsRes.data || []).map(withCreatedDate);
-      const adsList = [];
+      const adsList = (adsRes.data || []).map(withCreatedDate);
       const usersList = (usersRes.data || []).map((u) => {
         const full_name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
         return { ...withCreatedDate(u), full_name: full_name || u.email || "—" };
@@ -245,12 +246,17 @@ export default function Admin() {
     });
   };
 
-  const handleAdStatus = async (_id, _status) => {
-    toast({
-      title: "Not available yet",
-      description: "Supporter ads are not on Supabase yet.",
-      variant: "destructive",
-    });
+  const handleAdStatus = async (id, status) => {
+    const { error } = await supabase.from("banner_ads").update({
+      status,
+      updated_at: new Date().toISOString(),
+    }).eq("id", id);
+    if (error) {
+      toast({ title: "Failed to update ad", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: `Ad ${status}` });
+    loadAll();
   };
 
   const handleReactivateItem = async (itemId, itemType) => {

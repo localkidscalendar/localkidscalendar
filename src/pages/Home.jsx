@@ -323,8 +323,21 @@ export default function Home() {
   }, [filters.zipCode]);
 
   const loadAds = async () => {
-    // Ads tables will be migrated to Supabase in a later pass.
-    setActiveAds([]);
+    try {
+      const zip = (filters.zipCode || "").trim();
+      let query = supabase
+        .from("banner_ads")
+        .select("*")
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (zip) query = query.eq("zip_code", zip);
+      const { data, error } = await query;
+      if (error) throw error;
+      setActiveAds(data || []);
+    } catch {
+      setActiveAds([]);
+    }
   };
 
   // Rotate ad positions every 30 seconds
