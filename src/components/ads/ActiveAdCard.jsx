@@ -127,7 +127,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
           <img
             src={ad.image_url}
             alt={ad.business_name}
-            className="w-full sm:w-32 h-20 object-cover rounded-xl border border-border shrink-0"
+            className="w-full sm:w-40 aspect-[2/1] object-contain rounded-xl border border-border shrink-0 bg-muted/30"
           />
         )}
         <div className="flex-1 min-w-0">

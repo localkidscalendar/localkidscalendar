@@ -14,8 +14,8 @@ export default function EventCard({ event, isSaved, onToggleSave }) {
     <Link to={`/event/${event.id}`} className="block group">
       <div className={`bg-white rounded-2xl border-2 overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 animate-settle ${isOrganizerPost ? "border-mint-500 shadow-mint-100/30" : "border-border"}`}>
         {hasImage && (
-          <div className="h-40 overflow-hidden">
-            <img src={event.event_image} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          <div className="aspect-video bg-muted/30 overflow-hidden flex items-center justify-center">
+            <img src={event.event_image} alt={event.title} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
           </div>
         )}
         <div className="p-4">

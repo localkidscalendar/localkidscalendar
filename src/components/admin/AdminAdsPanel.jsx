@@ -167,7 +167,9 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
               <div key={ad.id} className="bg-white rounded-2xl border border-blue-100 p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                   {ad.image_url && (
-                    <img src={ad.image_url} alt={ad.business_name} className="w-full sm:w-40 h-24 object-cover rounded-xl border border-border shrink-0" />
+                    <div className="w-full sm:w-44 aspect-[2/1] rounded-xl border border-border bg-muted/30 shrink-0 overflow-hidden flex items-center justify-center">
+                      <img src={ad.image_url} alt={ad.business_name} className="max-w-full max-h-full object-contain" />
+                    </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-2">

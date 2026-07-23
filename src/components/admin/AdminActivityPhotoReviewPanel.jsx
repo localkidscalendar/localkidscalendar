@@ -163,10 +163,10 @@ export default function AdminActivityPhotoReviewPanel({ toast }) {
                   </td>
                   <td className="px-4 py-3">
                     {item.event_image ? (
-                      <a href={item.event_image} target="_blank" rel="noopener noreferrer" title="View photo">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-purple-600">
-                          <ImageIcon className="w-3.5 h-3.5" />
-                        </Button>
+                      <a href={item.event_image} target="_blank" rel="noopener noreferrer" title="View photo" className="inline-block">
+                        <div className="w-20 aspect-video rounded border border-purple-100 bg-purple-50/50 overflow-hidden flex items-center justify-center">
+                          <img src={item.event_image} alt="" className="max-w-full max-h-full object-contain" />
+                        </div>
                       </a>
                     ) : <span className="text-xs text-muted-foreground/50">—</span>}
                   </td>

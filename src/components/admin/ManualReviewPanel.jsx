@@ -195,7 +195,9 @@ export default function ManualReviewPanel({ toast }) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {item.image_url && (
-                        <img src={item.image_url} alt={item.ad_name} className="w-12 h-8 object-cover rounded border border-border shrink-0" />
+                        <div className="w-16 aspect-[2/1] rounded border border-border bg-muted/30 shrink-0 overflow-hidden flex items-center justify-center">
+                          <img src={item.image_url} alt={item.ad_name} className="max-w-full max-h-full object-contain" />
+                        </div>
                       )}
                       <span className="font-medium text-sm truncate max-w-[140px]">{item.ad_name}</span>
                     </div>

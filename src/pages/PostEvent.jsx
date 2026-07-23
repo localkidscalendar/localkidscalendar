@@ -466,7 +466,9 @@ export default function PostEvent() {
                    <Label className="text-sm flex items-center gap-1">Activity Photo <HelpTip text="Recommended: JPG or WebP, 16:9 ratio (e.g. 1280×720px), under 2MB. Keep the main subject centered and avoid text overlays." /></Label>
                    <div className="mt-1">
                      {form.event_image && form.image_moderation_status !== "declined" && form.image_moderation_status !== "manual_review_declined" && (
-                       <img src={form.event_image} alt="Event" className="w-full h-32 object-cover rounded-xl mb-2" onError={(e) => e.target.style.display = 'none'} />
+                       <div className="w-full aspect-video rounded-xl mb-2 border border-border bg-muted/40 overflow-hidden flex items-center justify-center">
+                         <img src={form.event_image} alt="Event" className="max-w-full max-h-full object-contain" onError={(e) => e.target.style.display = 'none'} />
+                       </div>
                      )}
                     <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
                       {(uploadingImage || moderatingImage) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}

@@ -152,7 +152,11 @@ export default function AdminDefaultAdsPanel({ toast }) {
               <p className="text-xs font-bold text-muted-foreground mb-1">{label}</p>
               {ad ? (
                 <>
-                  {ad.image_url && <img src={ad.image_url} alt={ad.ad_name} className="w-full h-10 object-cover rounded-lg mb-1" />}
+                  {ad.image_url && (
+                    <div className="w-full aspect-[2/1] rounded-lg border border-border bg-muted/30 mb-1 overflow-hidden flex items-center justify-center">
+                      <img src={ad.image_url} alt={ad.ad_name} className="max-w-full max-h-full object-contain" />
+                    </div>
+                  )}
                   <p className="text-xs font-medium truncate">{ad.ad_name}</p>
                   <span className={`text-xs px-1.5 py-0.5 rounded-full ${ad.status === "active" ? "bg-mint-100 text-mint-600" : "bg-gray-100 text-gray-500"}`}>{ad.status}</span>
                 </>
@@ -181,26 +185,25 @@ export default function AdminDefaultAdsPanel({ toast }) {
           </div>
           <div>
             <Label>Ad Image</Label>
-            <p className="text-xs text-muted-foreground mt-0.5 mb-1">Recommended size: 600 × 700 px (6:7 ratio), JPG or PNG, under 2 MB.</p>
-            <div className="mt-1 flex items-center gap-3 flex-wrap">
-              {form.image_url
-                ? <img src={form.image_url} alt="Preview" className="h-16 rounded-lg object-cover border border-border" />
-                : <div className="h-16 w-32 rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border">No image</div>
-              }
-              <label className="cursor-pointer">
+            <p className="text-xs text-muted-foreground mt-0.5 mb-1">Recommended: 600 × 300 px (landscape). JPG or PNG, under 2 MB. Other sizes still work — the full image is shown without cropping.</p>
+            <div className="mt-2 space-y-2">
+              {form.image_url ? (
+                <div className="w-full max-w-sm aspect-[2/1] rounded-xl border border-border bg-muted/40 overflow-hidden flex items-center justify-center">
+                  <img src={form.image_url} alt="Preview" className="max-w-full max-h-full object-contain" />
+                </div>
+              ) : (
+                <div className="w-full max-w-sm aspect-[2/1] rounded-xl bg-muted flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border">
+                  No image
+                </div>
+              )}
+              <label className="cursor-pointer inline-block">
                 <span className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-border bg-white hover:bg-muted transition-colors">
                   {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                  {uploading ? "Uploading…" : "Upload Image"}
+                  {uploading ? "Uploading…" : form.image_url ? "Replace Image" : "Upload Image"}
                 </span>
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
               </label>
             </div>
-            <Input
-              className="mt-2"
-              placeholder="Or paste image URL…"
-              value={form.image_url}
-              onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))}
-            />
           </div>
           <div>
             <Label>Destination URL *</Label>
@@ -227,7 +230,9 @@ export default function AdminDefaultAdsPanel({ toast }) {
               <div key={ad.id} className="bg-muted/20 rounded-2xl border border-border p-4">
                 <div className="flex items-start gap-4">
                   {ad.image_url && (
-                    <img src={ad.image_url} alt={ad.ad_name} className="w-24 h-14 object-cover rounded-xl border border-border shrink-0" />
+                    <div className="w-28 aspect-[2/1] rounded-xl border border-border bg-muted/30 shrink-0 overflow-hidden flex items-center justify-center">
+                      <img src={ad.image_url} alt={ad.ad_name} className="max-w-full max-h-full object-contain" />
+                    </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-2">

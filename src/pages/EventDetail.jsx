@@ -350,8 +350,8 @@ export default function EventDetail() {
       <div className="bg-white rounded-2xl border border-border overflow-hidden">
         {/* Image */}
         {event.event_image && event.posted_by_role === "organizer" && (!event.image_moderation_status || event.image_moderation_status === "approved") && (
-          <div className="h-48 sm:h-64 overflow-hidden">
-            <img src={event.event_image} alt={event.title} className="w-full h-full object-cover" />
+          <div className="aspect-video bg-muted/30 overflow-hidden flex items-center justify-center">
+            <img src={event.event_image} alt={event.title} className="w-full h-full object-contain" />
           </div>
         )}
 
