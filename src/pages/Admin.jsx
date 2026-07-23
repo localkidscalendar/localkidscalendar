@@ -6,13 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, Trash2, Check, X, Eye, BarChart3, Mail, Send, Image, Ban, Archive, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, Bell, UserPlus, HelpCircle, MessageSquare, RotateCcw } from "lucide-react";
+import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, Trash2, Eye, BarChart3, Mail, Send, Image, Ban, Archive, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, Bell, UserPlus, HelpCircle, MessageSquare, RotateCcw } from "lucide-react";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 
 import FAQManagerV2 from "@/components/admin/FAQManager";
 import InviteOrganizer from "@/components/admin/InviteOrganizer";
 import SiteEmailsTester from "@/components/admin/SiteEmailsTester";
 import AdminAdsPanel from "@/components/admin/AdminAdsPanel";
+import AdminPanelShell from "@/components/admin/AdminPanelShell";
+import AdminZipConfigPanel from "@/components/admin/AdminZipConfigPanel";
 import AdminDefaultAdsPanel from "@/components/admin/AdminDefaultAdsPanel";
 import DiscountCodesPanel from "@/components/admin/DiscountCodesPanel";
 import AdminAdRatesPanel from "@/components/admin/AdminAdRatesPanel";
@@ -502,7 +504,6 @@ export default function Admin() {
         </div>
         <div>
           <h1 className="font-heading font-bold text-2xl">Admin Dashboard</h1>
-          <p className="text-xs text-muted-foreground">Manage events, flags, ads, and users</p>
         </div>
       </div>
 
@@ -869,27 +870,45 @@ export default function Admin() {
           <div className="space-y-8">
             <div>
               <AdminSectionHeader title="Advertising Photo Manual Review" icon={Image} />
-              <ManualReviewPanel toast={toast} />
+              <AdminPanelShell>
+                <ManualReviewPanel toast={toast} />
+              </AdminPanelShell>
             </div>
             <div>
               <AdminSectionHeader title="All Supporter Ads" icon={Megaphone} />
-              <AdminAdsPanel ads={ads} onRefresh={loadAll} toast={toast} />
+              <AdminPanelShell>
+                <AdminAdsPanel ads={ads} onRefresh={loadAll} toast={toast} />
+              </AdminPanelShell>
+            </div>
+            <div>
+              <AdminSectionHeader title="Custom Zip Code Configurations" icon={MapPin} />
+              <AdminPanelShell>
+                <AdminZipConfigPanel ads={ads} toast={toast} />
+              </AdminPanelShell>
             </div>
             <div>
               <AdminSectionHeader title="Waitlist Management" icon={Clock} />
-              <AdminWaitlistPanel toast={toast} />
+              <AdminPanelShell wipNote="Automated offer emails return with billing. Manual Offer Spot works when a slot is already open.">
+                <AdminWaitlistPanel toast={toast} />
+              </AdminPanelShell>
             </div>
             <div>
               <AdminSectionHeader title="Ad Rates" icon={DollarSign} />
-              <AdminAdRatesPanel toast={toast} />
+              <AdminPanelShell>
+                <AdminAdRatesPanel toast={toast} />
+              </AdminPanelShell>
             </div>
             <div>
               <AdminSectionHeader title="Discount Codes" icon={Tag} />
-              <DiscountCodesPanel toast={toast} />
+              <AdminPanelShell wipNote="Admin CRUD works; applying codes at Stripe checkout returns after beta.">
+                <DiscountCodesPanel toast={toast} />
+              </AdminPanelShell>
             </div>
             <div>
               <AdminSectionHeader title="Default/Filler Ads" icon={ImagePlus} />
-              <AdminDefaultAdsPanel toast={toast} />
+              <AdminPanelShell wipNote="Admin UI works; filler ads are not yet loaded into the public homepage/feed.">
+                <AdminDefaultAdsPanel toast={toast} />
+              </AdminPanelShell>
             </div>
           </div>
         </TabsContent>

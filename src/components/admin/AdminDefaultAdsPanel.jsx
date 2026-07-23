@@ -134,7 +134,7 @@ export default function AdminDefaultAdsPanel({ toast }) {
   const slot3 = ads.find((a) => a.is_slot_3);
 
   return (
-    <div className="bg-white border border-border rounded-2xl p-5 space-y-5">
+    <div className="space-y-5">
       <div>
         <h3 className="font-heading font-semibold text-sm mb-2 flex items-center gap-2">
           <Star className="w-4 h-4 text-muted-foreground" /> Default Ad Slot Assignments

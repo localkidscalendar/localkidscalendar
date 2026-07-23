@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, X, Clock, ExternalLink, MapPin, Plus, Trash2, Image, HelpCircle, Flag, RotateCcw } from "lucide-react";
+import { Check, X, Clock, ExternalLink, Trash2, Image, HelpCircle, Flag, RotateCcw } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import moment from "moment";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
-import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 
 const STATUS_CONFIG = {
   active:          { label: "Active",          color: "bg-mint-50 text-mint-500" },
@@ -20,82 +19,11 @@ const STATUS_CONFIG = {
 
 export default function AdminAdsPanel({ ads, onRefresh, toast }) {
   const [rejectionNotes, setRejectionNotes] = useState({});
-  const [zipConfigs, setZipConfigs] = useState([]);
-  const [newZip, setNewZip] = useState("");
-  const [newSlots, setNewSlots] = useState(4);
-  const [savingZip, setSavingZip] = useState(null);
 
   const [adsPage, setAdsPage] = useState(1);
   const [adsSortBy, setAdsSortBy] = useState("created_at");
   const [adsSortOrder, setAdsSortOrder] = useState("desc");
   const [adsSearch, setAdsSearch] = useState("");
-
-  const [zipPage, setZipPage] = useState(1);
-
-  useEffect(() => { loadZipConfigs(); }, []);
-
-  const loadZipConfigs = async () => {
-    try {
-      const { data: configs } = await supabase
-        .from("ad_zip_config")
-        .select("*")
-        .order("zip_code")
-        .limit(100);
-      setZipConfigs(configs || []);
-    } catch {
-      setZipConfigs([]);
-    }
-  };
-
-  const handleAddZip = async () => {
-    if (!newZip.trim() || newZip.length < 5) return;
-    const trimmed = newZip.trim();
-    const existing = zipConfigs.find((z) => z.zip_code === trimmed);
-    if (existing) {
-      toast?.({ title: `Zip ${trimmed} is already configured. Edit it in the list below.`, variant: "destructive" });
-      return;
-    }
-    try {
-      const { error } = await supabase.from("ad_zip_config").insert({
-        zip_code: trimmed,
-        max_slots: newSlots,
-      });
-      if (error) throw error;
-      toast?.({ title: `Zip ${trimmed} added with ${newSlots} slots` });
-      setNewZip("");
-      setNewSlots(4);
-      loadZipConfigs();
-    } catch {
-      toast?.({ title: "Failed to add zip", variant: "destructive" });
-    }
-  };
-
-  const handleUpdateSlots = async (config, newMax) => {
-    setSavingZip(config.id);
-    try {
-      const { error } = await supabase
-        .from("ad_zip_config")
-        .update({ max_slots: newMax, updated_at: new Date().toISOString() })
-        .eq("id", config.id);
-      if (error) throw error;
-      setZipConfigs((prev) => prev.map((z) => (z.id === config.id ? { ...z, max_slots: newMax } : z)));
-      toast?.({ title: `Updated ${config.zip_code} to ${newMax} slots` });
-    } catch {
-      toast?.({ title: "Failed to update zip config", variant: "destructive" });
-    }
-    setSavingZip(null);
-  };
-
-  const handleDeleteZip = async (config) => {
-    if (!window.confirm(`Remove zip ${config.zip_code}? It will revert to the default (3 slots).`)) return;
-    const { error } = await supabase.from("ad_zip_config").delete().eq("id", config.id);
-    if (error) {
-      toast?.({ title: "Failed to remove zip", variant: "destructive" });
-      return;
-    }
-    setZipConfigs((prev) => prev.filter((z) => z.id !== config.id));
-    toast?.({ title: `Zip ${config.zip_code} removed` });
-  };
 
   const handleApprove = async (ad) => {
     const { error } = await supabase.from("banner_ads").update({
@@ -226,14 +154,6 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
 
   const adsPageData = filteredAds.slice((adsPage - 1) * PAGE_SIZE, adsPage * PAGE_SIZE);
 
-  const filteredZips = (() => {
-    const list = newZip.length > 0
-      ? zipConfigs.filter((z) => z.zip_code.startsWith(newZip))
-      : zipConfigs;
-    return [...list].sort((a, b) => a.zip_code.localeCompare(b.zip_code));
-  })();
-  const zipPageData = filteredZips.slice((zipPage - 1) * PAGE_SIZE, zipPage * PAGE_SIZE);
-
   return (
     <div className="space-y-6">
 
@@ -288,8 +208,8 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-border overflow-hidden">
-        <div className="p-4 border-b border-border">
+      <div className="overflow-hidden">
+        <div className="pb-4 border-b border-border">
           <Input
             placeholder="Search by business, zip, plan, or status…"
             value={adsSearch}
@@ -397,84 +317,6 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
           </table>
         </div>
         <Paginator total={filteredAds.length} page={adsPage} onPage={setAdsPage} />
-      </div>
-
-      <div>
-        <AdminSectionHeader icon={MapPin} title="Custom Zip Code Configurations" subtitle="Default: 3 slots per zip" />
-        <div className="bg-white rounded-2xl border border-border p-4">
-
-        <div className="flex items-center gap-2 mb-3">
-          <Input
-            placeholder="Search or enter zip…"
-            maxLength={5}
-            value={newZip}
-            onChange={(e) => { setNewZip(e.target.value.replace(/\D/g, "")); setZipPage(1); }}
-            className="rounded-xl w-36"
-          />
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-xs text-muted-foreground shrink-0">Max slots:</span>
-            <Input
-              type="number"
-              min={4}
-              max={20}
-              value={newSlots}
-              onChange={(e) => setNewSlots(Math.max(4, Number(e.target.value)))}
-              className="rounded-xl w-16 text-center"
-            />
-          </div>
-          <Button
-            size="sm"
-            className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white shrink-0"
-            onClick={handleAddZip}
-            disabled={newZip.length < 5 || !!zipConfigs.find((z) => z.zip_code === newZip.trim())}
-          >
-            <Plus className="w-3.5 h-3.5 mr-1" /> Increase
-          </Button>
-        </div>
-        {newZip.length > 0 && zipConfigs.find((z) => z.zip_code === newZip.trim()) && (
-          <p className="text-xs text-peach-500 mb-3">This zip is already configured — find it highlighted below.</p>
-        )}
-
-        {zipConfigs.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-2">No custom zip configurations. All zips default to 3 slots.</p>
-        ) : filteredZips.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-2">No matching zip codes found.</p>
-        ) : (
-          <>
-            <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">
-              {zipPageData.map((config) => {
-                const isMatch = newZip.length >= 5 && config.zip_code === newZip.trim();
-                return (
-                  <div key={config.id} className={`flex items-center gap-3 px-4 py-2.5 ${isMatch ? "bg-peach-50" : "bg-muted/20"}`}>
-                    <span className={`font-medium text-sm w-20 ${isMatch ? "text-peach-600" : ""}`}>{config.zip_code}</span>
-                    <div className="flex items-center gap-1.5 flex-1">
-                      <span className="text-xs text-muted-foreground">Max slots:</span>
-                      <Input
-                        type="number"
-                        min={4}
-                        max={20}
-                        value={config.max_slots}
-                        onChange={(e) => setZipConfigs((prev) => prev.map((z) => (z.id === config.id ? { ...z, max_slots: Math.max(4, Number(e.target.value)) } : z)))}
-                        onBlur={(e) => handleUpdateSlots(config, Math.max(4, Number(e.target.value)))}
-                        className="rounded-lg w-16 text-center h-7 text-sm"
-                        disabled={savingZip === config.id}
-                      />
-                      {savingZip === config.id && <span className="text-xs text-muted-foreground">Saving…</span>}
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {ads.filter((a) => a.zip_code === config.zip_code && a.status === "active").length} active
-                    </span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteZip(config)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-            <Paginator total={filteredZips.length} page={zipPage} onPage={setZipPage} />
-          </>
-        )}
-        </div>
       </div>
     </div>
   );

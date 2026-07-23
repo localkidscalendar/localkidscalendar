@@ -246,7 +246,7 @@ export default function DiscountCodesPanel({ toast }) {
   );
 
   return (
-    <div className="bg-white border border-border rounded-2xl p-5 space-y-5">
+    <div className="space-y-5">
 
       <div className="flex items-center justify-between">
         <h3 className="font-heading font-semibold text-sm">All Discount Codes ({codes.length})</h3>

@@ -147,11 +147,13 @@ export default function ManualReviewPanel({ toast }) {
     return sortOrder === "asc" ? cmp : -cmp;
   });
 
-  if (loading) return (
-    <div className="bg-white rounded-2xl border border-border p-4 flex items-center justify-center py-8">
-      <Loader2 className="w-5 h-5 animate-spin text-mint-500" />
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="w-5 h-5 animate-spin text-mint-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4">

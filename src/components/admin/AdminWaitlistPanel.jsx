@@ -259,7 +259,7 @@ export default function AdminWaitlistPanel({ toast }) {
           const isExpanded = expandedId === zip;
 
           return (
-            <div key={zip} className="bg-white rounded-2xl border border-border overflow-hidden">
+            <div key={zip} className="bg-muted/20 rounded-xl border border-border overflow-hidden">
               <button
                 type="button"
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
