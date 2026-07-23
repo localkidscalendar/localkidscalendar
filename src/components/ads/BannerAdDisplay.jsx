@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import SupporterAdCard from "@/components/ads/SupporterAdCard";
 import DefaultAdCard from "@/components/ads/DefaultAdCard";
 import useSessionZip from "@/lib/useSessionZip";
+import { pickDefaultFillerAds } from "@/lib/pickDefaultFillerAds";
 
 function shuffle(arr) {
   const a = [...arr];
@@ -58,10 +59,16 @@ export default function BannerAdDisplay({ user, userLoading }) {
         }
 
         const emptySlots = Math.max(0, maxSlots - paidAds.length);
-        // Default/filler ads table not migrated yet — show paid only for beta.
-        const fillerAds = [];
-        void emptySlots;
-        void fillerAds;
+        let fillerAds = [];
+        if (emptySlots > 0) {
+          const { data: defaults } = await supabase
+            .from("admin_default_ads")
+            .select("*")
+            .eq("status", "active")
+            .order("priority", { ascending: false })
+            .limit(10);
+          fillerAds = pickDefaultFillerAds(defaults || [], emptySlots);
+        }
 
         const combined = [
           ...paidAds.map((ad) => ({ type: "paid", ad })),

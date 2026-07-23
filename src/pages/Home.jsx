@@ -9,6 +9,7 @@ import SupporterAdCard from "@/components/ads/SupporterAdCard";
 import DefaultAdCard from "@/components/ads/DefaultAdCard";
 import ZipRequiredModal from "@/components/shared/ZipRequiredModal";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
+import { pickDefaultFillerAds } from "@/lib/pickDefaultFillerAds";
 import { Calendar, MapPin, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import moment from "moment";
@@ -329,17 +330,41 @@ export default function Home() {
   const loadAds = async () => {
     try {
       const zip = (filters.zipCode || "").trim();
-      let query = supabase
+
+      let paidQuery = supabase
         .from("banner_ads")
         .select("*")
         .eq("status", "active")
         .order("created_at", { ascending: false })
-        .limit(20);
-      if (zip) query = query.eq("zip_code", zip);
-      const { data, error } = await query;
+        .limit(50);
+      if (zip) paidQuery = paidQuery.eq("zip_code", zip);
+
+      const [{ data: paidAds, error }, { data: defaultAds }, zipConfigResult] = await Promise.all([
+        paidQuery,
+        supabase
+          .from("admin_default_ads")
+          .select("*")
+          .eq("status", "active")
+          .order("priority", { ascending: false })
+          .limit(10),
+        zip
+          ? supabase.from("ad_zip_config").select("max_slots").eq("zip_code", zip).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
       if (error) throw error;
+
+      const maxSlots = zipConfigResult?.data?.max_slots
+        ? Number(zipConfigResult.data.max_slots) || 3
+        : 3;
+      const paid = paidAds || [];
+      const emptySlots = Math.max(0, maxSlots - paid.length);
+      const fillers = pickDefaultFillerAds(defaultAds || [], emptySlots);
+
       // AdInjectedFeed expects { type: "paid"|"default", ad } wrappers
-      setActiveAds((data || []).map((ad) => ({ type: "paid", ad })));
+      setActiveAds([
+        ...paid.map((ad) => ({ type: "paid", ad })),
+        ...fillers.map((ad) => ({ type: "default", ad })),
+      ]);
     } catch {
       setActiveAds([]);
     }

@@ -906,7 +906,7 @@ export default function Admin() {
             </div>
             <div>
               <AdminSectionHeader title="Default/Filler Ads" icon={ImagePlus} />
-              <AdminPanelShell wipNote="Admin UI works; filler ads are not yet loaded into the public homepage/feed.">
+              <AdminPanelShell>
                 <AdminDefaultAdsPanel toast={toast} />
               </AdminPanelShell>
             </div>
