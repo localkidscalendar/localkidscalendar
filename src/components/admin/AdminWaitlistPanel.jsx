@@ -69,6 +69,7 @@ export default function AdminWaitlistPanel({ toast }) {
       const { data, error } = await supabase
         .from("ad_waitlist")
         .select("*")
+        .in("status", QUEUE_STATUSES)
         .order("created_at", { ascending: true })
         .limit(200);
       if (error) throw error;
@@ -87,6 +88,7 @@ export default function AdminWaitlistPanel({ toast }) {
       const { data: refreshed } = await supabase
         .from("ad_waitlist")
         .select("*")
+        .in("status", QUEUE_STATUSES)
         .order("created_at", { ascending: true })
         .limit(200);
       setEntries(refreshed || rows);
@@ -282,9 +284,9 @@ export default function AdminWaitlistPanel({ toast }) {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Offers notify the next Supporter when a slot is already open. They do <strong>not</strong> increase
-        Custom Zip Code Configurations — raise max slots separately if you want more capacity. A cron job
-        also expires stale offers and advances the queue every 30 minutes.
+        Shows people currently <strong>waiting</strong> or <strong>offered</strong> only. Accepted, cancelled, and
+        expired rows stay in the database but are not listed here. Offers do not increase Custom Zip capacity. A cron
+        job also expires stale offers and advances the queue every 30 minutes.
       </p>
       <div className="flex items-center gap-3">
         <Input
@@ -319,7 +321,6 @@ export default function AdminWaitlistPanel({ toast }) {
       <div className="space-y-3">
         {zips.map((zip) => {
           const zipEntries = byZip[zip];
-          const activeCount = zipEntries.filter((e) => QUEUE_STATUSES.includes(e.status)).length;
           const isExpanded = expandedId === zip;
 
           return (
@@ -332,9 +333,8 @@ export default function AdminWaitlistPanel({ toast }) {
                 <div className="flex items-center gap-3">
                   <span className="font-heading font-semibold text-sm">Zip {zip}</span>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">
-                    {activeCount} active
+                    {zipEntries.length} in queue
                   </span>
-                  <span className="text-xs text-muted-foreground">{zipEntries.length} total entries</span>
                 </div>
                 {isExpanded ? (
                   <ChevronUp className="w-4 h-4 text-muted-foreground" />
