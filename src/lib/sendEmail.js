@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { apiUrl } from "@/lib/apiBase";
 
 /**
  * Send an email via the admin-only /api/send-email endpoint.
@@ -16,7 +17,7 @@ export async function sendEmail({ to, subject, html }) {
     throw new Error("You must be signed in to send email.");
   }
 
-  const res = await fetch("/api/send-email", {
+  const res = await fetch(apiUrl("/api/send-email"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -25,9 +26,17 @@ export async function sendEmail({ to, subject, html }) {
     body: JSON.stringify({ to, subject, html }),
   });
 
-  const payload = await res.json().catch(() => ({}));
+  const raw = await res.text();
+  let payload = {};
+  try {
+    payload = raw ? JSON.parse(raw) : {};
+  } catch {
+    payload = {};
+  }
+
   if (!res.ok) {
-    throw new Error(payload.error || `Email send failed (${res.status})`);
+    const detail = payload.error || (raw && raw.length < 200 ? raw : null);
+    throw new Error(detail || `Email send failed (${res.status})`);
   }
 
   return { ok: true, id: payload.id || null };
