@@ -19,7 +19,7 @@ export default function Footer({ user }) {
             <div className="flex items-center gap-0.5 mb-0 -mt-5">
               <div className="bg-white h-16 flex items-center">
                 <img
-                  src="https://media.base44.com/images/public/6a3b56ed3368aea2e0bb48dc/9943d8efa_Logo0.png"
+                  src="/logo.svg"
                   alt="LocalKidsCalendar logo"
                   className="w-auto h-16 object-contain"
                 />

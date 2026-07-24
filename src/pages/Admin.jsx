@@ -3,6 +3,7 @@ import { useOutletContext, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { buildEmail } from "@/lib/emailTemplates";
 import { sendEmail } from "@/lib/sendEmail";
+import { apiUrl } from "@/lib/apiBase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -266,20 +267,69 @@ export default function Admin() {
     } catch {}
   };
 
-  const handleSendTestEmail = async () => {
-    toast({
-      title: "Not available yet",
-      description: "Notification emails will be wired after the email engine is moved off Base44.",
-      variant: "destructive",
+  const postNotificationEmails = async (body) => {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) throw new Error("You must be signed in.");
+
+    const res = await fetch(apiUrl("/api/send-notification-emails"), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     });
+    const raw = await res.text();
+    let payload = {};
+    try {
+      payload = raw ? JSON.parse(raw) : {};
+    } catch {
+      payload = {};
+    }
+    if (!res.ok) {
+      throw new Error(payload.error || (raw && raw.length < 200 ? raw : null) || `Request failed (${res.status})`);
+    }
+    return payload;
+  };
+
+  const handleSendTestEmail = async () => {
+    setSendingTest(true);
+    try {
+      const result = await postNotificationEmails({ frequency: testEmailFreq });
+      toast({
+        title: result.sent ? `Sent ${result.sent} digest${result.sent === 1 ? "" : "s"}` : "No emails sent",
+        description: result.message
+          || (result.sent
+            ? `Checked ${result.prefs_checked ?? 0} preference profile${(result.prefs_checked ?? 0) === 1 ? "" : "s"}.`
+            : "No matching users with upcoming activities, or no preferences for that frequency."),
+      });
+    } catch (err) {
+      toast({ title: "Send failed", description: err.message, variant: "destructive" });
+    }
+    setSendingTest(false);
   };
 
   const handleSendPreviewToMe = async () => {
-    toast({
-      title: "Not available yet",
-      description: "Preview emails will be wired after the email engine is moved off Base44.",
-      variant: "destructive",
-    });
+    if (!user?.email) {
+      toast({ title: "No admin email on file", variant: "destructive" });
+      return;
+    }
+    setSendingPreview(true);
+    try {
+      const result = await postNotificationEmails({
+        frequency: testEmailFreq === "all" ? "weekly" : testEmailFreq,
+        preview_to: user.email,
+      });
+      toast({
+        title: result.sent ? "Preview sent" : "Nothing to preview",
+        description: result.message || `Check ${user.email} (Resend test mode may only deliver to the account owner).`,
+      });
+    } catch (err) {
+      toast({ title: "Preview failed", description: err.message, variant: "destructive" });
+    }
+    setSendingPreview(false);
   };
 
   const handleAdStatus = async (id, status) => {

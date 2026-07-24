@@ -6,6 +6,8 @@ import { Check, X, Clock, ExternalLink, Trash2, Image, HelpCircle, Flag, RotateC
 import EmptyState from "@/components/shared/EmptyState";
 import moment from "moment";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
+import { buildEmail } from "@/lib/emailTemplates";
+import { sendEmail } from "@/lib/sendEmail";
 
 const STATUS_CONFIG = {
   active:          { label: "Active",          color: "bg-mint-50 text-mint-500" },
@@ -16,6 +18,26 @@ const STATUS_CONFIG = {
   cancelled:       { label: "Paused/Deactivated", color: "bg-gray-100 text-gray-500" },
   flagged:         { label: "Flagged",         color: "bg-peach-50 text-peach-500" },
 };
+
+async function sendAdStatusEmail(ad, templateKey, reason) {
+  try {
+    if (!ad?.user_id) return;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", ad.user_id)
+      .maybeSingle();
+    if (!profile?.email) return;
+    const { subject, html } = buildEmail(templateKey, {
+      business_name: ad.business_name || "Supporter",
+      zip_code: ad.zip_code || "",
+      reason: reason || "",
+    });
+    await sendEmail({ to: profile.email, subject, html });
+  } catch (err) {
+    console.error("Failed to send ad status email", err);
+  }
+}
 
 export default function AdminAdsPanel({ ads, onRefresh, toast }) {
   const [rejectionNotes, setRejectionNotes] = useState({});
@@ -73,8 +95,8 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
       toast?.({ title: "Failed to deactivate ad", variant: "destructive" });
       return;
     }
-    // Email notification to advertiser returns when the email engine is migrated off Base44.
-    toast?.({ title: "Ad paused and removed from feed" });
+    await sendAdStatusEmail(ad, "ad_deactivated_admin", notes.trim());
+    toast?.({ title: "Ad paused and removed from feed", description: "Supporter was emailed." });
     onRefresh?.();
   };
 
@@ -94,8 +116,8 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
       toast?.({ title: "Failed to flag ad", variant: "destructive" });
       return;
     }
-    // Email notification to advertiser returns when the email engine is migrated off Base44.
-    toast?.({ title: "Ad flagged for review" });
+    await sendAdStatusEmail(ad, "ad_flagged_admin", notes.trim());
+    toast?.({ title: "Ad flagged for review", description: "Supporter was emailed." });
     onRefresh?.();
   };
 

@@ -10,6 +10,7 @@ import moment from "moment";
 import { cn } from "@/lib/utils";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/lib/supabaseClient";
 
 const CATEGORIES = [
   { value: "all", label: "All Types" },
@@ -64,10 +65,42 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   const loadSavedFilters = async () => {
     if (!user) { setAuthPrompt(true); return; }
     setLoadingSavedFilters(true);
-    toast({
-      title: "Saved filters coming soon",
-      description: "This will return after a later migration step. Use the filter controls for now.",
-    });
+    try {
+      const { data, error } = await supabase
+        .from("saved_filters")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        toast({
+          title: "No saved filters yet",
+          description: "Save your defaults under Account → My Filters.",
+        });
+      } else {
+        setLocalSearch(data.search || "");
+        onFiltersChange({
+          ...filters,
+          search: data.search || "",
+          category: data.category || "all",
+          subcategory: data.subcategory || "",
+          sortBy: data.sort_by || "posted",
+          zipCode: data.zip_code || filters.zipCode || "",
+          radiusMiles: Number(data.radius_miles) || 15,
+          ageMin: data.age_min != null ? String(data.age_min) : "",
+          ageMax: data.age_max != null ? String(data.age_max) : "",
+          priceMin: data.price_min != null ? String(data.price_min) : "",
+          priceMax: data.price_max != null ? String(data.price_max) : "",
+        });
+        toast({ title: "Saved filters applied" });
+      }
+    } catch (err) {
+      toast({
+        title: "Could not load saved filters",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
     setLoadingSavedFilters(false);
   };
 

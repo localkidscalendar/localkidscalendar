@@ -49,7 +49,7 @@ export default function About() {
         <h1 className="font-heading font-bold text-3xl sm:text-4xl text-foreground mb-4">About LocalKidsCalendar.com</h1>
         <div className="prose prose-sm max-w-none text-muted-foreground space-y-4 leading-relaxed">
           <img
-            src="https://media.base44.com/images/public/6a3b56ed3368aea2e0bb48dc/9943d8efa_Logo0.png"
+            src="/logo.svg"
             alt="LocalKidsCalendar logo"
             className="w-36 h-36 object-contain float-left mr-4 mb-2 border border-gray-300 rounded-xl"
           />
