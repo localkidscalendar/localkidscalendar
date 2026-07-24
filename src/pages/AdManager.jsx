@@ -18,8 +18,8 @@ import WaitlistManager, { joinAdWaitlist } from "@/components/ads/WaitlistManage
 import CurrentAdRates from "@/components/ads/CurrentAdRates";
 import { createAdCheckout } from "@/lib/adBilling";
 import { SUPPORTER_RULES, TOS_INTRO, TOS_SECTIONS, TOS_FOOTER } from "@/lib/supporterContent";
+import { countOpenAdSlots, SLOT_HOLDING_STATUSES } from "@/lib/waitlistQueue";
 
-const SLOT_HOLDING_STATUSES = ["active", "pending_payment", "pending_review", "flagged", "past_due"];
 const RESERVATION_MINUTES = 10;
 
 function RulesAndTerms() {
@@ -174,18 +174,21 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
       setZipChecking(true);
       try {
         const zip = prefill.zip_code.trim();
-        const [{ data: zipConfig }, { data: existing }] = await Promise.all([
-          supabase.from("ad_zip_config").select("max_slots").eq("zip_code", zip).maybeSingle(),
-          supabase.from("banner_ads").select("id, status, user_id").eq("zip_code", zip),
-        ]);
-        const maxSlots = Number(zipConfig?.max_slots) || 3;
+        const { data: existing } = await supabase
+          .from("banner_ads")
+          .select("id, status, user_id")
+          .eq("zip_code", zip);
         const holding = (existing || []).filter((ad) => SLOT_HOLDING_STATUSES.includes(ad.status));
-        const available = holding.length < maxSlots && !holding.some((ad) => ad.user_id === user.id);
+        const userAlreadyHasAd = holding.some((ad) => ad.user_id === user.id);
+        const slotInfo = await countOpenAdSlots(supabase, zip, {
+          ignoreWaitlistEntryId: prefill.waitlist_entry_id || null,
+        });
+        const available = slotInfo.open > 0 && !userAlreadyHasAd;
         setZipStatus({
           available,
-          slots_total: maxSlots,
-          slots_used: holding.length,
-          userAlreadyHasAd: holding.some((ad) => ad.user_id === user.id),
+          slots_total: slotInfo.maxSlots,
+          slots_used: slotInfo.holding + slotInfo.reservedOffers,
+          userAlreadyHasAd,
         });
         if (available) {
           setReservationExpiry(Date.now() + RESERVATION_MINUTES * 60 * 1000);
@@ -214,18 +217,18 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
     setZipChecking(true);
     setZipStatus(null);
     try {
-      const [{ data: zipConfig }, { data: existingAds, error }] = await Promise.all([
-        supabase.from("ad_zip_config").select("max_slots").eq("zip_code", zip).maybeSingle(),
-        supabase.from("banner_ads").select("id, status, user_id").eq("zip_code", zip),
-      ]);
+      const { data: existingAds, error } = await supabase
+        .from("banner_ads")
+        .select("id, status, user_id")
+        .eq("zip_code", zip);
       if (error) throw error;
-      const maxSlots = Number(zipConfig?.max_slots) || 3;
       const holding = (existingAds || []).filter((ad) => SLOT_HOLDING_STATUSES.includes(ad.status));
       const userAlreadyHasAd = holding.some((ad) => ad.user_id === user.id);
+      const slotInfo = await countOpenAdSlots(supabase, zip);
       setZipStatus({
-        available: holding.length < maxSlots && !userAlreadyHasAd,
-        slots_total: maxSlots,
-        slots_used: holding.length,
+        available: slotInfo.open > 0 && !userAlreadyHasAd,
+        slots_total: slotInfo.maxSlots,
+        slots_used: slotInfo.holding + slotInfo.reservedOffers,
         userAlreadyHasAd,
       });
     } catch {

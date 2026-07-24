@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
+import { nextPositionForZip, countOpenAdSlots } from "@/lib/waitlistQueue";
 
 const STATUS_CONFIG = {
   waiting: { label: "Waiting", color: "bg-yellow-100 text-yellow-700", icon: Clock },
@@ -19,24 +20,10 @@ const STATUS_CONFIG = {
 
 const ACTIVE_STATUSES = ["waiting", "offered", "accepted"];
 const PAST_STATUSES = ["expired", "declined", "cancelled"];
-const SLOT_HOLDING = ["active", "pending_payment", "pending_review", "flagged", "past_due"];
-
-async function nextPositionForZip(zip) {
-  const { count } = await supabase
-    .from("ad_waitlist")
-    .select("id", { count: "exact", head: true })
-    .eq("zip_code", zip)
-    .eq("status", "waiting");
-  return (count || 0) + 1;
-}
 
 async function zipHasOpenSlot(zip) {
-  const [{ data: zipConfig }, { data: holding }] = await Promise.all([
-    supabase.from("ad_zip_config").select("max_slots").eq("zip_code", zip).maybeSingle(),
-    supabase.from("banner_ads").select("id").eq("zip_code", zip).in("status", SLOT_HOLDING),
-  ]);
-  const maxSlots = Number(zipConfig?.max_slots) || 3;
-  return (holding || []).length < maxSlots;
+  const open = await countOpenAdSlots(supabase, zip);
+  return open > 0;
 }
 
 /** Join a zip waitlist from New Ad when zip is full. */
@@ -56,7 +43,7 @@ export async function joinAdWaitlist({ user, zipCode, planType = "monthly", busi
   const open = await zipHasOpenSlot(zip);
   if (open) throw new Error(`Zip ${zip} currently has an open spot — submit a new ad instead of joining the waitlist.`);
 
-  const position = await nextPositionForZip(zip);
+  const position = await nextPositionForZip(supabase, zip);
   const { data, error } = await supabase
     .from("ad_waitlist")
     .insert({

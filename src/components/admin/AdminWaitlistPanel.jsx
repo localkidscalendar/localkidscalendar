@@ -8,6 +8,11 @@ import {
 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import moment from "moment";
+import {
+  QUEUE_STATUSES,
+  compareWaitlistEntries,
+  renumberZipQueue,
+} from "@/lib/waitlistQueue";
 
 const STATUS_COLOR = {
   waiting: "bg-yellow-100 text-yellow-700",
@@ -64,10 +69,27 @@ export default function AdminWaitlistPanel({ toast }) {
       const { data, error } = await supabase
         .from("ad_waitlist")
         .select("*")
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: true })
         .limit(200);
       if (error) throw error;
-      setEntries(data || []);
+      const rows = data || [];
+
+      // Heal duplicate positions (e.g. both showing #1) for each zip.
+      const zips = [...new Set(rows.map((r) => r.zip_code).filter(Boolean))];
+      for (const zip of zips) {
+        try {
+          await renumberZipQueue(supabase, zip);
+        } catch {
+          /* non-fatal — still show current rows */
+        }
+      }
+
+      const { data: refreshed } = await supabase
+        .from("ad_waitlist")
+        .select("*")
+        .order("created_at", { ascending: true })
+        .limit(200);
+      setEntries(refreshed || rows);
     } catch {
       setEntries([]);
     }
@@ -114,6 +136,9 @@ export default function AdminWaitlistPanel({ toast }) {
         .eq("id", entry.id);
       if (error) throw error;
       toast?.({ title: `${entry.business_name} moved to front of zip ${entry.zip_code} queue` });
+      try {
+        await renumberZipQueue(supabase, entry.zip_code);
+      } catch {}
       load();
     } catch (err) {
       toast?.({ title: "Failed to update position", description: err.message, variant: "destructive" });
@@ -206,13 +231,7 @@ export default function AdminWaitlistPanel({ toast }) {
     byZip[e.zip_code].push(e);
   }
   for (const zip of Object.keys(byZip)) {
-    byZip[zip].sort((a, b) => {
-      const aActive = ["waiting", "offered"].includes(a.status);
-      const bActive = ["waiting", "offered"].includes(b.status);
-      if (aActive && !bActive) return -1;
-      if (!aActive && bActive) return 1;
-      return Number(a.position || 999) - Number(b.position || 999);
-    });
+    byZip[zip].sort(compareWaitlistEntries);
   }
   const zips = Object.keys(byZip).sort();
 
@@ -264,7 +283,7 @@ export default function AdminWaitlistPanel({ toast }) {
       <div className="space-y-3">
         {zips.map((zip) => {
           const zipEntries = byZip[zip];
-          const activeCount = zipEntries.filter((e) => ["waiting", "offered"].includes(e.status)).length;
+          const activeCount = zipEntries.filter((e) => QUEUE_STATUSES.includes(e.status)).length;
           const isExpanded = expandedId === zip;
 
           return (
@@ -292,15 +311,18 @@ export default function AdminWaitlistPanel({ toast }) {
                 <div className="border-t border-border divide-y divide-border">
                   {zipEntries.map((entry) => {
                     const statusColor = STATUS_COLOR[entry.status] || STATUS_COLOR.waiting;
-                    const isActive = ["waiting", "offered"].includes(entry.status);
+                    const isActive = QUEUE_STATUSES.includes(entry.status);
+                    const queueRank = isActive
+                      ? zipEntries.filter((e) => QUEUE_STATUSES.includes(e.status)).findIndex((e) => e.id === entry.id) + 1
+                      : null;
                     return (
                       <div key={entry.id} className={`px-4 py-3 ${!isActive ? "bg-muted/20" : ""}`}>
                         <div className="flex items-start justify-between gap-3 flex-wrap">
                           <div className="flex-1 min-w-0 space-y-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              {isActive && (
+                              {queueRank != null && (
                                 <span className="text-xs font-bold text-muted-foreground w-5">
-                                  #{entry.position}
+                                  #{queueRank}
                                 </span>
                               )}
                               <span className="font-medium text-sm">{entry.business_name || "—"}</span>
@@ -356,7 +378,7 @@ export default function AdminWaitlistPanel({ toast }) {
                                     Offer Spot
                                   </Button>
                                 )}
-                                {entry.position !== 1 && entry.status === "waiting" && (
+                                {queueRank !== 1 && entry.status === "waiting" && (
                                   <Button
                                     size="sm"
                                     variant="outline"

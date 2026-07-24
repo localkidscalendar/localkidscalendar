@@ -1,14 +1,13 @@
-import { SLOT_HOLDING_STATUSES } from "./stripeHelpers.js";
 import { sendViaResend } from "./resendSend.js";
 import { buildWaitlistOfferEmail } from "./waitlistEmail.js";
+import { countOpenAdSlots, renumberZipQueue } from "./waitlistQueue.js";
 
 const OFFER_HOURS = 24;
 const MAX_OFFER_ATTEMPTS = 3;
 
 /**
  * Expire stale offers, then advance one new offer per zip with open capacity.
- * Mirrors Base44 processWaitlist. Uses SLOT_HOLDING_STATUSES for capacity
- * (aligned with Ad Manager / checkout) rather than active-only counting.
+ * Mirrors Base44 processWaitlist. Active waitlist offers reserve capacity.
  *
  * @param {import("@supabase/supabase-js").SupabaseClient} admin
  * @param {{ sendEmail?: boolean }} [opts]
@@ -20,6 +19,7 @@ export async function runProcessWaitlist(admin, opts = {}) {
   let cancelled = 0;
   let offersSent = 0;
   const emailErrors = [];
+  const zipsToRenumber = new Set();
 
   // ── Step 1: Expire outstanding offers past their deadline ───────────────
   const { data: offeredEntries, error: offeredErr } = await admin
@@ -32,6 +32,7 @@ export async function runProcessWaitlist(admin, opts = {}) {
     if (!entry.offer_expires_date || new Date(entry.offer_expires_date) >= now) continue;
 
     const offerCount = Number(entry.offer_count || 0) + 1;
+    zipsToRenumber.add(entry.zip_code);
     if (offerCount >= MAX_OFFER_ATTEMPTS) {
       const { error } = await admin
         .from("ad_waitlist")
@@ -69,23 +70,12 @@ export async function runProcessWaitlist(admin, opts = {}) {
     }
   }
 
-  // ── Step 2: Capacity + waiting queues ───────────────────────────────────
-  const [{ data: holdingAds }, { data: zipConfigs }, { data: currentWaiting }] =
-    await Promise.all([
-      admin.from("banner_ads").select("zip_code, status").in("status", SLOT_HOLDING_STATUSES),
-      admin.from("ad_zip_config").select("zip_code, max_slots"),
-      admin.from("ad_waitlist").select("*").eq("status", "waiting"),
-    ]);
-
-  const holdingByZip = {};
-  for (const ad of holdingAds || []) {
-    holdingByZip[ad.zip_code] = (holdingByZip[ad.zip_code] || 0) + 1;
+  for (const zip of zipsToRenumber) {
+    await renumberZipQueue(admin, zip);
   }
 
-  const zipConfigMap = {};
-  for (const cfg of zipConfigs || []) {
-    zipConfigMap[cfg.zip_code] = Number(cfg.max_slots) || 3;
-  }
+  // ── Step 2: Waiting queues ──────────────────────────────────────────────
+  const { data: currentWaiting } = await admin.from("ad_waitlist").select("*").eq("status", "waiting");
 
   const waitingByZip = {};
   for (const entry of currentWaiting || []) {
@@ -93,7 +83,11 @@ export async function runProcessWaitlist(admin, opts = {}) {
     waitingByZip[entry.zip_code].push(entry);
   }
   for (const zip of Object.keys(waitingByZip)) {
-    waitingByZip[zip].sort((a, b) => Number(a.position || 0) - Number(b.position || 0));
+    waitingByZip[zip].sort((a, b) => {
+      const posDiff = Number(a.position || 0) - Number(b.position || 0);
+      if (posDiff !== 0) return posDiff;
+      return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+    });
   }
 
   // ── Step 3: Still-active offers (avoid double-offer per zip) ────────────
@@ -104,9 +98,8 @@ export async function runProcessWaitlist(admin, opts = {}) {
 
   // ── Step 4: Offer one spot per zip with capacity ─────────────────────────
   for (const zip of Object.keys(waitingByZip)) {
-    const maxSlots = zipConfigMap[zip] || 3;
-    const holdingCount = holdingByZip[zip] || 0;
-    if (maxSlots - holdingCount <= 0) continue;
+    const slotInfo = await countOpenAdSlots(admin, zip);
+    if (slotInfo.open <= 0) continue;
 
     const hasActiveOffer = (stillOffered || []).some(
       (e) => e.zip_code === zip && e.offer_expires_date && new Date(e.offer_expires_date) > now
@@ -128,8 +121,8 @@ export async function runProcessWaitlist(admin, opts = {}) {
       .eq("id", next.id);
     if (updateErr) throw updateErr;
 
-    // Track so we don't double-offer this zip in the same run
     (stillOffered || []).push({ zip_code: zip, offer_expires_date: offerExpires.toISOString() });
+    await renumberZipQueue(admin, zip);
 
     if (sendEmail && next.email) {
       try {

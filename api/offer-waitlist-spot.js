@@ -1,5 +1,5 @@
 import { createAdminClient, requireUser } from "./_lib/stripeHelpers.js";
-import { SLOT_HOLDING_STATUSES } from "./_lib/stripeHelpers.js";
+import { countOpenAdSlots, renumberZipQueue } from "./_lib/waitlistQueue.js";
 import { sendOfferEmailForEntry } from "./_lib/processWaitlistCore.js";
 
 const ADMIN_EMAILS = new Set(["localkidscalendar@gmail.com"]);
@@ -53,32 +53,28 @@ export default async function handler(req, res) {
     }
 
     const zip = entry.zip_code;
-    const [{ data: zipConfig }, { data: holding }, { data: activeOffers }] = await Promise.all([
-      admin.from("ad_zip_config").select("max_slots").eq("zip_code", zip).maybeSingle(),
-      admin.from("banner_ads").select("id").eq("zip_code", zip).in("status", SLOT_HOLDING_STATUSES),
-      admin
-        .from("ad_waitlist")
-        .select("id, offer_expires_date")
-        .eq("zip_code", zip)
-        .eq("status", "offered"),
-    ]);
-
-    const maxSlots = Number(zipConfig?.max_slots) || 3;
-    const open = Math.max(0, maxSlots - (holding || []).length);
-    if (open <= 0) {
-      return res.status(409).json({
-        error:
-          "No open slot in this zip. Free a placement or raise max slots under Custom Zip Code Configurations first.",
-      });
-    }
-
     const now = new Date();
+
+    const { data: activeOffers } = await admin
+      .from("ad_waitlist")
+      .select("id, offer_expires_date")
+      .eq("zip_code", zip)
+      .eq("status", "offered");
+
     const hasActiveOffer = (activeOffers || []).some(
       (e) => e.offer_expires_date && new Date(e.offer_expires_date) > now
     );
     if (hasActiveOffer) {
       return res.status(409).json({
         error: "An offer is already active for this zip. Wait for it to be claimed or expire.",
+      });
+    }
+
+    const slotInfo = await countOpenAdSlots(admin, zip);
+    if (slotInfo.open <= 0) {
+      return res.status(409).json({
+        error:
+          "No open slot in this zip. Free a placement or raise max slots under Custom Zip Code Configurations first.",
       });
     }
 
@@ -100,6 +96,12 @@ export default async function handler(req, res) {
       .select("*")
       .single();
     if (updateErr) throw updateErr;
+
+    try {
+      await renumberZipQueue(admin, zip);
+    } catch (renumberErr) {
+      console.error("offer-waitlist-spot: renumber failed:", renumberErr.message);
+    }
 
     let emailId = null;
     try {

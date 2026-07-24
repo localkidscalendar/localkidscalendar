@@ -8,6 +8,7 @@ import {
   getPricing,
   planDates,
 } from "./_lib/stripeHelpers.js";
+import { countOpenAdSlots } from "./_lib/waitlistQueue.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
@@ -70,17 +71,38 @@ export default async function handler(req, res) {
     const userEmail = (profile?.email || authUser.email || "").trim();
 
     // Slot availability + one-ad-per-user-per-zip
-    const [{ data: zipConfig }, { data: existingAds }] = await Promise.all([
-      admin.from("ad_zip_config").select("max_slots").eq("zip_code", zipCode).maybeSingle(),
-      admin.from("banner_ads").select("id, status, user_id").eq("zip_code", zipCode),
-    ]);
-    const maxSlots = Number(zipConfig?.max_slots) || 3;
+    const { data: existingAds } = await admin
+      .from("banner_ads")
+      .select("id, status, user_id")
+      .eq("zip_code", zipCode);
     const holding = (existingAds || []).filter((ad) => SLOT_HOLDING_STATUSES.includes(ad.status));
     if (holding.some((ad) => ad.user_id === authUser.id)) {
       return res.status(409).json({ error: `You already have an ad for zip code ${zipCode}. Only one ad per zip code is allowed per Supporter.` });
     }
-    if (holding.length >= maxSlots) {
-      return res.status(409).json({ error: `No slots available in zip code ${zipCode}. All ${maxSlots} spots are currently filled.` });
+
+    // Only the rightful offered claimant may redeem a reserved waitlist slot.
+    let ignoreWaitlistEntryId = null;
+    if (waitlistEntryId) {
+      const { data: wl } = await admin
+        .from("ad_waitlist")
+        .select("id, user_id, zip_code, status, offer_expires_date")
+        .eq("id", waitlistEntryId)
+        .maybeSingle();
+      const offerOk =
+        wl &&
+        wl.user_id === authUser.id &&
+        wl.zip_code === zipCode &&
+        wl.status === "offered" &&
+        wl.offer_expires_date &&
+        new Date(wl.offer_expires_date) > new Date();
+      if (offerOk) ignoreWaitlistEntryId = wl.id;
+    }
+
+    const slotInfo = await countOpenAdSlots(admin, zipCode, { ignoreWaitlistEntryId });
+    if (slotInfo.open <= 0) {
+      return res.status(409).json({
+        error: `No slots available in zip code ${zipCode}. All ${slotInfo.maxSlots} spots are currently filled${slotInfo.reservedOffers ? " (including reserved waitlist offers)" : ""}.`,
+      });
     }
 
     const { start: planStart, end: planEnd } = planDates(planType);
