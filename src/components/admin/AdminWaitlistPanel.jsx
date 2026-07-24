@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { apiUrl } from "@/lib/apiBase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,15 +18,31 @@ const STATUS_COLOR = {
   cancelled: "bg-gray-100 text-gray-500",
 };
 
-const SLOT_HOLDING = ["active", "pending_payment", "pending_review", "flagged", "past_due"];
+async function adminPost(path, body) {
+  const { data: sessionData, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new Error("You must be signed in");
 
-async function zipOpenSlotCount(zip) {
-  const [{ data: zipConfig }, { data: holding }] = await Promise.all([
-    supabase.from("ad_zip_config").select("max_slots").eq("zip_code", zip).maybeSingle(),
-    supabase.from("banner_ads").select("id").eq("zip_code", zip).in("status", SLOT_HOLDING),
-  ]);
-  const maxSlots = Number(zipConfig?.max_slots) || 3;
-  return Math.max(0, maxSlots - (holding || []).length);
+  const res = await fetch(apiUrl(path), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body || {}),
+  });
+  const raw = await res.text();
+  let payload = {};
+  try {
+    payload = raw ? JSON.parse(raw) : {};
+  } catch {
+    payload = {};
+  }
+  if (!res.ok) {
+    throw new Error(payload.error || (raw && raw.length < 200 ? raw : `Request failed (${res.status})`));
+  }
+  return payload;
 }
 
 export default function AdminWaitlistPanel({ toast }) {
@@ -35,6 +52,7 @@ export default function AdminWaitlistPanel({ toast }) {
   const [expandedId, setExpandedId] = useState(null);
   const [overrideNotes, setOverrideNotes] = useState({});
   const [saving, setSaving] = useState(null);
+  const [runningProcessor, setRunningProcessor] = useState(false);
 
   useEffect(() => {
     load();
@@ -54,6 +72,21 @@ export default function AdminWaitlistPanel({ toast }) {
       setEntries([]);
     }
     setLoading(false);
+  };
+
+  const handleRunProcessor = async () => {
+    setRunningProcessor(true);
+    try {
+      const result = await adminPost("/api/process-waitlist", {});
+      toast?.({
+        title: "Waitlist processor ran",
+        description: `Expired ${result.expired || 0}, cancelled ${result.cancelled || 0}, offers sent ${result.offers_sent || 0}.`,
+      });
+      load();
+    } catch (err) {
+      toast?.({ title: "Processor failed", description: err.message, variant: "destructive" });
+    }
+    setRunningProcessor(false);
   };
 
   const handleMoveToFront = async (entry) => {
@@ -131,58 +164,23 @@ export default function AdminWaitlistPanel({ toast }) {
   };
 
   /**
-   * Manual offer for beta. Does NOT increase Custom Zip Configurations.
-   * Only works when the zip already has an open slot (someone left, or admin raised max_slots).
+   * Manual offer when a slot is already open. Sends Resend email.
+   * Does not bump offer_count — that increments only when an offer expires unclaimed.
    */
   const handleOfferSpot = async (entry) => {
     setSaving(entry.id);
     try {
-      const open = await zipOpenSlotCount(entry.zip_code);
-      if (open <= 0) {
-        toast?.({
-          title: "No open slot in this zip",
-          description:
-            "Offering does not increase capacity. Free a placement or raise max slots under Custom Zip Code Configurations first.",
-          variant: "destructive",
-        });
-        setSaving(null);
-        return;
-      }
-      const hasActiveOffer = entries.some(
-        (e) =>
-          e.zip_code === entry.zip_code &&
-          e.status === "offered" &&
-          e.id !== entry.id &&
-          e.offer_expires_date &&
-          new Date(e.offer_expires_date) > new Date()
-      );
-      if (hasActiveOffer) {
-        toast?.({
-          title: "An offer is already active for this zip",
-          description: "Wait for it to be claimed or expire before offering another.",
-          variant: "destructive",
-        });
-        setSaving(null);
-        return;
-      }
-      const expires = new Date();
-      expires.setHours(expires.getHours() + 24);
       const notes = overrideNotes[entry.id] || "";
-      const { error } = await supabase
-        .from("ad_waitlist")
-        .update({
-          status: "offered",
-          offer_sent_date: new Date().toISOString(),
-          offer_expires_date: expires.toISOString(),
-          offer_count: Number(entry.offer_count || 0) + 1,
-          ...(notes ? { admin_override_notes: notes } : {}),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", entry.id);
-      if (error) throw error;
+      const result = await adminPost("/api/offer-waitlist-spot", {
+        waitlist_entry_id: entry.id,
+        ...(notes ? { admin_override_notes: notes } : {}),
+      });
       toast?.({
-        title: "Offer sent",
-        description: `${entry.business_name} can claim zip ${entry.zip_code} from Ad Manager → Waitlist (24 hours). Capacity unchanged.`,
+        title: result.email_sent ? "Offer sent" : "Offer saved (email failed)",
+        description: result.email_sent
+          ? `${entry.business_name} was emailed — they can claim zip ${entry.zip_code} from Ad Manager → Waitlist (24 hours).`
+          : result.email_error || "Spot offered in the database, but the email did not send.",
+        variant: result.email_sent ? undefined : "destructive",
       });
       load();
     } catch (err) {
@@ -230,7 +228,8 @@ export default function AdminWaitlistPanel({ toast }) {
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
         Offers notify the next Supporter when a slot is already open. They do <strong>not</strong> increase
-        Custom Zip Code Configurations — raise max slots separately if you want more capacity.
+        Custom Zip Code Configurations — raise max slots separately if you want more capacity. A cron job
+        also expires stale offers and advances the queue every 30 minutes.
       </p>
       <div className="flex items-center gap-3">
         <Input
@@ -241,6 +240,16 @@ export default function AdminWaitlistPanel({ toast }) {
         />
         <Button variant="outline" size="sm" className="rounded-xl shrink-0" onClick={load}>
           Refresh
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-xl shrink-0"
+          disabled={runningProcessor}
+          onClick={handleRunProcessor}
+        >
+          {runningProcessor ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+          Run processor
         </Button>
       </div>
 
@@ -298,9 +307,9 @@ export default function AdminWaitlistPanel({ toast }) {
                               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor}`}>
                                 {entry.status}
                               </span>
-                              {entry.offer_count > 0 && (
+                              {Number(entry.offer_count || 0) > 0 && (
                                 <span className="text-xs text-muted-foreground">
-                                  Offers sent: {entry.offer_count}/3
+                                  Missed offers: {entry.offer_count}/3
                                 </span>
                               )}
                             </div>
