@@ -11,11 +11,7 @@ import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabaseClient";
 import { ACTIVITY_CATEGORIES } from "@/lib/activityCategories";
-
-const ACTIVE_STATUS_OPTIONS = [
-  { value: "active", label: "Show Active" },
-  { value: "inactive", label: "Show Inactive" },
-];
+import { Checkbox } from "@/components/ui/checkbox";
 
 const SORT_OPTIONS = [
   { value: "posted", label: "Sort By Date Posted" },
@@ -46,7 +42,6 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
       ...filters,
       search: "",
       category: "all",
-      activeStatus: "active",
       sortBy: "posted",
       zipCode: defaultZip || "",
       radiusMiles: 15,
@@ -142,28 +137,6 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
             ))}
           </SelectContent>
         </Select>
-        <Select value={filters.activeStatus || "active"} onValueChange={(v) => updateFilter("activeStatus", v)}>
-          <SelectTrigger className="w-auto min-w-[130px] rounded-xl text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ACTIVE_STATUS_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          variant={filters.freeOnly ? "secondary" : "outline"}
-          className={`rounded-xl text-sm font-normal ${filters.freeOnly ? "text-mint-600 border-mint-200 bg-mint-50 hover:bg-mint-100" : ""}`}
-          onClick={() => onFiltersChange({
-            ...filters,
-            freeOnly: !filters.freeOnly,
-            priceMin: !filters.freeOnly ? "" : filters.priceMin,
-            priceMax: !filters.freeOnly ? "" : filters.priceMax,
-          })}
-        >
-          Free
-        </Button>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className="rounded-xl text-sm font-normal min-w-[130px]">
@@ -295,9 +268,20 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
                 disabled={filters.freeOnly}
               />
             </div>
-            {filters.freeOnly && (
-              <p className="text-[11px] text-muted-foreground mt-1">Price Range is disabled while Free is on.</p>
-            )}
+          </div>
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 h-9 text-sm cursor-pointer">
+              <Checkbox
+                checked={Boolean(filters.freeOnly)}
+                onCheckedChange={(v) => onFiltersChange({
+                  ...filters,
+                  freeOnly: Boolean(v),
+                  priceMin: v ? "" : filters.priceMin,
+                  priceMax: v ? "" : filters.priceMax,
+                })}
+              />
+              <span className="font-medium">Free</span>
+            </label>
           </div>
         </div>
       )}

@@ -124,7 +124,7 @@ export default function Home() {
   const [orgFilter, setOrgFilter] = useState(""); // set when coming from Organizer Directory
   const [filters, setFilters] = useState(() => {
     const defaults = {
-      search: "", category: "all", activeStatus: "active", sortBy: "posted",
+      search: "", category: "all", sortBy: "posted",
       zipCode: "", radiusMiles: 15, ageMin: "", ageMax: "", priceMin: "", priceMax: "",
       freeOnly: false,
       dateFrom: moment().toDate(), dateTo: moment().add(120, "days").toDate(), savedOnly: false, favOrgsOnly: false
@@ -466,20 +466,6 @@ export default function Home() {
   const filteredEvents = useMemo(() => {
     // BETA MODE — remove this filter block along with useBetaConfig.js
     let result = events.filter((e) => isZipAllowed(e.zip_code, betaConfig));
-    const today = moment().startOf("day");
-
-    // Filter active vs inactive
-    if (filters.activeStatus === "inactive") {
-      result = result.filter((e) => {
-        const end = e.end_date ? moment(e.end_date) : moment(e.start_date);
-        return end.isBefore(today);
-      });
-    } else {
-      result = result.filter((e) => {
-        const end = e.end_date ? moment(e.end_date) : moment(e.start_date);
-        return end.isSameOrAfter(today);
-      });
-    }
 
     if (filters.category && filters.category !== "all") {
       result = result.filter((e) => {
@@ -664,7 +650,7 @@ export default function Home() {
             </div>
             <h3 className="font-heading font-semibold text-lg mb-1">No Activities Found</h3>
             <p className="text-sm text-muted-foreground mb-4">Try adjusting your filters or check back soon.</p>
-            <Button variant="outline" className="rounded-xl" onClick={() => setFilters({ search: "", category: "all", activeStatus: "active", sortBy: "posted", zipCode: "", radiusMiles: 15, ageMin: "", ageMax: "", priceMin: "", priceMax: "", freeOnly: false, dateFrom: moment().toDate(), dateTo: moment().add(120, "days").toDate(), savedOnly: false, favOrgsOnly: false })}>
+            <Button variant="outline" className="rounded-xl" onClick={() => setFilters({ search: "", category: "all", sortBy: "posted", zipCode: "", radiusMiles: 15, ageMin: "", ageMax: "", priceMin: "", priceMax: "", freeOnly: false, dateFrom: moment().toDate(), dateTo: moment().add(120, "days").toDate(), savedOnly: false, favOrgsOnly: false })}>
               Clear All Filters
             </Button>
           </div>
