@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar } from "@/components/ui/calendar";
-import { Search, X, CalendarDays, Heart, Bookmark, UserCog, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, X, CalendarDays, Heart, Bookmark, UserCog, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
 import moment from "moment";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import { useToast } from "@/components/ui/use-toast";
@@ -23,6 +23,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   const [localSearch, setLocalSearch] = useState(filters.search || "");
   const [authPrompt, setAuthPrompt] = useState(false);
   const [loadingSavedFilters, setLoadingSavedFilters] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -209,6 +210,15 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
               <X className="w-3 h-3" /> Clear
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`text-xs text-muted-foreground rounded-xl gap-1 ${helpOpen ? "bg-muted/60" : ""}`}
+            onClick={() => setHelpOpen((v) => !v)}
+            aria-expanded={helpOpen}
+          >
+            <HelpCircle className="w-3 h-3" /> Help
+          </Button>
         </div>
       </div>
 
@@ -282,6 +292,38 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
               />
               <span className="font-medium">Free</span>
             </label>
+          </div>
+        </div>
+      )}
+
+      {helpOpen && (
+        <div className="pt-3 border-t border-border animate-settle space-y-3 text-sm text-muted-foreground">
+          <div>
+            <p className="font-medium text-foreground text-xs mb-1">How Filters Combine</p>
+            <p>
+              Most filters work together: an activity must match every option you set (Category and Age and Zip, and so on).
+              Search is the exception — if you type more than one word, an activity matches when any of those words appears.
+            </p>
+          </div>
+          <div>
+            <p className="font-medium text-foreground text-xs mb-1">Fewer Results With More Filters</p>
+            <p>
+              Each extra filter you turn on can shrink the list a lot. If results look empty, clear a filter or two and try again.
+            </p>
+          </div>
+          <div>
+            <p className="font-medium text-foreground text-xs mb-1">What We Match From Each Activity</p>
+            <p>
+              Filters use details from the activity post: category, start/end dates, location and zip, age range, cost (or Free),
+              plus title, description, keywords, organizer name, and city for Search. Saved Activities and Favorite Organizers
+              use your account lists.
+            </p>
+          </div>
+          <div>
+            <p className="font-medium text-foreground text-xs mb-1">Saved For This Visit</p>
+            <p>
+              Your filter choices stay for the rest of this browser session. They reset when the session ends, or when you clear them.
+            </p>
           </div>
         </div>
       )}
