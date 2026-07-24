@@ -33,7 +33,8 @@ export const SAMPLE_DATA = {
   waitlist_spot_available: {
     business_name: "Little Stars Learning Center",
     zip_code: "89448",
-    expiry_date: "July 7, 2026",
+    expiry_date: "July 24, 2026, 3:00 PM Pacific",
+    offer_count: 0,
     plan_type: "Monthly",
     rate: "150",
   },
@@ -179,16 +180,37 @@ function buildHtml(templateKey, data) {
           </div>
         </div>
       `,
-    waitlist_spot_available: `
+    waitlist_spot_available: (() => {
+      const zip = data.zip_code || "89448";
+      const offerNum = Number(data.offer_count || 0) + 1;
+      const attemptsLeft = Math.max(0, 3 - offerNum);
+      const attemptsNote =
+        attemptsLeft > 0
+          ? `You have ${attemptsLeft} offer attempt${attemptsLeft !== 1 ? "s" : ""} remaining before your waitlist entry is cancelled.`
+          : "This is your final offer — if not claimed, your waitlist entry will be cancelled.";
+      return `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
-          <h2 style="color: #2D7A3E;">A Spot Has Opened Up in ${data.zip_code || "89448"}!</h2>
+          <h2 style="color: #2D7A3E;">A Spot Has Opened Up in ${zip}!</h2>
           <p>Hi ${data.business_name || "Supporter"},</p>
-          <p>A Supporter advertising spot has become available in zip code <strong>${data.zip_code || "89448"}</strong>.</p>
+          <p>Great news! A Supporter advertising spot has opened up in zip code <strong>${zip}</strong>.</p>
+          <p>You have <strong>24 hours</strong> to claim it. Here's what to do:</p>
+          <ol>
+            <li>Log in to your account at Local Kids Calendar</li>
+            <li>Go to <strong>Ad Manager</strong></li>
+            <li>Open the <strong>Waitlist</strong> tab</li>
+            <li>Find zip <strong>${zip}</strong> and click <strong>Subscribe Now</strong></li>
+            <li>Complete checkout to lock in your spot</li>
+          </ol>
           <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #D97706;">
-            <p><strong>Offer expires:</strong> ${data.expiry_date || "MM/DD/YYYY"}</p>
+            <p style="margin:0;"><strong>Offer expires:</strong> ${data.expiry_date || "MM/DD/YYYY"} Pacific Time</p>
           </div>
+          <p><a href="${adManagerUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to Ad Manager</a></p>
+          <p style="margin-top:20px;">⚠️ If you don't complete the process within 24 hours, your spot will be offered to the next person and you'll be moved to the back of the line. ${attemptsNote}</p>
+          <p>Thank you for supporting the local kids community!</p>
+          <p>— The Local Kids Calendar Team</p>
         </div>
-      `,
+      `;
+    })(),
     ad_removed_flagged: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
           <h2 style="color: #DC2626;">Ad Removal Notice</h2>

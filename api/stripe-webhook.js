@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { getEnv, createAdminClient, planDates } from "./_lib/stripeHelpers.js";
+import { runProcessWaitlist } from "./_lib/processWaitlistCore.js";
 
 // Stripe requires the raw request body to verify the webhook signature.
 export const config = { api: { bodyParser: false } };
@@ -109,6 +110,14 @@ async function handleSubscriptionDeleted(admin, subscription) {
     .eq("id", adId);
 
   console.log(`stripe-webhook: ad ${adId} cancelled after subscription deletion`);
+
+  // Freeing a slot — advance the waitlist for that zip (and any others with capacity).
+  try {
+    const result = await runProcessWaitlist(admin);
+    console.log("stripe-webhook: processWaitlist after cancel:", result);
+  } catch (err) {
+    console.error("stripe-webhook: processWaitlist failed after cancel:", err.message);
+  }
 }
 
 async function handlePaymentFailed(admin, invoice) {

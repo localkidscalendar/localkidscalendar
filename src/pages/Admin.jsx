@@ -940,7 +940,7 @@ export default function Admin() {
             </div>
             <div id="ads-waitlist" className="scroll-mt-32">
               <AdminSectionHeader title="Waitlist Management" icon={Clock} />
-              <AdminPanelShell wipNote="Automated offer emails return with billing. Manual Offer Spot works when a slot is already open.">
+              <AdminPanelShell>
                 <AdminWaitlistPanel toast={toast} />
               </AdminPanelShell>
             </div>
