@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Loader2 } from "lucide-react";
 import ZipCodeRankingCard from "./ZipCodeRankingCard";
 import ZipCodeSearchCard from "./ZipCodeSearchCard";
@@ -17,14 +17,19 @@ export default function AdminUserZipReportsSection() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [users, events, ads, waitlist] = await Promise.all([
-        base44.entities.User.list("-created_date", 500),
-        base44.entities.Event.filter({ status: "active" }, "-created_date", 500),
-        base44.entities.BannerAd.filter({ status: "active" }, "-created_date", 500),
-        base44.entities.AdWaitlist.filter({ status: "waiting" }, "-created_date", 500),
+      const [usersRes, eventsRes, adsRes, waitlistRes] = await Promise.all([
+        supabase.from("profiles").select("id, role, zip_code").limit(500),
+        supabase.from("events").select("zip_code, posted_by_role, contact_email, org_name").eq("status", "active").limit(500),
+        supabase.from("banner_ads").select("zip_code").eq("status", "active").limit(500),
+        supabase.from("ad_waitlist").select("zip_code").eq("status", "waiting").limit(500),
       ]);
 
-      // Active community members by zip (zip_code lives directly on the User record)
+      const users = usersRes.data || [];
+      const events = eventsRes.data || [];
+      const ads = adsRes.data || [];
+      const waitlist = waitlistRes.data || [];
+
+      // Active community members by zip
       const userZipMap = {};
       users.forEach((u) => {
         if (u.role !== "community_member" || !u.zip_code) return;
@@ -33,7 +38,7 @@ export default function AdminUserZipReportsSection() {
       });
       setUserRows(Object.entries(userZipMap).map(([zip, set]) => ({ zip, count: set.size })));
 
-      // Active organizers by zip (from active Events posted by organizers, deduped by contributor)
+      // Active organizers by zip (from active Events posted by organizers, deduped)
       const orgZipMap = {};
       events.forEach((e) => {
         if (e.posted_by_role !== "organizer" || !e.zip_code) return;
@@ -57,7 +62,11 @@ export default function AdminUserZipReportsSection() {
         supporterZipMap[w.zip_code].waitlisted += 1;
       });
       setSupporterRows(Object.entries(supporterZipMap).map(([zip, v]) => ({ zip, ...v })));
-    } catch {}
+    } catch {
+      setUserRows([]);
+      setOrganizerRows([]);
+      setSupporterRows([]);
+    }
     setLoading(false);
   };
 

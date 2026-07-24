@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ function StepBar({ step }) {
 }
 
 export default function Register() {
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,6 +64,19 @@ export default function Register() {
   // Bot protection: honeypot field must stay empty, and a human can't reach step 2 in under 3 seconds
   const [hpField, setHpField] = useState("");
   const [formLoadTime] = useState(() => Date.now());
+
+  // Admin invite links: /register?role=organizer&email=...
+  useEffect(() => {
+    const invitedRole = searchParams.get("role");
+    const invitedEmail = searchParams.get("email");
+    if (invitedRole === "organizer" || invitedRole === "community_member") {
+      setRole(invitedRole);
+    }
+    if (invitedEmail) {
+      setEmail(invitedEmail);
+      setOrgEmail(invitedEmail);
+    }
+  }, [searchParams]);
 
   const handleGoogle = async () => {
     setError("");

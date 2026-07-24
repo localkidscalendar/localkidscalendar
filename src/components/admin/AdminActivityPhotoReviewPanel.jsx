@@ -1,33 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
 import { Check, X, Loader2, MessageSquare } from "lucide-react";
 import moment from "moment";
 
+/** Email send returns with the site email engine — approve/decline still updates the DB. */
 async function sendPhotoDecisionEmail(event, decision, notes) {
   try {
     if (!event.created_by_id) return;
-    const contributor = await base44.entities.User.get(event.created_by_id);
+    const { data: contributor } = await supabase
+      .from("profiles")
+      .select("email, first_name, last_name")
+      .eq("id", event.created_by_id)
+      .maybeSingle();
     if (!contributor?.email) return;
-    const approved = decision === "approved";
-    const subject = approved
-      ? "Your activity photo has been approved"
-      : "Your activity photo was not approved";
-    const html = `
-      <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;">
-        <h2 style="margin:0 0 12px;">${approved ? "Your activity photo was approved" : "Your activity photo was declined"}</h2>
-        <p>Hi ${contributor.full_name || "there"},</p>
-        <p>The photo you uploaded for your activity "<strong>${event.title}</strong>" has been manually reviewed by our Admin team.</p>
-        ${approved
-          ? `<p>Your photo is now live on the listing.</p>`
-          : `<p><strong>Reason:</strong> ${notes || "Did not meet our community guidelines."}</p><p>Please edit your activity to upload a different photo.</p>`}
-        <p><a href="https://app.localkidscalendar.com/event/${event.id}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">View Activity</a></p>
-        <p><a href="https://app.localkidscalendar.com/account" style="display:inline-block;color:#2D7A3E;text-decoration:underline;">Go to My Account</a></p>
-      </div>
-    `;
-    await base44.integrations.Core.SendEmail({ to: contributor.email, subject, body: html, from_name: "LocalKidsCalendar" });
+    // Placeholder until Resend (or similar) is wired — keep payload ready for the mailer.
+    void decision;
+    void notes;
+    void contributor;
   } catch (err) {
     console.error("Failed to send activity photo decision email", err);
   }
@@ -49,13 +41,19 @@ function ActionCell({ item, processing, onApprove, onDecline }) {
         <Button size="sm" variant="outline" className="rounded-xl h-7 text-xs text-destructive border-destructive/20" disabled={busy} onClick={decline}>
           <X className="w-3 h-3 mr-1" />Decline
         </Button>
-        <Button size="sm" variant="ghost" className={`rounded-xl h-7 w-7 p-0 ${showNote ? "text-purple-600" : "text-muted-foreground"}`} title="Add a note to the decline" onClick={() => setShowNote(v => !v)}>
+        <Button size="sm" variant="ghost" className={`rounded-xl h-7 w-7 p-0 ${showNote ? "text-purple-600" : "text-muted-foreground"}`} title="Add a note to the decline" onClick={() => setShowNote((v) => !v)}>
           <MessageSquare className="w-3.5 h-3.5" />
         </Button>
       </div>
       {showNote && (
-        <Input autoFocus placeholder="Optional decline note…" value={note} onChange={e => setNote(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") decline(); }} className="rounded-lg h-7 text-xs w-52" />
+        <Input
+          autoFocus
+          placeholder="Optional decline note…"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") decline(); }}
+          className="rounded-lg h-7 text-xs w-52"
+        />
       )}
     </div>
   );
@@ -71,23 +69,33 @@ export default function AdminActivityPhotoReviewPanel({ toast }) {
   const load = async () => {
     setLoading(true);
     try {
-      const fetched = await base44.entities.Event.filter({ image_moderation_status: "manual_review" }, "-created_date", 100);
-      setRequests(fetched);
-    } catch { setRequests([]); }
+      const { data, error } = await supabase
+        .from("events")
+        .select("*")
+        .eq("image_moderation_status", "manual_review")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      setRequests(data || []);
+    } catch {
+      setRequests([]);
+    }
     setLoading(false);
   };
 
   const handleApprove = async (item) => {
     setProcessing(item.id);
     try {
-      await base44.entities.Event.update(item.id, {
+      const { error } = await supabase.from("events").update({
         image_moderation_status: "approved",
         image_moderation_notes: "Manually approved by admin.",
         image_moderation_date: new Date().toISOString(),
-      });
+        updated_at: new Date().toISOString(),
+      }).eq("id", item.id);
+      if (error) throw error;
       sendPhotoDecisionEmail(item, "approved", null);
       toast({ title: "Photo approved", description: `"${item.title}"'s photo is now live.` });
-      setRequests(r => r.filter(x => x.id !== item.id));
+      setRequests((r) => r.filter((x) => x.id !== item.id));
     } catch {
       toast({ title: "Failed to approve", variant: "destructive" });
     }
@@ -98,26 +106,30 @@ export default function AdminActivityPhotoReviewPanel({ toast }) {
     setProcessing(item.id);
     try {
       const notes = note || item.image_moderation_notes || "Declined by admin.";
-      await base44.entities.Event.update(item.id, {
+      const { error } = await supabase.from("events").update({
         event_image: null,
         image_moderation_status: "manual_review_declined",
         image_moderation_notes: notes,
         image_moderation_date: new Date().toISOString(),
-      });
+        updated_at: new Date().toISOString(),
+      }).eq("id", item.id);
+      if (error) throw error;
       sendPhotoDecisionEmail(item, "declined", notes);
       toast({ title: "Photo declined", description: `"${item.title}"'s photo has been declined.` });
-      setRequests(r => r.filter(x => x.id !== item.id));
+      setRequests((r) => r.filter((x) => x.id !== item.id));
     } catch {
       toast({ title: "Failed to decline", variant: "destructive" });
     }
     setProcessing(null);
   };
 
-  if (loading) return (
-    <div className="bg-white rounded-2xl border border-border p-4 flex items-center justify-center py-8">
-      <Loader2 className="w-5 h-5 animate-spin text-mint-500" />
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl border border-border p-4 flex items-center justify-center py-8">
+        <Loader2 className="w-5 h-5 animate-spin text-mint-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4">
@@ -146,13 +158,13 @@ export default function AdminActivityPhotoReviewPanel({ toast }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-purple-50">
-              {requests.map(item => (
+              {requests.map((item) => (
                 <tr key={item.id} className="hover:bg-purple-50/50">
                   <td className="px-4 py-3 font-medium max-w-[160px] truncate">
                     <Link to={`/event/${item.id}`} className="text-mint-600 hover:underline">{item.title}</Link>
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                    {moment(item.created_date).format("MMM D, YYYY")}
+                    {moment(item.created_at).format("MMM D, YYYY")}
                   </td>
                   <td className="px-4 py-3 max-w-[200px]">
                     {item.image_moderation_notes ? (
