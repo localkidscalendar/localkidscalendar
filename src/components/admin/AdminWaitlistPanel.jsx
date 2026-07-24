@@ -196,16 +196,9 @@ export default function AdminWaitlistPanel({ toast }) {
     ) return;
     setSaving(entry.id);
     try {
-      const { error } = await supabase
-        .from("ad_waitlist")
-        .update({
-          offer_expires_date: new Date(Date.now() - 60_000).toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", entry.id);
-      if (error) throw error;
-
-      const result = await adminPost("/api/process-waitlist", {});
+      const result = await adminPost("/api/expire-waitlist-offer", {
+        waitlist_entry_id: entry.id,
+      });
       toast?.({
         title: "Offer expired — processor ran",
         description: `Expired ${result.expired || 0}, cancelled ${result.cancelled || 0}, new offers sent ${result.offers_sent || 0}.`,

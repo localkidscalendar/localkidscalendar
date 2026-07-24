@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/process-waitlist",
+      "path": "/api/cron-process-waitlist",
       "schedule": "*/30 * * * *"
     }
   ],
