@@ -3,6 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_HTML_BYTES = 200_000;
 
+/** Emails that are always treated as admin (matches SQL promotion migration). */
+const ADMIN_EMAILS = new Set(["localkidscalendar@gmail.com"]);
+
 function getEnv(name, ...fallbacks) {
   for (const key of [name, ...fallbacks]) {
     if (process.env[key]) return process.env[key];
@@ -26,13 +29,12 @@ export default async function handler(req, res) {
 
   try {
     const supabaseUrl = getEnv("SUPABASE_URL", "VITE_SUPABASE_URL");
-    const serviceKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
     const anonKey = getEnv("SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY");
     const resendKey = getEnv("RESEND_API_KEY");
     const fromEmail =
       getEnv("RESEND_FROM_EMAIL") || "Local Kids Calendar <onboarding@resend.dev>";
 
-    if (!supabaseUrl || !serviceKey || !anonKey) {
+    if (!supabaseUrl || !anonKey) {
       return res.status(500).json({ error: "Server missing Supabase configuration" });
     }
     if (!resendKey) {
@@ -43,22 +45,38 @@ export default async function handler(req, res) {
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
     if (!token) return res.status(401).json({ error: "Unauthorized" });
 
-    const userClient = createClient(supabaseUrl, anonKey);
-    const { data: userData, error: userError } = await userClient.auth.getUser(token);
+    // User-scoped client (JWT) — reads the caller's own profile without needing service role
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+
+    const { data: userData, error: userError } = await userClient.auth.getUser();
     if (userError || !userData?.user) {
       console.error("auth.getUser failed:", userError?.message || "no user");
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const admin = createClient(supabaseUrl, serviceKey);
-    const { data: profile } = await admin
+    const authUser = userData.user;
+    const { data: profile, error: profileError } = await userClient
       .from("profiles")
-      .select("role")
-      .eq("id", userData.user.id)
+      .select("role, email")
+      .eq("id", authUser.id)
       .maybeSingle();
 
-    if (profile?.role !== "admin") {
-      return res.status(403).json({ error: "Forbidden" });
+    if (profileError) {
+      console.error("profile lookup failed:", profileError.message);
+      return res.status(500).json({ error: "Could not verify admin role" });
+    }
+
+    const role = (profile?.role || "").trim();
+    const email = (profile?.email || authUser.email || "").trim().toLowerCase();
+    const isAdmin = role === "admin" || ADMIN_EMAILS.has(email);
+
+    if (!isAdmin) {
+      console.error("send-email forbidden:", { userId: authUser.id, email, role: role || null });
+      return res.status(403).json({
+        error: `Forbidden — admin role required (signed in as ${email || "unknown"}, role: ${role || "none"}). If this is the site admin account, set profiles.role = 'admin' in Supabase.`,
+      });
     }
 
     const body = req.body || {};
