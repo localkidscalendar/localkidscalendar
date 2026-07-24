@@ -171,6 +171,7 @@ export default function PostEvent() {
     if (!form.description?.trim()) missingFields.push("Description");
     if (!form.categories?.length) missingFields.push("Category");
     if (!form.start_date?.trim()) missingFields.push("Start Date");
+    if (!form.end_date?.trim()) missingFields.push("End Date");
     if (!form.city?.trim()) missingFields.push("City");
     if (!form.state?.trim()) missingFields.push("State");
     if (!form.zip_code?.trim()) missingFields.push("Zip Code");
@@ -237,7 +238,7 @@ export default function PostEvent() {
       };
 
       // Remove UI-only / empty-string date fields that should be null
-      ["end_date", "registration_start", "registration_end", "time_start", "time_end"].forEach((key) => {
+      ["registration_start", "registration_end", "time_start", "time_end"].forEach((key) => {
         if (!data[key]) data[key] = null;
       });
 
@@ -301,7 +302,6 @@ export default function PostEvent() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic */}
           <div className="space-y-4">
-            <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Activity Details</h3>
             <div>
               <Label className="text-sm">Title *</Label>
               <Input value={form.title} onChange={(e) => updateField("title", toTitleCase(e.target.value))} className="rounded-xl mt-1" placeholder="e.g. Summer Soccer Camp" />
@@ -348,10 +348,9 @@ export default function PostEvent() {
 
           {/* Dates */}
           <div className="space-y-4">
-            <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Dates & Times</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label className="text-sm">Start Date *</Label><Input type="date" value={form.start_date} onChange={(e) => { const v = e.target.value; setForm((prev) => ({ ...prev, start_date: v, end_date: prev.end_date && prev.end_date < v ? v : prev.end_date })); }} className="rounded-xl mt-1" /></div>
-              <div><Label className="text-sm">End Date</Label><Input type="date" value={form.end_date} onChange={(e) => updateField("end_date", e.target.value)} min={form.start_date || undefined} className="rounded-xl mt-1" /></div>
+              <div><Label className="text-sm">End Date *</Label><Input type="date" value={form.end_date} onChange={(e) => updateField("end_date", e.target.value)} min={form.start_date || undefined} className="rounded-xl mt-1" /></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -375,7 +374,6 @@ export default function PostEvent() {
 
           {/* Location */}
           <div className="space-y-4">
-            <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Location</h3>
             <div><Label className="text-sm">Venue / Location Name</Label><Input value={form.location_name} onChange={(e) => updateField("location_name", e.target.value)} className="rounded-xl mt-1" placeholder="e.g. City Park Recreation Center" /></div>
             <div><Label className="text-sm">Street Address</Label><Input value={form.address} onChange={(e) => updateField("address", e.target.value)} className="rounded-xl mt-1" /></div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -420,7 +418,6 @@ export default function PostEvent() {
 
           {/* Contact */}
           <div className="space-y-4">
-            <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Contact</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label className="text-sm">Contact Name</Label><Input value={form.contact_name} onChange={(e) => updateField("contact_name", e.target.value)} className="rounded-xl mt-1" /></div>
               <div><Label className="text-sm">Contact Email</Label><Input type="email" value={form.contact_email} onChange={(e) => updateField("contact_email", e.target.value)} className="rounded-xl mt-1" /></div>
@@ -434,7 +431,6 @@ export default function PostEvent() {
           {/* Organizer extras */}
           {isOrganizer ? (
             <div className="space-y-4">
-              <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Media</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                    <Label className="text-sm flex items-center gap-1">Activity Photo <HelpTip text="Recommended: JPG or WebP, 16:9 ratio (e.g. 1280×720px), under 2MB. Keep the main subject centered and avoid text overlays." /></Label>
