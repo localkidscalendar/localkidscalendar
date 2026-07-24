@@ -100,9 +100,18 @@ export default function AdminWaitlistPanel({ toast }) {
     setRunningProcessor(true);
     try {
       const result = await adminPost("/api/process-waitlist", {});
+      const skip = (result.skipped || [])[0];
+      const emailErr = (result.email_errors || [])[0];
+      let description = `Expired ${result.expired || 0}, cancelled ${result.cancelled || 0}, offers sent ${result.offers_sent || 0}.`;
+      if (skip?.reason === "no_open_slots") {
+        description += ` Zip ${skip.zip}: ${skip.holding_ads}/${skip.max_slots} ads holding — no open slot to offer.`;
+      } else if (emailErr) {
+        description += ` Email error: ${emailErr.error}`;
+      }
       toast?.({
         title: "Waitlist processor ran",
-        description: `Expired ${result.expired || 0}, cancelled ${result.cancelled || 0}, offers sent ${result.offers_sent || 0}.`,
+        description,
+        variant: emailErr ? "destructive" : undefined,
       });
       load();
     } catch (err) {
@@ -199,9 +208,18 @@ export default function AdminWaitlistPanel({ toast }) {
       const result = await adminPost("/api/expire-waitlist-offer", {
         waitlist_entry_id: entry.id,
       });
+      const skip = (result.skipped || [])[0];
+      const emailErr = (result.email_errors || [])[0];
+      let description = `Expired ${result.expired || 0}, cancelled ${result.cancelled || 0}, new offers sent ${result.offers_sent || 0}.`;
+      if (skip?.reason === "no_open_slots") {
+        description += ` No new offer for zip ${skip.zip}: ${skip.holding_ads}/${skip.max_slots} ads holding (need an open slot).`;
+      } else if (emailErr) {
+        description += ` Email error: ${emailErr.error}`;
+      }
       toast?.({
         title: "Offer expired — processor ran",
-        description: `Expired ${result.expired || 0}, cancelled ${result.cancelled || 0}, new offers sent ${result.offers_sent || 0}.`,
+        description,
+        variant: (result.offers_sent || 0) > 0 && !emailErr ? undefined : "destructive",
       });
       load();
     } catch (err) {

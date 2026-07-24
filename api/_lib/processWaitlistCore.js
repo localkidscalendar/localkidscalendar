@@ -97,14 +97,28 @@ export async function runProcessWaitlist(admin, opts = {}) {
     .eq("status", "offered");
 
   // ── Step 4: Offer one spot per zip with capacity ─────────────────────────
+  const skipped = [];
   for (const zip of Object.keys(waitingByZip)) {
     const slotInfo = await countOpenAdSlots(admin, zip);
-    if (slotInfo.open <= 0) continue;
+    if (slotInfo.open <= 0) {
+      skipped.push({
+        zip,
+        reason: "no_open_slots",
+        max_slots: slotInfo.maxSlots,
+        holding_ads: slotInfo.holding,
+        reserved_offers: slotInfo.reservedOffers,
+        waiting: waitingByZip[zip].length,
+      });
+      continue;
+    }
 
     const hasActiveOffer = (stillOffered || []).some(
       (e) => e.zip_code === zip && e.offer_expires_date && new Date(e.offer_expires_date) > now
     );
-    if (hasActiveOffer) continue;
+    if (hasActiveOffer) {
+      skipped.push({ zip, reason: "active_offer_exists", waiting: waitingByZip[zip].length });
+      continue;
+    }
 
     const next = waitingByZip[zip][0];
     if (!next) continue;
@@ -136,14 +150,20 @@ export async function runProcessWaitlist(admin, opts = {}) {
         offersSent += 1;
       } catch (err) {
         console.error(`processWaitlist: email failed for ${next.email}:`, err.message);
-        emailErrors.push({ email: next.email, error: err.message });
+        emailErrors.push({ email: next.email, zip, error: err.message });
       }
     } else {
       offersSent += 1;
     }
   }
 
-  return { expired, cancelled, offers_sent: offersSent, email_errors: emailErrors };
+  return {
+    expired,
+    cancelled,
+    offers_sent: offersSent,
+    email_errors: emailErrors,
+    skipped,
+  };
 }
 
 /**
