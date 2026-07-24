@@ -10,7 +10,6 @@ import {
 import { toast } from "@/components/ui/use-toast";
 import ImagePreviewModal from "@/components/ads/ImagePreviewModal";
 import { AD_IMAGE_REVIEW_GUIDELINES, SUPPORTER_AD_IMAGE_RECOMMENDED } from "@/lib/supporterContent";
-import HelpTip from "@/components/shared/HelpTip";
 import { moderateAdContent } from "@/lib/moderateAdContent";
 
 const MOD_CONFIG = {
@@ -461,10 +460,7 @@ function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, o
         <Input className="mt-1" placeholder="Summer Camp Banner" value={form.ad_name} onChange={(e) => setForm((f) => ({ ...f, ad_name: e.target.value }))} />
       </div>
       <div>
-        <Label className="flex items-center gap-1">
-          Ad Image *
-          <HelpTip text={SUPPORTER_AD_IMAGE_RECOMMENDED} />
-        </Label>
+        <Label>Ad Image *</Label>
         <p className="text-xs text-muted-foreground mt-0.5 mb-1">{SUPPORTER_AD_IMAGE_RECOMMENDED}</p>
         <div className="mt-2 space-y-2">
           {form.image_url ? (
