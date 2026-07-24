@@ -13,7 +13,7 @@ export default function NotificationsTab({ user }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     frequency: "none",
-    include_fav_organizers: true,
+    include_fav_organizers: false,
     include_other_activities: false,
     zip_code: "",
     radius_miles: 15,
@@ -38,7 +38,7 @@ export default function NotificationsTab({ user }) {
           const freq = data.frequency === "weekly" ? "weekly" : "none";
           setForm({
             frequency: freq,
-            include_fav_organizers: data.include_fav_organizers !== false,
+            include_fav_organizers: Boolean(data.include_fav_organizers),
             include_other_activities: Boolean(data.include_other_activities),
             zip_code: data.zip_code || user.zip_code || "",
             radius_miles: Number(data.radius_miles) || 15,
@@ -47,7 +47,13 @@ export default function NotificationsTab({ user }) {
             age_max: data.age_max != null ? String(data.age_max) : "",
           });
         } else {
-          setForm((prev) => ({ ...prev, frequency: "none", zip_code: user.zip_code || "" }));
+          setForm((prev) => ({
+            ...prev,
+            frequency: "none",
+            include_fav_organizers: false,
+            include_other_activities: false,
+            zip_code: user.zip_code || "",
+          }));
         }
       } catch (err) {
         toast({ title: "Could not load preferences", description: err.message, variant: "destructive" });
@@ -80,9 +86,9 @@ export default function NotificationsTab({ user }) {
         .from("notification_preferences")
         .upsert(payload, { onConflict: "user_id" });
       if (error) throw error;
-      toast({ title: "Notification preferences saved" });
+      toast({ title: "Notification Preferences Saved" });
     } catch (err) {
-      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+      toast({ title: "Save Failed", description: err.message, variant: "destructive" });
     }
     setSaving(false);
   };
@@ -100,12 +106,12 @@ export default function NotificationsTab({ user }) {
       <div className="flex items-start gap-2">
         <Bell className="w-4 h-4 text-mint-600 mt-0.5" />
         <p className="text-sm text-muted-foreground">
-          Choose how often you want activity digests. Admin can also trigger a manual send for testing.
+          Choose receive weekly activity digests emailed to you every Monday morning, based on new activities from your favorite organizers and/or other new activities that match your preferences.
         </p>
       </div>
 
       <div>
-        <label className="text-sm font-medium block mb-1">Email frequency</label>
+        <label className="text-sm font-medium block mb-1">Email Frequency</label>
         <Select value={form.frequency} onValueChange={(v) => setForm((p) => ({ ...p, frequency: v }))}>
           <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -113,13 +119,12 @@ export default function NotificationsTab({ user }) {
             <SelectItem value="weekly">Weekly</SelectItem>
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground mt-1">Weekly digests go out Mondays at 8am PT. Default is Off.</p>
       </div>
 
       <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
         <div>
-          <p className="text-sm font-medium">Favorite organizers</p>
-          <p className="text-xs text-muted-foreground">Include activities from organizers you follow</p>
+          <p className="text-sm font-medium">Favorite Organizers</p>
+          <p className="text-xs text-muted-foreground">Include new activities from your favorite organizers.</p>
         </div>
         <Switch
           checked={form.include_fav_organizers}
@@ -129,8 +134,8 @@ export default function NotificationsTab({ user }) {
 
       <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
         <div>
-          <p className="text-sm font-medium">Other matching activities</p>
-          <p className="text-xs text-muted-foreground">Match by zip, keywords, and age below</p>
+          <p className="text-sm font-medium">Activity Matches</p>
+          <p className="text-xs text-muted-foreground">Include new activities that match by location, keywords, and age below.</p>
         </div>
         <Switch
           checked={form.include_other_activities}
@@ -140,7 +145,7 @@ export default function NotificationsTab({ user }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-sm font-medium block mb-1">Zip code</label>
+          <label className="text-sm font-medium block mb-1">Zip Code</label>
           <Input
             maxLength={5}
             value={form.zip_code}
@@ -150,7 +155,7 @@ export default function NotificationsTab({ user }) {
           />
         </div>
         <div>
-          <label className="text-sm font-medium block mb-1">Radius (miles)</label>
+          <label className="text-sm font-medium block mb-1">Radius (Miles)</label>
           <Input
             type="number"
             min={1}
@@ -174,7 +179,7 @@ export default function NotificationsTab({ user }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-sm font-medium block mb-1">Age min</label>
+          <label className="text-sm font-medium block mb-1">Age Min</label>
           <Input
             type="number"
             value={form.age_min}
@@ -183,7 +188,7 @@ export default function NotificationsTab({ user }) {
           />
         </div>
         <div>
-          <label className="text-sm font-medium block mb-1">Age max</label>
+          <label className="text-sm font-medium block mb-1">Age Max</label>
           <Input
             type="number"
             value={form.age_max}
@@ -199,7 +204,7 @@ export default function NotificationsTab({ user }) {
         disabled={saving}
       >
         {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-        Save preferences
+        Save Preferences
       </Button>
     </div>
   );
