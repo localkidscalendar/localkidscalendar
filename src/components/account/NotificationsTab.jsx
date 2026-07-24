@@ -133,7 +133,7 @@ export default function NotificationsTab({ user }) {
       <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
         <div>
           <p className="text-sm font-medium">Activity Matches</p>
-          <p className="text-xs text-muted-foreground">Include new activities that match by location, keywords, and age below.</p>
+          <p className="text-xs text-muted-foreground">Include new activities that match by your choices for location, keywords, and age.</p>
         </div>
         <Switch
           checked={form.include_other_activities}
@@ -141,60 +141,64 @@ export default function NotificationsTab({ user }) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-sm font-medium block mb-1">Zip Code</label>
-          <Input
-            maxLength={5}
-            value={form.zip_code}
-            onChange={(e) => setForm((p) => ({ ...p, zip_code: e.target.value.replace(/\D/g, "") }))}
-            className="rounded-xl"
-            placeholder="89448"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium block mb-1">Radius (Miles)</label>
-          <Input
-            type="number"
-            min={1}
-            max={100}
-            value={form.radius_miles}
-            onChange={(e) => setForm((p) => ({ ...p, radius_miles: e.target.value }))}
-            className="rounded-xl"
-          />
-        </div>
-      </div>
+      {form.include_other_activities && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium block mb-1">Zip Code</label>
+              <Input
+                maxLength={5}
+                value={form.zip_code}
+                onChange={(e) => setForm((p) => ({ ...p, zip_code: e.target.value.replace(/\D/g, "") }))}
+                className="rounded-xl"
+                placeholder="89448"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Radius (Miles)</label>
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                value={form.radius_miles}
+                onChange={(e) => setForm((p) => ({ ...p, radius_miles: e.target.value }))}
+                className="rounded-xl"
+              />
+            </div>
+          </div>
 
-      <div>
-        <label className="text-sm font-medium block mb-1">Keywords</label>
-        <Input
-          value={form.keywords}
-          onChange={(e) => setForm((p) => ({ ...p, keywords: e.target.value }))}
-          className="rounded-xl"
-          placeholder="soccer, camp, art…"
-        />
-      </div>
+          <div>
+            <label className="text-sm font-medium block mb-1">Keywords</label>
+            <Input
+              value={form.keywords}
+              onChange={(e) => setForm((p) => ({ ...p, keywords: e.target.value }))}
+              className="rounded-xl"
+              placeholder="soccer, camp, art…"
+            />
+          </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-sm font-medium block mb-1">Age Min</label>
-          <Input
-            type="number"
-            value={form.age_min}
-            onChange={(e) => setForm((p) => ({ ...p, age_min: e.target.value }))}
-            className="rounded-xl"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-medium block mb-1">Age Max</label>
-          <Input
-            type="number"
-            value={form.age_max}
-            onChange={(e) => setForm((p) => ({ ...p, age_max: e.target.value }))}
-            className="rounded-xl"
-          />
-        </div>
-      </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium block mb-1">Age Min</label>
+              <Input
+                type="number"
+                value={form.age_min}
+                onChange={(e) => setForm((p) => ({ ...p, age_min: e.target.value }))}
+                className="rounded-xl"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Age Max</label>
+              <Input
+                type="number"
+                value={form.age_max}
+                onChange={(e) => setForm((p) => ({ ...p, age_max: e.target.value }))}
+                className="rounded-xl"
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       <Button
         className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
