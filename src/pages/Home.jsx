@@ -183,7 +183,7 @@ export default function Home() {
     expandCheckedRef.current = true;
     const ageSet = filters.ageMin || filters.ageMax;
     const priceSet = filters.priceMin || filters.priceMax;
-    if (ageSet || priceSet) setExpandFilters(true);
+    if (ageSet || priceSet || filters.freeOnly) setExpandFilters(true);
   }, [locationInitialized, sessionDefaultZip, filters.ageMin, filters.ageMax, filters.priceMin, filters.priceMax]);
 
   const detectedZip = geo.zip;
