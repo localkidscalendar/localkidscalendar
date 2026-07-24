@@ -139,6 +139,7 @@ function buildHtml(templateKey, data) {
   const adsHtml = buildAdsHtml(data);
   const accountUrl = `${APP_URL}/account`;
   const adManagerUrl = `${APP_URL}/ad-manager`;
+  const waitlistUrl = `${APP_URL}/ad-manager?tab=waitlist`;
 
   const templates = {
     subscription_renewing_soon: `
@@ -204,13 +205,7 @@ function buildHtml(templateKey, data) {
           <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #D97706;">
             <p style="margin:0;"><strong>Offer expires:</strong> ${data.expiry_date || "MM/DD/YYYY"} Pacific Time</p>
           </div>
-          <p><a href="${adManagerUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to Ad Manager</a></p>
-          <p style="margin-top:20px;">⚠️ If you don't complete the process within 24 hours, your spot will be offered to the next person and you'll be moved to the back of the line. ${attemptsNote}</p>
-          <p>Thank you for supporting the local kids community!</p>
-          <p>— The Local Kids Calendar Team</p>
-        </div>
-      `;
-    })(),
+          <p><a href="${waitlistUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to Ad Manager → Waitlist</a></p>
     ad_removed_flagged: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
           <h2 style="color: #DC2626;">Ad Removal Notice</h2>

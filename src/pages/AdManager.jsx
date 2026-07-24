@@ -668,7 +668,17 @@ export default function AdManager() {
   const [refreshing, setRefreshing] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [waitlistPrefill, setWaitlistPrefill] = useState(null);
-  const [activeTab, setActiveTab] = useState("ads");
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = searchParams.get("tab");
+    return ["ads", "library", "waitlist", "rules", "rates"].includes(tab) ? tab : "ads";
+  });
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (["ads", "library", "waitlist", "rules", "rates"].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!userLoading && user) loadAds();
@@ -839,7 +849,13 @@ export default function AdManager() {
             <StatCard icon={CheckCircle} label="Active Ads" value={activeAds.length} />
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={(tab) => {
+            setActiveTab(tab);
+            const next = new URLSearchParams(searchParams);
+            if (tab === "ads") next.delete("tab");
+            else next.set("tab", tab);
+            setSearchParams(next, { replace: true });
+          }}>
             <TabsList className="rounded-xl mb-4 flex-wrap h-auto">
               <TabsTrigger value="ads" className="rounded-lg flex items-center gap-1.5">
                 <List className="w-3.5 h-3.5" />My Ads ({ads.length})

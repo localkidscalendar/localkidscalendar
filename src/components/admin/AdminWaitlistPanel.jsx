@@ -188,10 +188,35 @@ export default function AdminWaitlistPanel({ toast }) {
     setSaving(null);
   };
 
-  /**
-   * Manual offer when a slot is already open. Sends Resend email.
-   * Does not bump offer_count — that increments only when an offer expires unclaimed.
-   */
+  const handleExpireOfferNow = async (entry) => {
+    if (
+      !window.confirm(
+        `Expire the offer for ${entry.business_name} now? They go to the back of the line (or cancel after 3 misses), and the processor can offer the next person.`
+      )
+    ) return;
+    setSaving(entry.id);
+    try {
+      const { error } = await supabase
+        .from("ad_waitlist")
+        .update({
+          offer_expires_date: new Date(Date.now() - 60_000).toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", entry.id);
+      if (error) throw error;
+
+      const result = await adminPost("/api/process-waitlist", {});
+      toast?.({
+        title: "Offer expired — processor ran",
+        description: `Expired ${result.expired || 0}, cancelled ${result.cancelled || 0}, new offers sent ${result.offers_sent || 0}.`,
+      });
+      load();
+    } catch (err) {
+      toast?.({ title: "Failed to expire offer", description: err.message, variant: "destructive" });
+    }
+    setSaving(null);
+  };
+
   const handleOfferSpot = async (entry) => {
     setSaving(entry.id);
     try {
@@ -363,6 +388,22 @@ export default function AdminWaitlistPanel({ toast }) {
                                 }
                               />
                               <div className="flex gap-1.5 flex-wrap">
+                                {entry.status === "offered" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs rounded-xl flex-1 text-peach-600 border-peach-200"
+                                    disabled={saving === entry.id}
+                                    onClick={() => handleExpireOfferNow(entry)}
+                                  >
+                                    {saving === entry.id ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <Clock className="w-3 h-3 mr-1" />
+                                    )}
+                                    Expire offer now
+                                  </Button>
+                                )}
                                 {entry.status === "waiting" && (
                                   <Button
                                     size="sm"

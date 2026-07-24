@@ -23,7 +23,7 @@ export function buildWaitlistOfferEmail({
   const offerNum = Number(offer_count || 0) + 1;
   const attemptsLeft = Math.max(0, 3 - offerNum);
   const expiryLabel = formatPacific(offer_expires_date);
-  const claimUrl = `${APP_URL}/ad-manager`;
+  const claimUrl = `${APP_URL}/ad-manager?tab=waitlist`;
 
   const attemptsNote =
     attemptsLeft > 0
@@ -48,7 +48,7 @@ export function buildWaitlistOfferEmail({
       <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #D97706;">
         <p style="margin:0;"><strong>Offer expires:</strong> ${expiryLabel} Pacific Time</p>
       </div>
-      <p><a href="${claimUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to Ad Manager</a></p>
+      <p><a href="${claimUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to Ad Manager → Waitlist</a></p>
       <p style="margin-top:20px;">⚠️ If you don't complete the process within 24 hours, your spot will be offered to the next person and you'll be moved to the back of the line. ${attemptsNote}</p>
       <p>Thank you for supporting the local kids community!</p>
       <p>— The Local Kids Calendar Team</p>
