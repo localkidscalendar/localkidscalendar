@@ -3,17 +3,10 @@ import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-
-const CATEGORIES = [
-  { value: "all", label: "All Types" },
-  { value: "camp", label: "Camps" },
-  { value: "class", label: "Classes" },
-  { value: "event", label: "Events" },
-  { value: "sport", label: "Sports" },
-  { value: "general_interest", label: "General Interest" },
-];
+import { ACTIVITY_CATEGORIES } from "@/lib/activityCategories";
 
 export default function SavedFiltersTab({ user }) {
   const { toast } = useToast();
@@ -22,7 +15,6 @@ export default function SavedFiltersTab({ user }) {
   const [form, setForm] = useState({
     search: "",
     category: "all",
-    subcategory: "",
     sort_by: "posted",
     zip_code: "",
     radius_miles: 15,
@@ -30,6 +22,7 @@ export default function SavedFiltersTab({ user }) {
     age_max: "",
     price_min: "",
     price_max: "",
+    free_only: false,
   });
 
   useEffect(() => {
@@ -44,17 +37,18 @@ export default function SavedFiltersTab({ user }) {
           .maybeSingle();
         if (error) throw error;
         if (data) {
+          const freeOnly = Boolean(data.free_only);
           setForm({
             search: data.search || "",
             category: data.category || "all",
-            subcategory: data.subcategory || "",
             sort_by: data.sort_by || "posted",
             zip_code: data.zip_code || "",
             radius_miles: Number(data.radius_miles) || 15,
             age_min: data.age_min != null ? String(data.age_min) : "",
             age_max: data.age_max != null ? String(data.age_max) : "",
-            price_min: data.price_min != null ? String(data.price_min) : "",
-            price_max: data.price_max != null ? String(data.price_max) : "",
+            price_min: freeOnly ? "" : (data.price_min != null ? String(data.price_min) : ""),
+            price_max: freeOnly ? "" : (data.price_max != null ? String(data.price_max) : ""),
+            free_only: freeOnly,
           });
         }
       } catch (err) {
@@ -72,14 +66,15 @@ export default function SavedFiltersTab({ user }) {
         user_id: user.id,
         search: form.search?.trim() || null,
         category: form.category || "all",
-        subcategory: form.subcategory?.trim() || null,
+        subcategory: null,
         sort_by: form.sort_by || "posted",
         zip_code: form.zip_code?.trim() || null,
         radius_miles: Number(form.radius_miles) || 15,
         age_min: form.age_min !== "" ? Number(form.age_min) : null,
         age_max: form.age_max !== "" ? Number(form.age_max) : null,
-        price_min: form.price_min !== "" ? Number(form.price_min) : null,
-        price_max: form.price_max !== "" ? Number(form.price_max) : null,
+        price_min: form.free_only || form.price_min === "" ? null : Number(form.price_min),
+        price_max: form.free_only || form.price_max === "" ? null : Number(form.price_max),
+        free_only: Boolean(form.free_only),
         updated_at: new Date().toISOString(),
       };
       const { error } = await supabase.from("saved_filters").upsert(payload, { onConflict: "user_id" });
@@ -121,7 +116,8 @@ export default function SavedFiltersTab({ user }) {
           <Select value={form.category} onValueChange={(v) => setForm((p) => ({ ...p, category: v }))}>
             <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {CATEGORIES.map((c) => (
+              <SelectItem value="all">All Categories</SelectItem>
+              {ACTIVITY_CATEGORIES.map((c) => (
                 <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
               ))}
             </SelectContent>
@@ -138,6 +134,22 @@ export default function SavedFiltersTab({ user }) {
               <SelectItem value="registration">Registration Date</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+          <div>
+            <p className="text-sm font-medium">Free</p>
+            <p className="text-xs text-muted-foreground">Only show free activities. Disables Price Min / Max.</p>
+          </div>
+          <Switch
+            checked={form.free_only}
+            onCheckedChange={(v) => setForm((p) => ({
+              ...p,
+              free_only: v,
+              price_min: v ? "" : p.price_min,
+              price_max: v ? "" : p.price_max,
+            }))}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -175,11 +187,11 @@ export default function SavedFiltersTab({ user }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-sm font-medium block mb-1">Price Min</label>
-            <Input type="number" value={form.price_min} onChange={(e) => setForm((p) => ({ ...p, price_min: e.target.value }))} className="rounded-xl" />
+            <Input type="number" value={form.price_min} onChange={(e) => setForm((p) => ({ ...p, price_min: e.target.value }))} className="rounded-xl" disabled={form.free_only} />
           </div>
           <div>
             <label className="text-sm font-medium block mb-1">Price Max</label>
-            <Input type="number" value={form.price_max} onChange={(e) => setForm((p) => ({ ...p, price_max: e.target.value }))} className="rounded-xl" />
+            <Input type="number" value={form.price_max} onChange={(e) => setForm((p) => ({ ...p, price_max: e.target.value }))} className="rounded-xl" disabled={form.free_only} />
           </div>
         </div>
 

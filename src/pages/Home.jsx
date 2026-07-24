@@ -10,6 +10,7 @@ import DefaultAdCard from "@/components/ads/DefaultAdCard";
 import ZipRequiredModal from "@/components/shared/ZipRequiredModal";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import { pickDefaultFillerAds } from "@/lib/pickDefaultFillerAds";
+import { isActivityFree, normalizeCategoryList } from "@/lib/activityCategories";
 import { Calendar, MapPin, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import moment from "moment";
@@ -123,8 +124,9 @@ export default function Home() {
   const [orgFilter, setOrgFilter] = useState(""); // set when coming from Organizer Directory
   const [filters, setFilters] = useState(() => {
     const defaults = {
-      search: "", category: "all", subcategory: "", activeStatus: "active", sortBy: "posted",
+      search: "", category: "all", activeStatus: "active", sortBy: "posted",
       zipCode: "", radiusMiles: 15, ageMin: "", ageMax: "", priceMin: "", priceMax: "",
+      freeOnly: false,
       dateFrom: moment().toDate(), dateTo: moment().add(120, "days").toDate(), savedOnly: false, favOrgsOnly: false
     };
     // Restore all non-location filters from this browser session (cleared when the session ends)
@@ -481,15 +483,12 @@ export default function Home() {
 
     if (filters.category && filters.category !== "all") {
       result = result.filter((e) => {
-        const cats = Array.isArray(e.category) ? e.category : e.category ? [e.category] : [];
+        const cats = normalizeCategoryList(e.category);
         return cats.includes(filters.category);
       });
     }
-    if (filters.subcategory) {
-      result = result.filter((e) => {
-        const subs = Array.isArray(e.subcategory) ? e.subcategory : e.subcategory ? [e.subcategory] : [];
-        return subs.some((s) => s.toLowerCase() === filters.subcategory.toLowerCase());
-      });
+    if (filters.freeOnly) {
+      result = result.filter((e) => isActivityFree(e));
     }
     if (filters.zipCode) {
       const radius = Number(filters.radiusMiles) || 15;
@@ -518,7 +517,7 @@ export default function Home() {
     if (filters.ageMax) {
       result = result.filter((e) => !e.age_min || e.age_min <= Number(filters.ageMax));
     }
-    if (filters.priceMin || filters.priceMax) {
+    if (!filters.freeOnly && (filters.priceMin || filters.priceMax)) {
       result = result.filter((e) => {
         const raw = (e.cost || "").replace(/[^0-9.]/g, "");
         const price = parseFloat(raw);
@@ -665,7 +664,7 @@ export default function Home() {
             </div>
             <h3 className="font-heading font-semibold text-lg mb-1">No Activities Found</h3>
             <p className="text-sm text-muted-foreground mb-4">Try adjusting your filters or check back soon.</p>
-            <Button variant="outline" className="rounded-xl" onClick={() => setFilters({ search: "", category: "all", subcategory: "", activeStatus: "active", sortBy: "posted", zipCode: "", radiusMiles: 15, ageMin: "", ageMax: "", dateFrom: moment().toDate(), dateTo: moment().add(120, "days").toDate() })}>
+            <Button variant="outline" className="rounded-xl" onClick={() => setFilters({ search: "", category: "all", activeStatus: "active", sortBy: "posted", zipCode: "", radiusMiles: 15, ageMin: "", ageMax: "", priceMin: "", priceMax: "", freeOnly: false, dateFrom: moment().toDate(), dateTo: moment().add(120, "days").toDate(), savedOnly: false, favOrgsOnly: false })}>
               Clear All Filters
             </Button>
           </div>

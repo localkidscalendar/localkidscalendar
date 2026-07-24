@@ -11,23 +11,9 @@ import { useToast } from "@/components/ui/use-toast";
 import HelpTip from "@/components/shared/HelpTip";
 import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig"; // BETA MODE — remove with useBetaConfig.js
 import TimeInput from "@/components/shared/TimeInput";
-import { ArrowLeft, Upload, Loader2, Save, ShieldCheck, Users, Plus, X, AlertTriangle, HelpCircle } from "lucide-react";
-
-const CATEGORIES = [
-  { value: "camp", label: "Camp" },
-  { value: "class", label: "Class" },
-  { value: "event", label: "Event" },
-  { value: "sport", label: "Sport" },
-  { value: "general_interest", label: "General Interest" },
-];
-
-const SUBCATEGORIES = {
-  camp: ["Academic", "Art", "Coding/Tech", "Dance", "Music", "Nature/Outdoors", "Science", "Sports", "Theater", "Other"],
-  class: ["Art", "Coding/Tech", "Cooking", "Dance", "Language", "Math/Tutoring", "Music", "Science", "Yoga/Fitness", "Other"],
-  event: ["Community", "Competition", "Festival", "Fundraiser", "Performance", "Showcase", "Workshop", "Other"],
-  sport: ["Baseball", "Basketball", "Cheerleading", "Dance", "Figure Skating", "Football", "Golf", "Gymnastics", "Hockey", "Lacrosse", "Martial Arts", "Soccer", "Softball", "Swimming", "Tennis", "Track & Field", "Volleyball", "Wrestling", "Other"],
-  general_interest: ["Book Club", "Community Service", "Crafts", "Gaming", "Gardening", "Hiking", "Photography", "STEM", "Other"],
-};
+import { ArrowLeft, Upload, Loader2, Save, ShieldCheck, Users, AlertTriangle, HelpCircle } from "lucide-react";
+import { ACTIVITY_CATEGORIES, normalizeCategoryList } from "@/lib/activityCategories";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function PostEvent() {
   const { user } = useOutletContext();
@@ -48,12 +34,12 @@ export default function PostEvent() {
   const toTitleCase = (str) => str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
 
   const [form, setForm] = useState({
-    title: "", description: "", classifications: [{ category: "", subcategory: "" }],
+    title: "", description: "", categories: [],
     age_min: "", age_max: "",
     start_date: "", end_date: "", time_start: "", time_end: "",
     registration_start: "", registration_end: "", registration_full: false,
     location_name: "", address: "", city: "", state: "", zip_code: "",
-    cost: "", contact_name: "", contact_email: "", contact_phone: "", website: "",
+    cost: "", is_free: false, contact_name: "", contact_email: "", contact_phone: "", website: "",
     event_image: "", org_logo: "", org_name: "", org_description: "",
     keywords: "",
     posted_by_role: isOrganizer ? "organizer" : "community_member",
@@ -113,14 +99,16 @@ export default function PostEvent() {
       const { data: e, error } = await supabase.from("events").select("*").eq("id", eid).single();
       if (error) throw error;
       const { id, created_at, updated_at, created_by_id, flag_count, flagged_by, status, save_count, category, subcategory, classifications, ...rest } = e;
-      let rows = classifications && classifications.length > 0 ? classifications : [];
-      if (rows.length === 0 && category?.length) {
-        rows = category.map((cat, i) => ({ category: cat, subcategory: subcategory?.[i] || "" }));
-      }
-      if (rows.length === 0) rows = [{ category: "", subcategory: "" }];
+      const categories = normalizeCategoryList(
+        (classifications || []).map((c) => c.category).filter(Boolean).concat(category || [])
+      );
+      const isFree = rest.is_free === true
+        || /free/i.test(String(rest.cost || ""));
       setForm({
         ...rest,
-        classifications: rows,
+        categories,
+        is_free: isFree,
+        cost: isFree ? "" : (rest.cost || ""),
         age_min: rest.age_min?.toString() || "",
         age_max: rest.age_max?.toString() || "",
         rules_agreed: false,
@@ -181,7 +169,7 @@ export default function PostEvent() {
     const missingFields = [];
     if (!form.title?.trim()) missingFields.push("Title");
     if (!form.description?.trim()) missingFields.push("Description");
-    if (!form.classifications?.some((c) => c.category)) missingFields.push("Category");
+    if (!form.categories?.length) missingFields.push("Category");
     if (!form.start_date?.trim()) missingFields.push("Start Date");
     if (!form.city?.trim()) missingFields.push("City");
     if (!form.state?.trim()) missingFields.push("State");
@@ -226,13 +214,15 @@ export default function PostEvent() {
     }
     setSubmitting(true);
     try {
-      const validRows = form.classifications.filter((c) => c.category);
-      const { classifications, rules_agreed, ...formRest } = form;
+      const categories = normalizeCategoryList(form.categories);
+      const { categories: _cats, rules_agreed, ...formRest } = form;
       const data = {
         ...formRest,
-        classifications: validRows,
-        category: [...new Set(validRows.map((c) => c.category))],
-        subcategory: [...new Set(validRows.filter((c) => c.subcategory).map((c) => c.subcategory))],
+        category: categories,
+        subcategory: [],
+        classifications: categories.map((c) => ({ category: c })),
+        is_free: Boolean(form.is_free),
+        cost: form.is_free ? "Free" : (form.cost || null),
         age_min: form.age_min ? Number(form.age_min) : null,
         age_max: form.age_max ? Number(form.age_max) : null,
         event_image: form.event_image || null,
@@ -321,68 +311,30 @@ export default function PostEvent() {
               <Textarea value={form.description} onChange={(e) => updateField("description", e.target.value)} className="rounded-xl mt-1 min-h-[100px]" placeholder="Describe the event, what to expect, what to bring..." />
             </div>
             <div>
-              <Label className="text-sm">Category & Subcategory * <span className="text-xs text-muted-foreground font-normal">(pick a category, then optionally a matching subcategory; you may add a second category if this activity fits more than one, e.g. a Hockey Camp is Sport/Hockey + Camp — up to 2 categories max)</span></Label>
-              <div className="space-y-2 mt-1">
-                {form.classifications.map((row, idx) => {
-                  const subOptions = row.category ? SUBCATEGORIES[row.category] || [] : [];
+              <Label className="text-sm">Category * <span className="text-xs text-muted-foreground font-normal">(select all that apply — e.g. a sports camp can be Camps and Sports & Teams)</span></Label>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {ACTIVITY_CATEGORIES.map((c) => {
+                  const checked = form.categories.includes(c.value);
                   return (
-                    <div key={idx} className="flex flex-wrap items-center gap-2">
-                      <Select
-                        value={row.category}
-                        onValueChange={(v) => {
-                          const next = [...form.classifications];
-                          next[idx] = { category: v, subcategory: "" };
-                          updateField("classifications", next);
+                    <label
+                      key={c.value}
+                      className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm cursor-pointer hover:bg-muted/40"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(v) => {
+                          setForm((prev) => ({
+                            ...prev,
+                            categories: v
+                              ? [...prev.categories, c.value]
+                              : prev.categories.filter((x) => x !== c.value),
+                          }));
                         }}
-                      >
-                        <SelectTrigger className="w-auto min-w-[150px] rounded-xl text-sm">
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CATEGORIES.map((c) => (
-                            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={row.subcategory}
-                        onValueChange={(v) => {
-                          const next = [...form.classifications];
-                          next[idx] = { ...next[idx], subcategory: v };
-                          updateField("classifications", next);
-                        }}
-                        disabled={!row.category}
-                      >
-                        <SelectTrigger className="w-auto min-w-[160px] rounded-xl text-sm">
-                          <SelectValue placeholder="Subcategory (optional)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subOptions.map((s) => (
-                            <SelectItem key={s} value={s}>{s}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {form.classifications.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => updateField("classifications", form.classifications.filter((_, i) => i !== idx))}
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
+                      />
+                      <span>{c.label}</span>
+                    </label>
                   );
                 })}
-                {form.classifications.length < 2 && (
-                  <button
-                    type="button"
-                    onClick={() => updateField("classifications", [...form.classifications, { category: "", subcategory: "" }])}
-                    className="inline-flex items-center gap-1 text-sm text-mint-600 hover:text-mint-700 font-medium"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add another category
-                  </button>
-                )}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -395,9 +347,31 @@ export default function PostEvent() {
                 <Input type="number" value={form.age_max} onChange={(e) => updateField("age_max", e.target.value)} className="rounded-xl mt-1" min={0} max={18} />
               </div>
             </div>
-            <div>
-              <Label className="text-sm">Cost / Pricing</Label>
-              <Input value={form.cost} onChange={(e) => updateField("cost", e.target.value)} className="rounded-xl mt-1" placeholder="e.g. Free, $25/session, $150/week" />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium">Free</p>
+                  <p className="text-xs text-muted-foreground">Turn on if there is no cost to participate.</p>
+                </div>
+                <Switch
+                  checked={form.is_free}
+                  onCheckedChange={(v) => setForm((prev) => ({
+                    ...prev,
+                    is_free: v,
+                    cost: v ? "" : prev.cost,
+                  }))}
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Cost / Pricing</Label>
+                <Input
+                  value={form.cost}
+                  onChange={(e) => updateField("cost", e.target.value)}
+                  className="rounded-xl mt-1"
+                  placeholder="e.g. $25/session, $150/week"
+                  disabled={form.is_free}
+                />
+              </div>
             </div>
             <div>
               <Label className="text-sm">Keywords</Label>

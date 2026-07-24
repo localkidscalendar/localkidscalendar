@@ -2,6 +2,25 @@ import { sendViaResend } from "./resendSend.js";
 
 const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.vercel.app";
 
+const CATEGORY_LABELS = {
+  camp: "Camps",
+  childcare_enrichment: "Childcare & Enrichment",
+  classes_lessons: "Classes & Lessons",
+  community: "Community",
+  events_experiences: "Events & Experiences",
+  sports_teams: "Sports & Teams",
+  class: "Classes & Lessons",
+  event: "Events & Experiences",
+  sport: "Sports & Teams",
+  general_interest: "Community",
+};
+
+function categoryDisplay(raw) {
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  if (list.length === 0) return "Activity";
+  return list.map((c) => CATEGORY_LABELS[c] || c).join(", ");
+}
+
 function formatEventCard(event) {
   const dateStr = event.start_date
     ? new Date(event.start_date).toLocaleDateString("en-US", {
@@ -27,7 +46,7 @@ function formatEventCard(event) {
     <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;">
       ${event.event_image ? `<img src="${event.event_image}" alt="${event.title || "Activity"}" style="width:100%;max-height:160px;object-fit:cover;display:block;" />` : ""}
       <div style="padding:16px;">
-        <span style="display:inline-block;background:#E0F7F2;color:#2D7A3E;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;text-transform:capitalize;">${event.category || "event"}</span>
+        <span style="display:inline-block;background:#E0F7F2;color:#2D7A3E;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;">${categoryDisplay(event.category)}</span>
         <h3 style="margin:8px 0 4px;font-size:15px;font-weight:700;color:#1a2332;line-height:1.4;">${event.title || "Activity"}</h3>
         ${event.org_name ? `<p style="margin:0 0 8px;font-size:12px;color:#6b7280;">by <strong style="color:#1a2332;">${event.org_name}</strong></p>` : ""}
         <div style="margin-bottom:12px;border-top:1px solid #f0f0f0;padding-top:8px;">

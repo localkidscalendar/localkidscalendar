@@ -298,7 +298,7 @@ function buildHtml(templateKey, data) {
                     <img src="https://images.unsplash.com/photo-1566415074467-988b740b76d4?w=400" alt="${data.event1_title || "Activity"}" style="width:100%;max-height:160px;object-fit:cover;display:block;" />
                     <div style="padding:16px;">
                       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
-                        <span style="display:inline-block;background:#E0F7F2;color:#2D7A3E;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;text-transform:capitalize;">camp</span>
+                        <span style="display:inline-block;background:#E0F7F2;color:#2D7A3E;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;">Camps</span>
                       </div>
                       <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#1a2332;line-height:1.4;">${data.event1_title || "Summer Soccer Camp"}</h3>
                       <p style="margin:0 0 8px;font-size:12px;color:#6b7280;">by <strong style="color:#1a2332;">${data.event1_org || "Mountain Kids Soccer Club"}</strong></p>
@@ -315,7 +315,7 @@ function buildHtml(templateKey, data) {
                     <img src="https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400" alt="${data.event2_title || "Activity"}" style="width:100%;max-height:160px;object-fit:cover;display:block;" />
                     <div style="padding:16px;">
                       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
-                        <span style="display:inline-block;background:#E0F7F2;color:#2D7A3E;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;text-transform:capitalize;">class</span>
+                        <span style="display:inline-block;background:#E0F7F2;color:#2D7A3E;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;">Classes & Lessons</span>
                       </div>
                       <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#1a2332;line-height:1.4;">${data.event2_title || "Art & Crafts Workshop"}</h3>
                       <p style="margin:0 0 8px;font-size:12px;color:#6b7280;">by <strong style="color:#1a2332;">${data.event2_org || "Little Stars Learning Center"}</strong></p>

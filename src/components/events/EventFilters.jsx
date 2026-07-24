@@ -5,29 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Calendar } from "@/components/ui/calendar";
-import { Search, SlidersHorizontal, X, MapPin, CalendarDays, Heart, Bookmark, UserCog, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, X, CalendarDays, Heart, Bookmark, UserCog, ChevronDown, ChevronUp } from "lucide-react";
 import moment from "moment";
-import { cn } from "@/lib/utils";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabaseClient";
-
-const CATEGORIES = [
-  { value: "all", label: "All Types" },
-  { value: "camp", label: "Camps" },
-  { value: "class", label: "Classes" },
-  { value: "event", label: "Events" },
-  { value: "sport", label: "Sports" },
-  { value: "general_interest", label: "General Interest" },
-];
-
-const SUBCATEGORIES = {
-  camp: ["Academic", "Art", "Coding/Tech", "Dance", "Music", "Nature/Outdoors", "Science", "Sports", "Theater", "Other"],
-  class: ["Art", "Coding/Tech", "Cooking", "Dance", "Language", "Math/Tutoring", "Music", "Science", "Yoga/Fitness", "Other"],
-  event: ["Community", "Competition", "Festival", "Fundraiser", "Performance", "Showcase", "Workshop", "Other"],
-  sport: ["Baseball", "Basketball", "Cheerleading", "Dance", "Figure Skating", "Football", "Golf", "Gymnastics", "Hockey", "Lacrosse", "Martial Arts", "Soccer", "Softball", "Swimming", "Tennis", "Track & Field", "Volleyball", "Wrestling", "Other"],
-  general_interest: ["Book Club", "Community Service", "Crafts", "Gaming", "Gardening", "Hiking", "Photography", "STEM", "Other"],
-};
+import { ACTIVITY_CATEGORIES } from "@/lib/activityCategories";
 
 const ACTIVE_STATUS_OPTIONS = [
   { value: "active", label: "Show Active" },
@@ -35,9 +18,9 @@ const ACTIVE_STATUS_OPTIONS = [
 ];
 
 const SORT_OPTIONS = [
-  { value: "posted", label: "Sort by Date Posted" },
-  { value: "start", label: "Sort by Activity Date" },
-  { value: "registration", label: "Sort by Registration Date" },
+  { value: "posted", label: "Sort By Date Posted" },
+  { value: "start", label: "Sort By Activity Date" },
+  { value: "registration", label: "Sort By Registration Date" },
 ];
 
 export default function EventFilters({ filters, onFiltersChange, detectedZip, user, defaultZip, expanded, onExpandedChange }) {
@@ -59,7 +42,24 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
 
   const clearFilters = () => {
     setLocalSearch("");
-    onFiltersChange({ ...filters, search: "", category: "all", subcategory: "", activeStatus: "active", sortBy: "posted", zipCode: defaultZip || "", radiusMiles: 15, ageMin: "", ageMax: "", priceMin: "", priceMax: "", dateFrom: moment().toDate(), dateTo: moment().add(120, "days").toDate(), savedOnly: false, favOrgsOnly: false });
+    onFiltersChange({
+      ...filters,
+      search: "",
+      category: "all",
+      activeStatus: "active",
+      sortBy: "posted",
+      zipCode: defaultZip || "",
+      radiusMiles: 15,
+      ageMin: "",
+      ageMax: "",
+      priceMin: "",
+      priceMax: "",
+      freeOnly: false,
+      dateFrom: moment().toDate(),
+      dateTo: moment().add(120, "days").toDate(),
+      savedOnly: false,
+      favOrgsOnly: false,
+    });
   };
 
   const loadSavedFilters = async () => {
@@ -74,29 +74,30 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
       if (error) throw error;
       if (!data) {
         toast({
-          title: "No saved filters yet",
+          title: "No Saved Filters Yet",
           description: "Save your defaults under Account → My Filters.",
         });
       } else {
+        const freeOnly = Boolean(data.free_only);
         setLocalSearch(data.search || "");
         onFiltersChange({
           ...filters,
           search: data.search || "",
           category: data.category || "all",
-          subcategory: data.subcategory || "",
           sortBy: data.sort_by || "posted",
           zipCode: data.zip_code || filters.zipCode || "",
           radiusMiles: Number(data.radius_miles) || 15,
           ageMin: data.age_min != null ? String(data.age_min) : "",
           ageMax: data.age_max != null ? String(data.age_max) : "",
-          priceMin: data.price_min != null ? String(data.price_min) : "",
-          priceMax: data.price_max != null ? String(data.price_max) : "",
+          priceMin: freeOnly ? "" : (data.price_min != null ? String(data.price_min) : ""),
+          priceMax: freeOnly ? "" : (data.price_max != null ? String(data.price_max) : ""),
+          freeOnly,
         });
-        toast({ title: "Saved filters applied" });
+        toast({ title: "Saved Filters Applied" });
       }
     } catch (err) {
       toast({
-        title: "Could not load saved filters",
+        title: "Could Not Load Saved Filters",
         description: err.message,
         variant: "destructive",
       });
@@ -104,13 +105,10 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
     setLoadingSavedFilters(false);
   };
 
-  const subcategoryOptions = filters.category && filters.category !== "all" ? SUBCATEGORIES[filters.category] || [] : [];
-
-  const hasActiveFilters = filters.category !== "all" || filters.subcategory || filters.zipCode || filters.ageMin || filters.ageMax || filters.dateFrom;
+  const hasActiveFilters = filters.category !== "all" || filters.zipCode || filters.ageMin || filters.ageMax || filters.dateFrom || filters.freeOnly;
 
   return (
     <div className="bg-white rounded-2xl border border-border p-4 space-y-3">
-      {/* Search row */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <TooltipProvider>
@@ -119,7 +117,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground cursor-help" />
               </TooltipTrigger>
               <TooltipContent className="max-w-[260px] text-xs">
-                Matches any word you enter (not the full phrase) anywhere in an activity's title, description, keywords, organizer name, or city. Punctuation is ignored, so "hockey," and "hockey" match the same.
+                Matches any word you enter (not the full phrase) anywhere in an activity&apos;s title, description, keywords, organizer name, or city. Punctuation is ignored, so &quot;hockey,&quot; and &quot;hockey&quot; match the same.
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -132,32 +130,40 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
         </div>
       </div>
 
-      {/* Category + Date + Sort row */}
       <div className="flex flex-wrap gap-2">
-        <Select value={filters.category || "all"} onValueChange={(v) => onFiltersChange({ ...filters, category: v, subcategory: "" })}>
-          <SelectTrigger className="w-auto min-w-[130px] rounded-xl text-sm">
-            <SelectValue />
+        <Select value={filters.category || "all"} onValueChange={(v) => onFiltersChange({ ...filters, category: v })}>
+          <SelectTrigger className="w-auto min-w-[160px] rounded-xl text-sm">
+            <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
-            {CATEGORIES.map((cat) => (
+            <SelectItem value="all">All Categories</SelectItem>
+            {ACTIVITY_CATEGORIES.map((cat) => (
               <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {subcategoryOptions.length > 0 && (
-          <Select value={filters.subcategory || "all"} onValueChange={(v) => updateFilter("subcategory", v === "all" ? "" : v)}>
-            <SelectTrigger className="w-auto min-w-[140px] rounded-xl text-sm">
-              <SelectValue placeholder="All Subtypes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Subtypes</SelectItem>
-              {subcategoryOptions.map((sub) => (
-                <SelectItem key={sub} value={sub}>{sub}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        {/* From Date */}
+        <Select value={filters.activeStatus || "active"} onValueChange={(v) => updateFilter("activeStatus", v)}>
+          <SelectTrigger className="w-auto min-w-[130px] rounded-xl text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ACTIVE_STATUS_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant={filters.freeOnly ? "secondary" : "outline"}
+          className={`rounded-xl text-sm font-normal ${filters.freeOnly ? "text-mint-600 border-mint-200 bg-mint-50 hover:bg-mint-100" : ""}`}
+          onClick={() => onFiltersChange({
+            ...filters,
+            freeOnly: !filters.freeOnly,
+            priceMin: !filters.freeOnly ? "" : filters.priceMin,
+            priceMax: !filters.freeOnly ? "" : filters.priceMax,
+          })}
+        >
+          Free
+        </Button>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className="rounded-xl text-sm font-normal min-w-[130px]">
@@ -170,7 +176,6 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
           </PopoverContent>
         </Popover>
         <span className="text-sm text-muted-foreground self-center -mx-2">to</span>
-        {/* To Date */}
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className="rounded-xl text-sm font-normal min-w-[130px]">
@@ -234,7 +239,6 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
         </div>
       </div>
 
-      {/* Expanded filters */}
       {expanded && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-border animate-settle">
           <div>
@@ -271,12 +275,29 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
               Price Range
             </label>
             <div className="flex gap-2">
-              <Input type="number" placeholder="Min" value={filters.priceMin || ""} onChange={(e) => updateFilter("priceMin", e.target.value)}
-                className="rounded-xl text-sm" min={0} />
+              <Input
+                type="number"
+                placeholder="Min"
+                value={filters.priceMin || ""}
+                onChange={(e) => updateFilter("priceMin", e.target.value)}
+                className="rounded-xl text-sm"
+                min={0}
+                disabled={filters.freeOnly}
+              />
               <span className="text-sm text-muted-foreground self-center -mx-2">to</span>
-              <Input type="number" placeholder="Max" value={filters.priceMax || ""} onChange={(e) => updateFilter("priceMax", e.target.value)}
-                className="rounded-xl text-sm" min={0} />
+              <Input
+                type="number"
+                placeholder="Max"
+                value={filters.priceMax || ""}
+                onChange={(e) => updateFilter("priceMax", e.target.value)}
+                className="rounded-xl text-sm"
+                min={0}
+                disabled={filters.freeOnly}
+              />
             </div>
+            {filters.freeOnly && (
+              <p className="text-[11px] text-muted-foreground mt-1">Price Range is disabled while Free is on.</p>
+            )}
           </div>
         </div>
       )}
