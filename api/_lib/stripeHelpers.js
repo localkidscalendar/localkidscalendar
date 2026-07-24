@@ -22,14 +22,34 @@ export function createUserClient(token) {
   });
 }
 
+/** Decode a Supabase JWT payload without verifying (env-key sanity check only). */
+function jwtRole(jwt) {
+  try {
+    const payload = jwt.split(".")[1];
+    if (!payload) return "";
+    const json = Buffer.from(payload, "base64url").toString("utf8");
+    return JSON.parse(json)?.role || "";
+  } catch {
+    return "";
+  }
+}
+
 /** Service-role client for privileged reads/writes (bypasses RLS). */
 export function createAdminClient() {
   const supabaseUrl = getEnv("SUPABASE_URL", "VITE_SUPABASE_URL");
   const serviceKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceKey) {
-    throw new Error("Server missing Supabase service role configuration");
+    throw new Error("Server missing SUPABASE_SERVICE_ROLE_KEY (set it in Vercel from Supabase → Settings → API → service_role secret)");
   }
-  return createClient(supabaseUrl, serviceKey);
+  const role = jwtRole(serviceKey);
+  if (role && role !== "service_role") {
+    throw new Error(
+      `SUPABASE_SERVICE_ROLE_KEY looks like the "${role}" key — use the service_role secret from Supabase → Settings → API (not the anon/public key)`
+    );
+  }
+  return createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 /** Verify the Bearer token from an incoming request and return the auth user. */
