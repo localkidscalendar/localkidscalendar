@@ -555,13 +555,13 @@ const categories = [
           "Preferences: zip, keywords, age range, favorite organizers",
           "Includes curated activity cards and Supporter ads"
         ],
-        technicalOverview: "cron-send-notification-emails runs daily at 8am PT and only sends on Mondays; admin can also trigger via /api/send-notification-emails.",
+        technicalOverview: "cron-send-notification-emails runs daily at 8am PT and only sends on Mondays. Preview the digest look-and-feel under Admin → Email (Activity Digest Weekly).",
         technicalFeatures: [
           "Runs daily at 8am PT; sends weekly digests only on Mondays",
           "Loads notification_preferences where frequency = weekly",
           "Filters events by zip, age, keywords, and favorite organizers",
           "Builds HTML digest cards and sends via Resend",
-          "preview_to lets admin test a single email before a broad send"
+          "Admin → Email previews the Activity Digest (Weekly) template with sample data"
         ]
       },
       {
@@ -660,7 +660,7 @@ const categories = [
         ],
         technicalOverview: "Admin.jsx is the main dashboard with a tabbed interface, sharing consistent components across tabs.",
         technicalFeatures: [
-          "Tabs: Activities (event list/edit/delete + AdminActivityPhotoReviewPanel), Ads (ManualReviewPanel, AdminAdsPanel, AdminWaitlistPanel, AdminAdRatesPanel, DiscountCodesPanel, AdminDefaultAdsPanel), Email (SiteEmailsTester), FAQs (FAQManager), Flags, Manual, Messages (ContactMessage CRUD), Notifications (manual trigger via sendNotificationEmails), Users (role management + AdminUserZipReportsSection), Beta (AdminBetaPanel)",
+          "Tabs: Activities (event list/edit/delete + AdminActivityPhotoReviewPanel), Ads (ManualReviewPanel, AdminAdsPanel, AdminWaitlistPanel, AdminAdRatesPanel, DiscountCodesPanel, AdminDefaultAdsPanel), Email (SiteEmailsTester), FAQs (FAQManager), Flags, Manual, Messages (ContactMessage CRUD), Users (role management + AdminUserZipReportsSection), Beta (AdminBetaPanel)",
           "All tabs share the AdminSectionHeader component for consistent title/icon styling and uniform white, bordered containers",
           "All operations use base44.entities.* SDK methods",
           "Stats computed from entity counts on load; long lists use the shared Paginator component"

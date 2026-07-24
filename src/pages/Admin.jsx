@@ -3,12 +3,11 @@ import { useOutletContext, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { buildEmail } from "@/lib/emailTemplates";
 import { sendEmail } from "@/lib/sendEmail";
-import { apiUrl } from "@/lib/apiBase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, Trash2, Eye, BarChart3, Mail, Send, Image, Ban, Archive, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, Bell, HelpCircle, MessageSquare, RotateCcw } from "lucide-react";
+import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, Trash2, Eye, BarChart3, Mail, Image, Ban, Archive, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, HelpCircle, MessageSquare, RotateCcw } from "lucide-react";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 
 import FAQManagerV2 from "@/components/admin/FAQManager";
@@ -53,7 +52,6 @@ export default function Admin() {
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({});
   const [messages, setMessages] = useState([]);
-  const [sendingTest, setSendingTest] = useState(false);
   const [eventSearch, setEventSearch] = useState("");
   const [eventSortBy, setEventSortBy] = useState("date");
   const [eventSortOrder, setEventSortOrder] = useState("desc");
@@ -177,7 +175,6 @@ export default function Admin() {
     loadAll();
   };
 
-  const [sendingPreview, setSendingPreview] = useState(false);
   const [eventMap, setEventMap] = useState({});
   const [deletedItems, setDeletedItems] = useState([]);
   const [flaggingUsers, setFlaggingUsers] = useState([]);
@@ -263,71 +260,6 @@ export default function Admin() {
       }).sort((a, b) => b.count - a.count);
       setFlaggingUsers(result);
     } catch {}
-  };
-
-  const postNotificationEmails = async (body) => {
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) throw sessionError;
-    const accessToken = sessionData?.session?.access_token;
-    if (!accessToken) throw new Error("You must be signed in.");
-
-    const res = await fetch(apiUrl("/api/send-notification-emails"), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    const raw = await res.text();
-    let payload = {};
-    try {
-      payload = raw ? JSON.parse(raw) : {};
-    } catch {
-      payload = {};
-    }
-    if (!res.ok) {
-      throw new Error(payload.error || (raw && raw.length < 200 ? raw : null) || `Request failed (${res.status})`);
-    }
-    return payload;
-  };
-
-  const handleSendTestEmail = async () => {
-    setSendingTest(true);
-    try {
-      const result = await postNotificationEmails({ frequency: "weekly" });
-      toast({
-        title: result.sent ? `Sent ${result.sent} digest${result.sent === 1 ? "" : "s"}` : "No emails sent",
-        description: result.message
-          || (result.sent
-            ? `Checked ${result.prefs_checked ?? 0} preference profile${(result.prefs_checked ?? 0) === 1 ? "" : "s"}.`
-            : "No users with weekly digests enabled, or no matching upcoming activities."),
-      });
-    } catch (err) {
-      toast({ title: "Send failed", description: err.message, variant: "destructive" });
-    }
-    setSendingTest(false);
-  };
-
-  const handleSendPreviewToMe = async () => {
-    if (!user?.email) {
-      toast({ title: "No admin email on file", variant: "destructive" });
-      return;
-    }
-    setSendingPreview(true);
-    try {
-      const result = await postNotificationEmails({
-        frequency: "weekly",
-        preview_to: user.email,
-      });
-      toast({
-        title: result.sent ? "Preview sent" : "Nothing to preview",
-        description: result.message || `Check ${user.email} (Resend test mode may only deliver to the account owner).`,
-      });
-    } catch (err) {
-      toast({ title: "Preview failed", description: err.message, variant: "destructive" });
-    }
-    setSendingPreview(false);
   };
 
   const handleAdStatus = async (id, status) => {
@@ -618,7 +550,6 @@ export default function Admin() {
           <TabsTrigger value="messages" className="rounded-lg text-sm">
             Messages {stats.unreadMessages > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-peach-100 text-peach-500 text-xs font-bold">{stats.unreadMessages}</span>}
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="rounded-lg text-sm">Notifications</TabsTrigger>
           <TabsTrigger value="users" className="rounded-lg text-sm">Users</TabsTrigger>
           <TabsTrigger value="beta" className="rounded-lg text-sm">Beta</TabsTrigger>
         </TabsList>
@@ -1129,44 +1060,6 @@ export default function Admin() {
         <TabsContent value="beta">
           <AdminSectionHeader title="Beta Mode" subtitle="When on, the site banner appears and only listed zip codes are functional." icon={FlaskConical} />
           <AdminBetaPanel toast={toast} />
-        </TabsContent>
-
-        <TabsContent value="notifications">
-          <AdminSectionHeader title="Manually Send Notification Emails" subtitle="Triggers the weekly digest now for users who opted in." icon={Bell} />
-          <div className="bg-white rounded-2xl border border-border p-6">
-            <div className="space-y-4 max-w-lg">
-              <p className="text-sm text-muted-foreground">
-                Only weekly digests are available (default Off on Account). Use these buttons to test or send immediately.
-              </p>
-
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
-                  onClick={handleSendPreviewToMe}
-                  disabled={sendingPreview}
-                >
-                  {sendingPreview ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Mail className="w-4 h-4 mr-2" />}
-                  Send Preview to Me ({user?.email})
-                </Button>
-
-                <Button
-                  variant="outline"
-                  className="rounded-xl border-border text-foreground hover:bg-muted"
-                  onClick={handleSendTestEmail}
-                  disabled={sendingTest}
-                >
-                  {sendingTest ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                  Send Weekly Digests Now
-                </Button>
-              </div>
-
-              <div className="bg-muted/40 rounded-xl p-3 text-xs text-muted-foreground space-y-1">
-                <p><strong>Send Preview to Me</strong> — sends a single weekly-style digest only to your address ({user?.email}) using upcoming active events. Safe for testing.</p>
-                <p><strong>Send Weekly Digests Now</strong> — sends real emails to every user with weekly digests enabled.</p>
-                <p className="pt-2 border-t border-muted/20"><strong>Automated Schedule:</strong> Cron runs daily at 8am PT and sends weekly digests only on Mondays.</p>
-              </div>
-            </div>
-          </div>
         </TabsContent>
 
         <TabsContent value="email">
