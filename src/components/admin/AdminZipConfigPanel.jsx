@@ -9,7 +9,7 @@ export default function AdminZipConfigPanel({ ads = [], toast }) {
   const [zipConfigs, setZipConfigs] = useState([]);
   const [zipSearch, setZipSearch] = useState("");
   const [newZip, setNewZip] = useState("");
-  const [newSlots, setNewSlots] = useState(4);
+  const [newSlots, setNewSlots] = useState(3);
   const [savingZip, setSavingZip] = useState(null);
   const [zipPage, setZipPage] = useState(1);
 
@@ -46,7 +46,7 @@ export default function AdminZipConfigPanel({ ads = [], toast }) {
       if (error) throw error;
       toast?.({ title: `Zip ${trimmed} added with ${newSlots} slots` });
       setNewZip("");
-      setNewSlots(4);
+      setNewSlots(3);
       loadZipConfigs();
     } catch (err) {
       toast?.({ title: "Failed to add zip", description: err.message, variant: "destructive" });
@@ -89,7 +89,7 @@ export default function AdminZipConfigPanel({ ads = [], toast }) {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Default: <strong>3 slots per zip</strong> when no custom configuration is set. Use this list to raise capacity for specific zips.
+        Default: <strong>3 slots per zip</strong> when no custom configuration is set. Add a zip here to raise or lower capacity for that zip only (1–20).
       </p>
 
       <Input
@@ -115,10 +115,14 @@ export default function AdminZipConfigPanel({ ads = [], toast }) {
           <span className="text-xs text-muted-foreground shrink-0">Max slots:</span>
           <Input
             type="number"
-            min={4}
+            min={1}
             max={20}
             value={newSlots}
-            onChange={(e) => setNewSlots(Math.max(4, Number(e.target.value)))}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (!Number.isFinite(n)) return;
+              setNewSlots(Math.min(20, Math.max(1, n)));
+            }}
             className="rounded-xl w-16 text-center h-8 text-sm"
           />
         </div>
@@ -128,7 +132,7 @@ export default function AdminZipConfigPanel({ ads = [], toast }) {
           onClick={handleAddZip}
           disabled={newZip.length < 5 || !!zipConfigs.find((z) => z.zip_code === newZip.trim())}
         >
-          <Plus className="w-3.5 h-3.5 mr-1" /> Increase
+          <Plus className="w-3.5 h-3.5 mr-1" /> Add
         </Button>
       </div>
       {newZip.length > 0 && zipConfigs.find((z) => z.zip_code === newZip.trim()) && (
@@ -156,17 +160,22 @@ export default function AdminZipConfigPanel({ ads = [], toast }) {
                     <span className="text-xs text-muted-foreground">Max slots:</span>
                     <Input
                       type="number"
-                      min={4}
+                      min={1}
                       max={20}
                       value={config.max_slots}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        if (!Number.isFinite(n)) return;
+                        const slots = Math.min(20, Math.max(1, n));
                         setZipConfigs((prev) =>
-                          prev.map((z) =>
-                            z.id === config.id ? { ...z, max_slots: Math.max(4, Number(e.target.value)) } : z
-                          )
-                        )
-                      }
-                      onBlur={(e) => handleUpdateSlots(config, Math.max(4, Number(e.target.value)))}
+                          prev.map((z) => (z.id === config.id ? { ...z, max_slots: slots } : z))
+                        );
+                      }}
+                      onBlur={(e) => {
+                        const n = Number(e.target.value);
+                        const slots = Number.isFinite(n) ? Math.min(20, Math.max(1, n)) : 1;
+                        handleUpdateSlots(config, slots);
+                      }}
                       className="rounded-lg w-16 text-center h-7 text-sm"
                       disabled={savingZip === config.id}
                     />
