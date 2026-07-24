@@ -311,66 +311,33 @@ export default function PostEvent() {
               <Textarea value={form.description} onChange={(e) => updateField("description", e.target.value)} className="rounded-xl mt-1 min-h-[100px]" placeholder="Describe the event, what to expect, what to bring..." />
             </div>
             <div>
-              <Label className="text-sm">Category * <span className="text-xs text-muted-foreground font-normal">(select all that apply — e.g. a sports camp can be Camps and Sports & Teams)</span></Label>
+              <Label className="text-sm">Category * <span className="text-xs text-muted-foreground font-normal">(select up to 3 — e.g. a sports camp can be Camps and Sports & Teams)</span></Label>
               <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {ACTIVITY_CATEGORIES.map((c) => {
                   const checked = form.categories.includes(c.value);
+                  const atLimit = form.categories.length >= 3 && !checked;
                   return (
                     <label
                       key={c.value}
-                      className="flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm cursor-pointer hover:bg-muted/40"
+                      className={`flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm ${atLimit ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted/40"}`}
                     >
                       <Checkbox
                         checked={checked}
+                        disabled={atLimit}
                         onCheckedChange={(v) => {
-                          setForm((prev) => ({
-                            ...prev,
-                            categories: v
-                              ? [...prev.categories, c.value]
-                              : prev.categories.filter((x) => x !== c.value),
-                          }));
+                          setForm((prev) => {
+                            if (v) {
+                              if (prev.categories.includes(c.value) || prev.categories.length >= 3) return prev;
+                              return { ...prev, categories: [...prev.categories, c.value] };
+                            }
+                            return { ...prev, categories: prev.categories.filter((x) => x !== c.value) };
+                          });
                         }}
                       />
                       <span>{c.label}</span>
                     </label>
                   );
                 })}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm">Age Min</Label>
-                <Input type="number" value={form.age_min} onChange={(e) => updateField("age_min", e.target.value)} className="rounded-xl mt-1" min={0} max={18} />
-              </div>
-              <div>
-                <Label className="text-sm">Age Max</Label>
-                <Input type="number" value={form.age_max} onChange={(e) => updateField("age_max", e.target.value)} className="rounded-xl mt-1" min={0} max={18} />
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium">Free</p>
-                  <p className="text-xs text-muted-foreground">Turn on if there is no cost to participate.</p>
-                </div>
-                <Switch
-                  checked={form.is_free}
-                  onCheckedChange={(v) => setForm((prev) => ({
-                    ...prev,
-                    is_free: v,
-                    cost: v ? "" : prev.cost,
-                  }))}
-                />
-              </div>
-              <div>
-                <Label className="text-sm">Cost / Pricing</Label>
-                <Input
-                  value={form.cost}
-                  onChange={(e) => updateField("cost", e.target.value)}
-                  className="rounded-xl mt-1"
-                  placeholder="e.g. $25/session, $150/week"
-                  disabled={form.is_free}
-                />
               </div>
             </div>
             <div>
@@ -416,11 +383,44 @@ export default function PostEvent() {
               <div><Label className="text-sm">State *</Label><Input value={form.state} onChange={(e) => updateField("state", e.target.value.toUpperCase().slice(0, 2))} className="rounded-xl mt-1" maxLength={2} /></div>
               <div><Label className="text-sm">Zip Code *</Label><Input value={form.zip_code} onChange={(e) => updateField("zip_code", e.target.value.replace(/\D/g, "").slice(0, 5))} className="rounded-xl mt-1" maxLength={5} inputMode="numeric" placeholder="5 digits" /></div>
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm">Age Min</Label>
+                <Input type="number" value={form.age_min} onChange={(e) => updateField("age_min", e.target.value)} className="rounded-xl mt-1" min={0} max={18} />
+              </div>
+              <div>
+                <Label className="text-sm">Age Max</Label>
+                <Input type="number" value={form.age_max} onChange={(e) => updateField("age_max", e.target.value)} className="rounded-xl mt-1" min={0} max={18} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm">Cost / Pricing</Label>
+              <div className="mt-1 flex flex-wrap items-center gap-3">
+                <Input
+                  value={form.cost}
+                  onChange={(e) => updateField("cost", e.target.value)}
+                  className="rounded-xl w-40 sm:w-48"
+                  placeholder="e.g. $25/session"
+                  disabled={form.is_free}
+                />
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={Boolean(form.is_free)}
+                    onCheckedChange={(v) => setForm((prev) => ({
+                      ...prev,
+                      is_free: Boolean(v),
+                      cost: v ? "" : prev.cost,
+                    }))}
+                  />
+                  <span className="font-medium">Free</span>
+                </label>
+              </div>
+            </div>
           </div>
 
           {/* Contact */}
           <div className="space-y-4">
-            <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Contact & Cost</h3>
+            <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Contact</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label className="text-sm">Contact Name</Label><Input value={form.contact_name} onChange={(e) => updateField("contact_name", e.target.value)} className="rounded-xl mt-1" /></div>
               <div><Label className="text-sm">Contact Email</Label><Input type="email" value={form.contact_email} onChange={(e) => updateField("contact_email", e.target.value)} className="rounded-xl mt-1" /></div>
