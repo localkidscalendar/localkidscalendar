@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { buildEmail } from "@/lib/emailTemplates";
+import { sendEmail } from "@/lib/sendEmail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
 import { Check, X, Loader2, MessageSquare } from "lucide-react";
 import moment from "moment";
 
-/** Email send returns with the site email engine — approve/decline still updates the DB. */
 async function sendPhotoDecisionEmail(event, decision, notes) {
   try {
     if (!event.created_by_id) return;
@@ -16,10 +17,17 @@ async function sendPhotoDecisionEmail(event, decision, notes) {
       .eq("id", event.created_by_id)
       .maybeSingle();
     if (!contributor?.email) return;
-    // Placeholder until Resend (or similar) is wired — keep payload ready for the mailer.
-    void decision;
-    void notes;
-    void contributor;
+
+    const contributorName =
+      [contributor.first_name, contributor.last_name].filter(Boolean).join(" ").trim() || "there";
+    const templateKey =
+      decision === "approved" ? "activity_photo_approved_admin" : "activity_photo_declined_admin";
+    const { subject, html } = buildEmail(templateKey, {
+      contributor_name: contributorName,
+      activity_title: event.title || "your activity",
+      reason: notes || undefined,
+    });
+    await sendEmail({ to: contributor.email, subject, html });
   } catch (err) {
     console.error("Failed to send activity photo decision email", err);
   }

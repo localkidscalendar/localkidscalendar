@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useOutletContext, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { buildEmail } from "@/lib/emailTemplates";
+import { sendEmail } from "@/lib/sendEmail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -134,8 +136,27 @@ export default function Admin() {
     setLoading(false);
   };
 
-  const sendEventDeletionEmail = async (_event, _notes) => {
-    // Email delivery is not wired on Supabase yet; removal notes still show on My Posts.
+  const sendEventDeletionEmail = async (event, notes) => {
+    try {
+      if (!event?.created_by_id) return;
+      const { data: contributor } = await supabase
+        .from("profiles")
+        .select("email, first_name, last_name")
+        .eq("id", event.created_by_id)
+        .maybeSingle();
+      if (!contributor?.email) return;
+
+      const contributorName =
+        [contributor.first_name, contributor.last_name].filter(Boolean).join(" ").trim() || "there";
+      const { subject, html } = buildEmail("activity_removed_admin", {
+        contributor_name: contributorName,
+        activity_title: event.title || "your activity",
+        reason: notes,
+      });
+      await sendEmail({ to: contributor.email, subject, html });
+    } catch (err) {
+      console.error("Failed to send activity removal email", err);
+    }
   };
 
   const handleDeleteEvent = async (event) => {
