@@ -102,14 +102,12 @@ export default function NotificationsTab({ user }) {
   }
 
   return (
-    <div className="space-y-5 max-w-lg">
-      <div className="flex items-start gap-2">
-        <Bell className="w-4 h-4 text-mint-600 mt-0.5" />
-        <p className="text-sm text-muted-foreground">
-          Choose receive weekly activity digests emailed to you every Monday morning, based on new activities from your favorite organizers and/or other new activities that match your preferences.
-        </p>
-      </div>
+    <div className="space-y-5">
+      <p className="text-sm text-muted-foreground">
+        Choose receive weekly activity digests emailed to you every Monday morning, based on new activities from your favorite organizers and/or other new activities that match your preferences.
+      </p>
 
+      <div className="space-y-5 max-w-lg">
       <div>
         <label className="text-sm font-medium block mb-1">Email Frequency</label>
         <Select value={form.frequency} onValueChange={(v) => setForm((p) => ({ ...p, frequency: v }))}>
@@ -206,6 +204,7 @@ export default function NotificationsTab({ user }) {
         {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
         Save Preferences
       </Button>
+      </div>
     </div>
   );
 }
