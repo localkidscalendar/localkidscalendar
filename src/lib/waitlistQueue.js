@@ -77,6 +77,7 @@ function isOfferStillActive(entry, now = Date.now()) {
 /**
  * Open ad slots for a zip = max_slots − holding ads − non-expired waitlist offers.
  * Active offers reserve capacity so a random new ad can't snatch the offered spot.
+ * Pass ignoreWaitlistEntryId when the claimant is redeeming their own offer.
  */
 export async function countOpenAdSlots(client, zip, { ignoreWaitlistEntryId = null } = {}) {
   const [{ data: zipConfig }, { data: holding }, { data: offers }] = await Promise.all([
@@ -90,11 +91,17 @@ export async function countOpenAdSlots(client, zip, { ignoreWaitlistEntryId = nu
   ]);
 
   const maxSlots = Number(zipConfig?.max_slots) || 3;
+  const holdingCount = (holding || []).length;
   const now = Date.now();
   const reservedOffers = (offers || []).filter((o) => {
     if (ignoreWaitlistEntryId && o.id === ignoreWaitlistEntryId) return false;
     return isOfferStillActive(o, now);
   }).length;
 
-  return Math.max(0, maxSlots - (holding || []).length - reservedOffers);
+  return {
+    maxSlots,
+    holding: holdingCount,
+    reservedOffers,
+    open: Math.max(0, maxSlots - holdingCount - reservedOffers),
+  };
 }

@@ -183,12 +183,14 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
         const slotInfo = await countOpenAdSlots(supabase, zip, {
           ignoreWaitlistEntryId: prefill.waitlist_entry_id || null,
         });
+        // Waitlist claimants redeem their reserved offer — treat as available when open > 0.
         const available = slotInfo.open > 0 && !userAlreadyHasAd;
         setZipStatus({
           available,
           slots_total: slotInfo.maxSlots,
           slots_used: slotInfo.holding + slotInfo.reservedOffers,
           userAlreadyHasAd,
+          fromWaitlistOffer: Boolean(prefill.waitlist_entry_id),
         });
         if (available) {
           setReservationExpiry(Date.now() + RESERVATION_MINUTES * 60 * 1000);
@@ -201,6 +203,12 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
             .order("created_at", { ascending: false });
           setApprovedAssets(data || []);
           setStep(2);
+        } else if (prefill.waitlist_entry_id && !userAlreadyHasAd) {
+          toast({
+            title: "Could not claim waitlist spot",
+            description: `Zip ${zip} still looks full (${slotInfo.holding} ads + ${slotInfo.reservedOffers} other offers / ${slotInfo.maxSlots} max). Try again or contact support.`,
+            variant: "destructive",
+          });
         }
       } catch {
         setZipStatus({ error: true });

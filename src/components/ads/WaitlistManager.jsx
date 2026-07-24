@@ -22,8 +22,8 @@ const ACTIVE_STATUSES = ["waiting", "offered", "accepted"];
 const PAST_STATUSES = ["expired", "declined", "cancelled"];
 
 async function zipHasOpenSlot(zip) {
-  const open = await countOpenAdSlots(supabase, zip);
-  return open > 0;
+  const slotInfo = await countOpenAdSlots(supabase, zip);
+  return slotInfo.open > 0;
 }
 
 /** Join a zip waitlist from New Ad when zip is full. */
