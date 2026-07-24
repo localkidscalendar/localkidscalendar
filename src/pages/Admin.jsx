@@ -7,7 +7,6 @@ import { apiUrl } from "@/lib/apiBase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, Trash2, Eye, BarChart3, Mail, Send, Image, Ban, Archive, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, Bell, HelpCircle, MessageSquare, RotateCcw } from "lucide-react";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
@@ -54,7 +53,6 @@ export default function Admin() {
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({});
   const [messages, setMessages] = useState([]);
-  const [testEmailFreq, setTestEmailFreq] = useState("weekly");
   const [sendingTest, setSendingTest] = useState(false);
   const [eventSearch, setEventSearch] = useState("");
   const [eventSortBy, setEventSortBy] = useState("date");
@@ -297,13 +295,13 @@ export default function Admin() {
   const handleSendTestEmail = async () => {
     setSendingTest(true);
     try {
-      const result = await postNotificationEmails({ frequency: testEmailFreq });
+      const result = await postNotificationEmails({ frequency: "weekly" });
       toast({
         title: result.sent ? `Sent ${result.sent} digest${result.sent === 1 ? "" : "s"}` : "No emails sent",
         description: result.message
           || (result.sent
             ? `Checked ${result.prefs_checked ?? 0} preference profile${(result.prefs_checked ?? 0) === 1 ? "" : "s"}.`
-            : "No matching users with upcoming activities, or no preferences for that frequency."),
+            : "No users with weekly digests enabled, or no matching upcoming activities."),
       });
     } catch (err) {
       toast({ title: "Send failed", description: err.message, variant: "destructive" });
@@ -319,7 +317,7 @@ export default function Admin() {
     setSendingPreview(true);
     try {
       const result = await postNotificationEmails({
-        frequency: testEmailFreq === "all" ? "weekly" : testEmailFreq,
+        frequency: "weekly",
         preview_to: user.email,
       });
       toast({
@@ -1134,24 +1132,12 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="notifications">
-          <AdminSectionHeader title="Manually Send Notification Emails" subtitle="Triggers the email engine now for all users with matching preferences." icon={Bell} />
+          <AdminSectionHeader title="Manually Send Notification Emails" subtitle="Triggers the weekly digest now for users who opted in." icon={Bell} />
           <div className="bg-white rounded-2xl border border-border p-6">
             <div className="space-y-4 max-w-lg">
-              <div>
-                <label className="text-sm font-medium block mb-1">Frequency to simulate</label>
-                <Select value={testEmailFreq} onValueChange={setTestEmailFreq}>
-                  <SelectTrigger className="rounded-xl max-w-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="all">All frequencies</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Emails will be sent to every user whose preference frequency matches the selected value.
-                </p>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Only weekly digests are available (default Off on Account). Use these buttons to test or send immediately.
+              </p>
 
               <div className="flex flex-wrap gap-3">
                 <Button
@@ -1170,14 +1156,14 @@ export default function Admin() {
                   disabled={sendingTest}
                 >
                   {sendingTest ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                  Send to All Matching Users
+                  Send Weekly Digests Now
                 </Button>
               </div>
 
               <div className="bg-muted/40 rounded-xl p-3 text-xs text-muted-foreground space-y-1">
-                <p><strong>Send Preview to Me</strong> — sends a single email only to your address ({user?.email}) using upcoming active events, regardless of your saved preferences. Safe for testing.</p>
-                <p><strong>Send to All Matching Users</strong> — sends real emails to every user whose preference frequency matches the selected value.</p>
-                <p className="pt-2 border-t border-muted/20"><strong>Automated Schedule:</strong> Automation runs every day at 8am PT — it automatically sends daily digests every day, weekly digests only on Mondays, and monthly digests only on the 1st of each month, all in one pass.</p>
+                <p><strong>Send Preview to Me</strong> — sends a single weekly-style digest only to your address ({user?.email}) using upcoming active events. Safe for testing.</p>
+                <p><strong>Send Weekly Digests Now</strong> — sends real emails to every user with weekly digests enabled.</p>
+                <p className="pt-2 border-t border-muted/20"><strong>Automated Schedule:</strong> Cron runs daily at 8am PT and sends weekly digests only on Mondays.</p>
               </div>
             </div>
           </div>

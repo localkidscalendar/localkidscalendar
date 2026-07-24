@@ -34,8 +34,10 @@ export default function NotificationsTab({ user }) {
           .maybeSingle();
         if (error) throw error;
         if (data) {
+          // Only weekly digests are supported; coerce legacy daily/monthly → weekly.
+          const freq = data.frequency === "weekly" ? "weekly" : "none";
           setForm({
-            frequency: data.frequency || "none",
+            frequency: freq,
             include_fav_organizers: data.include_fav_organizers !== false,
             include_other_activities: Boolean(data.include_other_activities),
             zip_code: data.zip_code || user.zip_code || "",
@@ -45,7 +47,7 @@ export default function NotificationsTab({ user }) {
             age_max: data.age_max != null ? String(data.age_max) : "",
           });
         } else {
-          setForm((prev) => ({ ...prev, zip_code: user.zip_code || "" }));
+          setForm((prev) => ({ ...prev, frequency: "none", zip_code: user.zip_code || "" }));
         }
       } catch (err) {
         toast({ title: "Could not load preferences", description: err.message, variant: "destructive" });
@@ -63,7 +65,7 @@ export default function NotificationsTab({ user }) {
         : [];
       const payload = {
         user_id: user.id,
-        frequency: form.frequency,
+        frequency: form.frequency === "weekly" ? "weekly" : "none",
         include_fav_organizers: form.include_fav_organizers,
         include_other_activities: form.include_other_activities,
         zip_code: form.zip_code?.trim() || null,
@@ -108,11 +110,10 @@ export default function NotificationsTab({ user }) {
           <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Off</SelectItem>
-            <SelectItem value="daily">Daily</SelectItem>
             <SelectItem value="weekly">Weekly</SelectItem>
-            <SelectItem value="monthly">Monthly</SelectItem>
           </SelectContent>
         </Select>
+        <p className="text-xs text-muted-foreground mt-1">Weekly digests go out Mondays at 8am PT. Default is Off.</p>
       </div>
 
       <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">

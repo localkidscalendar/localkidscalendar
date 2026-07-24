@@ -4,7 +4,7 @@ create table if not exists public.notification_preferences (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles (id) on delete cascade,
   frequency text not null default 'none'
-    check (frequency in ('daily', 'weekly', 'monthly', 'none')),
+    check (frequency in ('weekly', 'none')),
   include_fav_organizers boolean not null default true,
   include_other_activities boolean not null default false,
   categories text[] not null default '{}',

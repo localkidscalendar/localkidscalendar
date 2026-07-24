@@ -63,8 +63,8 @@ function formatAdsSection(ads) {
 }
 
 export function buildDigestHtml({ userName, events, frequency, ads }) {
-  const freqLabel =
-    frequency === "daily" ? "Daily" : frequency === "monthly" ? "Monthly" : "Weekly";
+  const freqLabel = "Weekly";
+  void frequency;
   const eventCards = events.map(formatEventCard).join("") + formatAdsSection(ads);
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
@@ -252,19 +252,13 @@ export async function sendMatchingDigests(admin, { frequencies }) {
 }
 
 /**
- * Cron schedule: daily every day; weekly on Mondays; monthly on the 1st.
- * Uses America/Los_Angeles calendar day.
+ * Cron schedule: weekly digests only, on Mondays (America/Los_Angeles).
  */
 export function frequenciesForToday(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
     weekday: "short",
-    day: "numeric",
   }).formatToParts(date);
   const weekday = parts.find((p) => p.type === "weekday")?.value;
-  const day = Number(parts.find((p) => p.type === "day")?.value);
-  const freqs = ["daily"];
-  if (weekday === "Mon") freqs.push("weekly");
-  if (day === 1) freqs.push("monthly");
-  return freqs;
+  return weekday === "Mon" ? ["weekly"] : [];
 }

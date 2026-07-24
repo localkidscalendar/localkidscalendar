@@ -25,6 +25,9 @@ export default async function handler(req, res) {
   try {
     const admin = createAdminClient();
     const frequencies = frequenciesForToday();
+    if (frequencies.length === 0) {
+      return res.status(200).json({ ok: true, frequencies, sent: 0, skipped: "Not Monday (PT)" });
+    }
     const result = await sendMatchingDigests(admin, { frequencies });
     console.log("cron-send-notification-emails:", { frequencies, ...result });
     return res.status(200).json({ ok: true, frequencies, ...result });

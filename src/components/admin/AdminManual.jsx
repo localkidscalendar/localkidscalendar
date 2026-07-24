@@ -548,20 +548,20 @@ const categories = [
       {
         id: "email-notifications",
         title: "Activity Notifications",
-        overview: "Users can opt in to receive email digests of new activities matching their interests. Frequency options: daily, weekly (Mondays), or monthly (1st of month). Users set preferences for categories, age ranges, zip code with radius (up to 100 miles), and favorite organizers. Emails include curated activity cards and Supporter ads for the user's zip code.",
+        overview: "Users can opt in to a weekly email digest of activities matching their interests. Default is Off. Users set preferences for zip, keywords, age ranges, and favorite organizers. Emails include curated activity cards and Supporter ads.",
         features: [
           "Opt-in digest emails matching user interests",
-          "Frequency options: daily, weekly (Mondays), monthly (1st)",
-          "Preferences: category, age range, zip/radius (up to 100 miles), favorite organizers",
-          "Includes curated activity cards and Supporter ads for the user's zip code"
+          "Frequency options: Off (default) or Weekly (Mondays at 8am PT)",
+          "Preferences: zip, keywords, age range, favorite organizers",
+          "Includes curated activity cards and Supporter ads"
         ],
-        technicalOverview: "sendNotificationEmails runs on a schedule, matching preferences to events and sending via Core.SendEmail.",
+        technicalOverview: "cron-send-notification-emails runs daily at 8am PT and only sends on Mondays; admin can also trigger via /api/send-notification-emails.",
         technicalFeatures: [
-          "Runs daily at 8am PT via scheduled automation",
-          "Loads all NotificationPreference records matching today's frequencies",
-          "Geocodes user and event zip codes; filters events by category, age, keywords, and distance (up to 100-mile radius) via eventMatchesPref",
-          "Builds HTML with formatEventCard and formatAdsSection helpers, then sends via Core.SendEmail",
-          "A preview_to parameter lets admin test the exact output before it goes out broadly"
+          "Runs daily at 8am PT; sends weekly digests only on Mondays",
+          "Loads notification_preferences where frequency = weekly",
+          "Filters events by zip, age, keywords, and favorite organizers",
+          "Builds HTML digest cards and sends via Resend",
+          "preview_to lets admin test a single email before a broad send"
         ]
       },
       {
