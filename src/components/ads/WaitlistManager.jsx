@@ -18,8 +18,9 @@ const STATUS_CONFIG = {
   cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-500", icon: XCircle },
 };
 
-const ACTIVE_STATUSES = ["waiting", "offered", "accepted"];
+const ACTIVE_STATUSES = ["waiting", "offered"];
 const PAST_STATUSES = ["expired", "declined", "cancelled"];
+// "accepted" is intentionally omitted — claimed zips belong under My Ads, not Waitlist.
 
 async function zipHasOpenSlot(zip) {
   const slotInfo = await countOpenAdSlots(supabase, zip);
@@ -143,12 +144,16 @@ export default function WaitlistManager({ user, onClaimSpot }) {
       <div>
         <h3 className="font-heading font-semibold">Waitlisted Zip Codes</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Join from <strong>New Ad</strong> when a zip is full. When a spot is offered, claim it here.
+          Join from <strong>New Ad</strong> when a zip is full. When a spot is offered, claim it here. Claimed zips move to <strong>My Ads</strong>.
         </p>
       </div>
 
       {activeEntries.length === 0 && (
-        <p className="text-sm text-muted-foreground py-4 text-center">No active waitlist entries.</p>
+        <p className="text-sm text-muted-foreground py-4 text-center">
+          {pastEntries.length > 0
+            ? "No active waitlist entries."
+            : "You're not on any waitlists right now."}
+        </p>
       )}
 
       {activeEntries.length > 0 && (
@@ -174,12 +179,11 @@ export default function WaitlistManager({ user, onClaimSpot }) {
             const cfg = STATUS_CONFIG[entry.status] || STATUS_CONFIG.waiting;
             const Icon = cfg.icon;
             const isOffered = entry.status === "offered";
-            const isAccepted = entry.status === "accepted";
 
             return (
               <div
                 key={entry.id}
-                className={`p-4 rounded-2xl border bg-white ${isOffered ? "border-mint-300 ring-1 ring-mint-200" : isAccepted ? "border-mint-200 bg-mint-50/30" : ""}`}
+                className={`p-4 rounded-2xl border bg-white ${isOffered ? "border-mint-300 ring-1 ring-mint-200" : ""}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
@@ -192,8 +196,7 @@ export default function WaitlistManager({ user, onClaimSpot }) {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {entry.business_name} · {entry.plan_type} plan
-                      {!isAccepted && ` · Position #${entry.position}`}
+                      Preferred plan: {entry.plan_type} · Position #{entry.position}
                     </p>
 
                     {isOffered && (
@@ -207,15 +210,8 @@ export default function WaitlistManager({ user, onClaimSpot }) {
                           </p>
                         )}
                         <p className="mt-0.5">
-                          Offer attempt: {entry.offer_count || 0}/3 — after 3 missed offers your entry is cancelled
+                          Offer attempt: {(Number(entry.offer_count) || 0) + 1}/3 — after 3 missed offers your entry is cancelled
                         </p>
-                      </div>
-                    )}
-
-                    {isAccepted && (
-                      <div className="mt-2 p-2.5 bg-mint-50 rounded-xl border border-mint-200 text-xs text-mint-700">
-                        <p className="font-semibold">You successfully claimed this spot!</p>
-                        <p className="mt-0.5 text-muted-foreground">Check the My Ads tab for status updates.</p>
                       </div>
                     )}
                   </div>
