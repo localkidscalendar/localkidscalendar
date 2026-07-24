@@ -660,7 +660,7 @@ const categories = [
         ],
         technicalOverview: "Admin.jsx is the main dashboard with a tabbed interface, sharing consistent components across tabs.",
         technicalFeatures: [
-          "Tabs: Activities (event list/edit/delete + AdminActivityPhotoReviewPanel), Ads (ManualReviewPanel, AdminAdsPanel, AdminWaitlistPanel, AdminAdRatesPanel, DiscountCodesPanel, AdminDefaultAdsPanel), Email (InviteOrganizer, SiteEmailsTester), FAQs (FAQManager), Flags, Manual, Messages (ContactMessage CRUD), Notifications (manual trigger via sendNotificationEmails), Users (role management + AdminUserZipReportsSection), Beta (AdminBetaPanel)",
+          "Tabs: Activities (event list/edit/delete + AdminActivityPhotoReviewPanel), Ads (ManualReviewPanel, AdminAdsPanel, AdminWaitlistPanel, AdminAdRatesPanel, DiscountCodesPanel, AdminDefaultAdsPanel), Email (SiteEmailsTester), FAQs (FAQManager), Flags, Manual, Messages (ContactMessage CRUD), Notifications (manual trigger via sendNotificationEmails), Users (role management + AdminUserZipReportsSection), Beta (AdminBetaPanel)",
           "All tabs share the AdminSectionHeader component for consistent title/icon styling and uniform white, bordered containers",
           "All operations use base44.entities.* SDK methods",
           "Stats computed from entity counts on load; long lists use the shared Paginator component"

@@ -6,11 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, Trash2, Eye, BarChart3, Mail, Send, Image, Ban, Archive, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, Bell, UserPlus, HelpCircle, MessageSquare, RotateCcw } from "lucide-react";
+import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, Trash2, Eye, BarChart3, Mail, Send, Image, Ban, Archive, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, Bell, HelpCircle, MessageSquare, RotateCcw } from "lucide-react";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 
 import FAQManagerV2 from "@/components/admin/FAQManager";
-import InviteOrganizer from "@/components/admin/InviteOrganizer";
 import SiteEmailsTester from "@/components/admin/SiteEmailsTester";
 import AdminAdsPanel from "@/components/admin/AdminAdsPanel";
 import AdminPanelShell from "@/components/admin/AdminPanelShell";
@@ -1114,16 +1113,8 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="email">
-          <div className="space-y-8">
-            <div>
-              <AdminSectionHeader title="Invite Organizer" icon={UserPlus} />
-              <InviteOrganizer />
-            </div>
-            <div>
-              <AdminSectionHeader title="Site Emails Tester" icon={Mail} />
-              <SiteEmailsTester />
-            </div>
-          </div>
+          <AdminSectionHeader title="Site Emails Tester" icon={Mail} />
+          <SiteEmailsTester />
         </TabsContent>
 
         <TabsContent value="faq">
