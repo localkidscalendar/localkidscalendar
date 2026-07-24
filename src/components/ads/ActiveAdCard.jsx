@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
+import { cancelAdRenewal } from "@/lib/adBilling";
 
 const STATUS_CONFIG = {
   pending_payment: { label: "Pending Payment", color: "bg-yellow-100 text-yellow-700" },
@@ -83,18 +84,21 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   const handleNonRenew = async () => {
     setNonRenewLoading(true);
     try {
-      // Beta: flip auto_renew locally. With Stripe, this will also cancel the subscription renewal.
-      const { error } = await supabase
-        .from("banner_ads")
-        .update({ auto_renew: false })
-        .eq("id", ad.id)
-        .eq("user_id", user.id);
-      if (error) throw error;
+      if (billingLive) {
+        await cancelAdRenewal({ ad_id: ad.id });
+      } else {
+        const { error } = await supabase
+          .from("banner_ads")
+          .update({ auto_renew: false })
+          .eq("id", ad.id)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      }
       toast({
         title: "Non-renew set",
         description: billingLive
           ? "Your ad will run until the end of the current term and will not be charged again."
-          : "Your ad is marked non-renewing. Billing automation returns after beta.",
+          : "Your ad is marked non-renewing.",
       });
       setShowNonRenewConfirm(false);
       onRefresh?.();
@@ -272,7 +276,6 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
                             : renewalDate?.format("MMM D, YYYY") || "the end of the current term"}
                         </strong>{" "}
                         and will not renew.
-                        {!billingLive && " (Beta: marks this placement non-renewing; Stripe cancel returns after billing launches.)"}
                       </p>
                     </>
                   )}

@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import moment from "moment";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Loader2, ImagePlus } from "lucide-react";
+import { Loader2, ImagePlus, CreditCard } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
+import { openBillingPortal } from "@/lib/adBilling";
 
 // Statuses where the Supporter can swap creative and go live again immediately.
 const RECOVERABLE_STATUSES = ["flagged", "rejected"];
@@ -48,6 +49,18 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
   const { toast } = useToast();
   const [showChangeCreative, setShowChangeCreative] = useState(false);
   const [creativeLoading, setCreativeLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const handleOpenBillingPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const url = await openBillingPortal({ ad_id: ad.id });
+      window.location.href = url;
+    } catch (err) {
+      toast({ title: "Could not open billing portal", description: err.message, variant: "destructive" });
+      setPortalLoading(false);
+    }
+  };
 
   const isRecoverable =
     RECOVERABLE_STATUSES.includes(ad.status) || (ad.status === "cancelled" && !ad.cancelled_at);
@@ -147,9 +160,19 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
               <p className="mb-2">
                 {getReasonText(ad)} Your renewal payment failed — update your payment method to restore this ad.
               </p>
-              <p className="text-orange-600/80 italic">
-                Stripe billing portal returns after beta.
-              </p>
+              {ad.stripe_customer_id ? (
+                <Button
+                  size="sm"
+                  className="rounded-xl h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
+                  disabled={portalLoading}
+                  onClick={handleOpenBillingPortal}
+                >
+                  {portalLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CreditCard className="w-3 h-3 mr-1" />}
+                  Update Payment Method
+                </Button>
+              ) : (
+                <p className="text-orange-600/80 italic">No billing account found for this ad — contact support.</p>
+              )}
             </div>
           )}
 

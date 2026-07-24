@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, CheckCircle, Images, List, Shield, ChevronDown, ChevronUp,
   MapPin, AlertTriangle, Timer, Plus, Eye, MousePointerClick, BarChart3,
-  PauseCircle, RefreshCw, Clock, DollarSign,
+  PauseCircle, RefreshCw, Clock, DollarSign, Tag,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
@@ -15,6 +16,7 @@ import ActiveAdCard from "@/components/ads/ActiveAdCard";
 import InactiveAdCard from "@/components/ads/InactiveAdCard";
 import WaitlistManager, { joinAdWaitlist } from "@/components/ads/WaitlistManager";
 import CurrentAdRates from "@/components/ads/CurrentAdRates";
+import { createAdCheckout } from "@/lib/adBilling";
 import { SUPPORTER_RULES, TOS_INTRO, TOS_SECTIONS, TOS_FOOTER } from "@/lib/supporterContent";
 
 const SLOT_HOLDING_STATUSES = ["active", "pending_payment", "pending_review", "flagged", "past_due"];
@@ -143,6 +145,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
   const [form, setForm] = useState({
     zip_code: prefill?.zip_code || user?.zip_code || "",
     plan_type: prefill?.plan_type || "monthly",
+    discount_code: "",
   });
   const [zipChecking, setZipChecking] = useState(false);
   const [zipStatus, setZipStatus] = useState(null);
@@ -166,6 +169,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
       setForm({
         zip_code: prefill.zip_code,
         plan_type: prefill.plan_type || "monthly",
+        discount_code: "",
       });
       setZipChecking(true);
       try {
@@ -262,59 +266,30 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
     if (!selectedAsset) return;
     setSubmitting(true);
     try {
-      // Re-check capacity before insert
-      const [{ data: zipConfig }, { data: existingAds }] = await Promise.all([
-        supabase.from("ad_zip_config").select("max_slots").eq("zip_code", form.zip_code).maybeSingle(),
-        supabase.from("banner_ads").select("id, status, user_id").eq("zip_code", form.zip_code),
-      ]);
-      const maxSlots = Number(zipConfig?.max_slots) || 3;
-      const holding = (existingAds || []).filter((ad) => SLOT_HOLDING_STATUSES.includes(ad.status));
-      if (holding.some((ad) => ad.user_id === user.id)) {
-        throw new Error(`You already have an ad for ${form.zip_code}`);
-      }
-      if (holding.length >= maxSlots) {
-        throw new Error(`No slots available in ${form.zip_code}`);
-      }
-
-      const start = new Date();
-      const end = new Date();
-      if (form.plan_type === "annual") end.setFullYear(end.getFullYear() + 1);
-      else end.setMonth(end.getMonth() + 1);
-
-      const rate = form.plan_type === "annual" ? annualPrice : Number(pricing.monthly_rate);
-
-      const { error } = await supabase.from("banner_ads").insert({
-        user_id: user.id,
-        business_name: selectedAsset.ad_name,
-        image_url: selectedAsset.image_url,
-        link_url: selectedAsset.link_url,
-        zip_code: form.zip_code.trim(),
-        // Beta: billing waived + creative already approved → go live immediately.
-        status: "active",
-        moderation_status: "approved",
+      const result = await createAdCheckout({
         plan_type: form.plan_type,
-        rate_at_purchase: rate,
+        zip_code: form.zip_code.trim(),
+        business_name: selectedAsset.ad_name,
+        link_url: selectedAsset.link_url,
+        image_url: selectedAsset.image_url,
         ad_library_id: selectedAsset.id,
-        tos_accepted: true,
-        plan_start_date: start.toISOString().slice(0, 10),
-        plan_end_date: end.toISOString().slice(0, 10),
-        next_renewal_date: end.toISOString().slice(0, 10),
+        discount_code: form.discount_code?.trim() || undefined,
+        waitlist_entry_id: prefill?.waitlist_entry_id || undefined,
+        success_url: `${window.location.origin}/ad-manager?success=true`,
+        cancel_url: `${window.location.origin}/ad-manager?cancelled=true`,
       });
-      if (error) throw error;
 
-      if (prefill?.waitlist_entry_id) {
-        await supabase
-          .from("ad_waitlist")
-          .update({ status: "accepted" })
-          .eq("id", prefill.waitlist_entry_id)
-          .eq("user_id", user.id);
+      if (result.admin_bypass) {
+        toast({
+          title: "Ad is live!",
+          description: `Admin bypass — your ad for zip ${form.zip_code.trim()} is now active with no payment required.`,
+        });
+        onSuccess();
+        return;
       }
 
-      toast({
-        title: "Ad is live!",
-        description: `Your Supporter ad for zip ${form.zip_code.trim()} is now active on the homepage for that zip.`,
-      });
-      onSuccess();
+      // Redirect to Stripe Checkout to complete payment.
+      window.location.href = result.url;
     } catch (err) {
       toast({ title: "Request failed", description: err.message, variant: "destructive" });
       setSubmitting(false);
@@ -491,7 +466,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
               <button type="button" onClick={onGoToLibrary} className="text-mint-500 underline font-semibold">Ad Library</button>
               {" "}(image + destination URL pre-approved)
             </p>
-            <p>✦ During beta, billing is waived and your ad goes live as soon as you publish</p>
+            <p>✦ You'll complete secure payment via Stripe Checkout — your ad goes live as soon as payment succeeds</p>
             <p>✦ Once you confirm a zip code, you'll have <strong>{RESERVATION_MINUTES} minutes</strong> to complete your request</p>
             <p>
               ✦ Please review our <a href="/supporters" target="_blank" rel="noreferrer" className="text-mint-500 underline">Supporter Community Rules</a>
@@ -590,7 +565,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
       {step === 3 && (
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground bg-mint-50 border border-mint-100 rounded-xl px-3 py-2">
-            Rates shown for display. During beta, checkout is waived and an admin activates your placement.
+            You'll be redirected to secure Stripe Checkout on the next step to complete payment.
           </p>
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -640,12 +615,28 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
               </span>
             </div>
             <div className="flex justify-between pt-2 border-t border-border">
-              <span className="text-muted-foreground font-medium">Beta billing</span>
-              <span className="font-semibold text-mint-600">Waived — goes live now</span>
+              <span className="text-muted-foreground font-medium">Amount due today</span>
+              <span className="font-semibold text-foreground">
+                {form.plan_type === "annual" ? `$${annualPrice.toLocaleString()}/yr` : `$${pricing.monthly_rate}/mo`}
+              </span>
             </div>
           </div>
+
+          <div>
+            <label className="text-xs font-medium flex items-center gap-1 mb-1">
+              <Tag className="w-3 h-3" /> Discount code (optional)
+            </label>
+            <Input
+              placeholder="e.g. LAUNCH20"
+              value={form.discount_code}
+              onChange={(e) => setForm((f) => ({ ...f, discount_code: e.target.value.toUpperCase() }))}
+              className="rounded-xl"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Applied at Stripe Checkout if valid.</p>
+          </div>
+
           <p className="text-xs text-muted-foreground">
-            By proceeding, you agree to the <a href="/advertiser-terms" target="_blank" rel="noreferrer" className="text-mint-500 underline">Supporter Terms & Conditions</a>.
+            By proceeding, you agree to the <a href="/advertiser-terms" target="_blank" rel="noreferrer" className="text-mint-500 underline">Supporter Terms & Conditions</a>. You'll be redirected to Stripe to complete payment before your ad goes live.
           </p>
           <div className="flex gap-2">
             <Button variant="outline" className="rounded-xl flex-1" onClick={() => setStep(3)}>← Back</Button>
@@ -655,8 +646,8 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
               onClick={handleSubmitRequest}
             >
               {submitting
-                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Publishing…</>
-                : "Publish Ad →"}
+                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Redirecting to Stripe…</>
+                : "Pay & Publish →"}
             </Button>
           </div>
         </div>
@@ -668,6 +659,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
 export default function AdManager() {
   const { user, userLoading } = useOutletContext();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [ads, setAds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -678,6 +670,29 @@ export default function AdManager() {
   useEffect(() => {
     if (!userLoading && user) loadAds();
   }, [user, userLoading]);
+
+  // Land back here after Stripe Checkout redirect (?success=true or ?cancelled=true).
+  useEffect(() => {
+    if (searchParams.get("success") === "true") {
+      toast({
+        title: "Payment successful!",
+        description: "Your ad has been activated (or sent for review if it needed one).",
+      });
+      const next = new URLSearchParams(searchParams);
+      next.delete("success");
+      next.delete("ad_id");
+      setSearchParams(next, { replace: true });
+    } else if (searchParams.get("cancelled") === "true") {
+      toast({
+        title: "Checkout cancelled",
+        description: "No payment was made. Your ad was not published.",
+      });
+      const next = new URLSearchParams(searchParams);
+      next.delete("cancelled");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadAds = async ({ silent } = {}) => {
     if (silent) setRefreshing(true);
