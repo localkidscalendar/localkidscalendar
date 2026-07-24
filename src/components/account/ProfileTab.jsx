@@ -325,7 +325,7 @@ export default function ProfileTab({ user, setUser }) {
 
       <Button className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={handleSave} disabled={saving}>
         {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-        {needsSetup ? "Save and continue" : "Save Changes"}
+        {needsSetup ? "Save And Continue" : "Save Changes"}
       </Button>
 
       {!needsSetup && (

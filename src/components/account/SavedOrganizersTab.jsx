@@ -70,15 +70,20 @@ export default function SavedOrganizersTab({ user }) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {organizers.map((org) => (
-        <OrganizerCard
-          key={org.id}
-          org={org}
-          isFavorite
-          onToggleFavorite={toggleFavorite}
-        />
-      ))}
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Organizers you&apos;ve favorited so you can follow their activities more easily.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {organizers.map((org) => (
+          <OrganizerCard
+            key={org.id}
+            org={org}
+            isFavorite
+            onToggleFavorite={toggleFavorite}
+          />
+        ))}
+      </div>
     </div>
   );
 }

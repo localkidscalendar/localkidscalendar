@@ -104,6 +104,9 @@ export default function MyPostsTab({ user }) {
 
   return (
     <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        Activities you&apos;ve posted. Edit, duplicate, or deactivate them from here.
+      </p>
       {myEvents.map((e) => (
         <div key={e.id} className="bg-white rounded-2xl border border-border p-4">
           <div className="flex items-center justify-between gap-4">

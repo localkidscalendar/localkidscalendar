@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, UserCog } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 const CATEGORIES = [
@@ -58,7 +58,7 @@ export default function SavedFiltersTab({ user }) {
           });
         }
       } catch (err) {
-        toast({ title: "Could not load saved filters", description: err.message, variant: "destructive" });
+        toast({ title: "Could Not Load Saved Filters", description: err.message, variant: "destructive" });
       }
       setLoading(false);
     })();
@@ -84,9 +84,9 @@ export default function SavedFiltersTab({ user }) {
       };
       const { error } = await supabase.from("saved_filters").upsert(payload, { onConflict: "user_id" });
       if (error) throw error;
-      toast({ title: "Saved filters updated" });
+      toast({ title: "Saved Filters Updated" });
     } catch (err) {
-      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+      toast({ title: "Save Failed", description: err.message, variant: "destructive" });
     }
     setSaving(false);
   };
@@ -100,95 +100,94 @@ export default function SavedFiltersTab({ user }) {
   }
 
   return (
-    <div className="space-y-4 max-w-lg">
-      <div className="flex items-start gap-2">
-        <UserCog className="w-4 h-4 text-mint-600 mt-0.5" />
-        <p className="text-sm text-muted-foreground">
-          Save your usual Home page filters. On Home, use the filters shortcut to apply them.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Save your usual Home page filters. On Home, use the filters shortcut to apply them.
+      </p>
 
-      <div>
-        <label className="text-sm font-medium block mb-1">Keywords</label>
-        <Input
-          value={form.search}
-          onChange={(e) => setForm((p) => ({ ...p, search: e.target.value }))}
-          className="rounded-xl"
-          placeholder="soccer, camp…"
-        />
-      </div>
-
-      <div>
-        <label className="text-sm font-medium block mb-1">Category</label>
-        <Select value={form.category} onValueChange={(v) => setForm((p) => ({ ...p, category: v }))}>
-          <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {CATEGORIES.map((c) => (
-              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div>
-        <label className="text-sm font-medium block mb-1">Sort by</label>
-        <Select value={form.sort_by} onValueChange={(v) => setForm((p) => ({ ...p, sort_by: v }))}>
-          <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="posted">Date posted</SelectItem>
-            <SelectItem value="start">Activity date</SelectItem>
-            <SelectItem value="registration">Registration date</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-4 max-w-lg">
         <div>
-          <label className="text-sm font-medium block mb-1">Zip code</label>
+          <label className="text-sm font-medium block mb-1">Keywords</label>
           <Input
-            maxLength={5}
-            value={form.zip_code}
-            onChange={(e) => setForm((p) => ({ ...p, zip_code: e.target.value.replace(/\D/g, "") }))}
+            value={form.search}
+            onChange={(e) => setForm((p) => ({ ...p, search: e.target.value }))}
             className="rounded-xl"
+            placeholder="soccer, camp…"
           />
         </div>
-        <div>
-          <label className="text-sm font-medium block mb-1">Radius</label>
-          <Input
-            type="number"
-            value={form.radius_miles}
-            onChange={(e) => setForm((p) => ({ ...p, radius_miles: e.target.value }))}
-            className="rounded-xl"
-          />
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-sm font-medium block mb-1">Age min</label>
-          <Input type="number" value={form.age_min} onChange={(e) => setForm((p) => ({ ...p, age_min: e.target.value }))} className="rounded-xl" />
+          <label className="text-sm font-medium block mb-1">Category</label>
+          <Select value={form.category} onValueChange={(v) => setForm((p) => ({ ...p, category: v }))}>
+            <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {CATEGORIES.map((c) => (
+                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label className="text-sm font-medium block mb-1">Age max</label>
-          <Input type="number" value={form.age_max} onChange={(e) => setForm((p) => ({ ...p, age_max: e.target.value }))} className="rounded-xl" />
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-sm font-medium block mb-1">Price min</label>
-          <Input type="number" value={form.price_min} onChange={(e) => setForm((p) => ({ ...p, price_min: e.target.value }))} className="rounded-xl" />
+          <label className="text-sm font-medium block mb-1">Sort By</label>
+          <Select value={form.sort_by} onValueChange={(v) => setForm((p) => ({ ...p, sort_by: v }))}>
+            <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="posted">Date Posted</SelectItem>
+              <SelectItem value="start">Activity Date</SelectItem>
+              <SelectItem value="registration">Registration Date</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label className="text-sm font-medium block mb-1">Price max</label>
-          <Input type="number" value={form.price_max} onChange={(e) => setForm((p) => ({ ...p, price_max: e.target.value }))} className="rounded-xl" />
-        </div>
-      </div>
 
-      <Button className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={handleSave} disabled={saving}>
-        {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-        Save filters
-      </Button>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm font-medium block mb-1">Zip Code</label>
+            <Input
+              maxLength={5}
+              value={form.zip_code}
+              onChange={(e) => setForm((p) => ({ ...p, zip_code: e.target.value.replace(/\D/g, "") }))}
+              className="rounded-xl"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-1">Radius (Miles)</label>
+            <Input
+              type="number"
+              value={form.radius_miles}
+              onChange={(e) => setForm((p) => ({ ...p, radius_miles: e.target.value }))}
+              className="rounded-xl"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm font-medium block mb-1">Age Min</label>
+            <Input type="number" value={form.age_min} onChange={(e) => setForm((p) => ({ ...p, age_min: e.target.value }))} className="rounded-xl" />
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-1">Age Max</label>
+            <Input type="number" value={form.age_max} onChange={(e) => setForm((p) => ({ ...p, age_max: e.target.value }))} className="rounded-xl" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm font-medium block mb-1">Price Min</label>
+            <Input type="number" value={form.price_min} onChange={(e) => setForm((p) => ({ ...p, price_min: e.target.value }))} className="rounded-xl" />
+          </div>
+          <div>
+            <label className="text-sm font-medium block mb-1">Price Max</label>
+            <Input type="number" value={form.price_max} onChange={(e) => setForm((p) => ({ ...p, price_max: e.target.value }))} className="rounded-xl" />
+          </div>
+        </div>
+
+        <Button className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+          Save Filters
+        </Button>
+      </div>
     </div>
   );
 }

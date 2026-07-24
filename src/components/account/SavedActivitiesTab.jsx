@@ -97,7 +97,10 @@ export default function SavedActivitiesTab({ user }) {
   }
 
   return (
-    <div className="space-y-4">
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Activities you&apos;ve bookmarked so you can find them again later.
+        </p>
       <div className="flex items-center justify-end gap-2">
         <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" />
         <Select value={sortBy} onValueChange={setSortBy}>
@@ -121,6 +124,6 @@ export default function SavedActivitiesTab({ user }) {
           />
         ))}
       </div>
-    </div>
+      </div>
   );
 }
