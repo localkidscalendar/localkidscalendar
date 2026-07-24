@@ -108,106 +108,110 @@ export default function NotificationsTab({ user }) {
       </p>
 
       <div className="space-y-5 max-w-lg">
-      <div>
-        <label className="text-sm font-medium block mb-1">Email Frequency</label>
-        <Select value={form.frequency} onValueChange={(v) => setForm((p) => ({ ...p, frequency: v }))}>
-          <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Off</SelectItem>
-            <SelectItem value="weekly">Weekly</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
         <div>
-          <p className="text-sm font-medium">Favorite Organizers</p>
-          <p className="text-xs text-muted-foreground">Include new activities from your favorite organizers.</p>
-        </div>
-        <Switch
-          checked={form.include_fav_organizers}
-          onCheckedChange={(v) => setForm((p) => ({ ...p, include_fav_organizers: v }))}
-        />
-      </div>
-
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
-        <div>
-          <p className="text-sm font-medium">Activity Matches</p>
-          <p className="text-xs text-muted-foreground">Include new activities that match by your choices for location, keywords, and age.</p>
-        </div>
-        <Switch
-          checked={form.include_other_activities}
-          onCheckedChange={(v) => setForm((p) => ({ ...p, include_other_activities: v }))}
-        />
-      </div>
-
-      {form.include_other_activities && (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium block mb-1">Zip Code</label>
-              <Input
-                maxLength={5}
-                value={form.zip_code}
-                onChange={(e) => setForm((p) => ({ ...p, zip_code: e.target.value.replace(/\D/g, "") }))}
-                className="rounded-xl"
-                placeholder="89448"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-1">Radius (Miles)</label>
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                value={form.radius_miles}
-                onChange={(e) => setForm((p) => ({ ...p, radius_miles: e.target.value }))}
-                className="rounded-xl"
-              />
-            </div>
+          <label className="text-sm font-medium block mb-1">Email Frequency</label>
+          <div className="pl-4">
+            <Select value={form.frequency} onValueChange={(v) => setForm((p) => ({ ...p, frequency: v }))}>
+              <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Off</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+        </div>
 
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
           <div>
-            <label className="text-sm font-medium block mb-1">Keywords</label>
-            <Input
-              value={form.keywords}
-              onChange={(e) => setForm((p) => ({ ...p, keywords: e.target.value }))}
-              className="rounded-xl"
-              placeholder="soccer, camp, art…"
+            <p className="text-sm font-medium">Favorite Organizers</p>
+            <p className="text-xs text-muted-foreground">Include new activities from your favorite organizers.</p>
+          </div>
+          <Switch
+            checked={form.include_fav_organizers}
+            onCheckedChange={(v) => setForm((p) => ({ ...p, include_fav_organizers: v }))}
+          />
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+            <div>
+              <p className="text-sm font-medium">Activity Matches</p>
+              <p className="text-xs text-muted-foreground">Include new activities that match by your choices for location, keywords, and age.</p>
+            </div>
+            <Switch
+              checked={form.include_other_activities}
+              onCheckedChange={(v) => setForm((p) => ({ ...p, include_other_activities: v }))}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium block mb-1">Age Min</label>
-              <Input
-                type="number"
-                value={form.age_min}
-                onChange={(e) => setForm((p) => ({ ...p, age_min: e.target.value }))}
-                className="rounded-xl"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium block mb-1">Age Max</label>
-              <Input
-                type="number"
-                value={form.age_max}
-                onChange={(e) => setForm((p) => ({ ...p, age_max: e.target.value }))}
-                className="rounded-xl"
-              />
-            </div>
-          </div>
-        </>
-      )}
+          {form.include_other_activities && (
+            <div className="space-y-4 pl-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium block mb-1">Zip Code</label>
+                  <Input
+                    maxLength={5}
+                    value={form.zip_code}
+                    onChange={(e) => setForm((p) => ({ ...p, zip_code: e.target.value.replace(/\D/g, "") }))}
+                    className="rounded-xl"
+                    placeholder="89448"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium block mb-1">Radius (Miles)</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={form.radius_miles}
+                    onChange={(e) => setForm((p) => ({ ...p, radius_miles: e.target.value }))}
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
 
-      <Button
-        className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
-        onClick={handleSave}
-        disabled={saving}
-      >
-        {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-        Save Preferences
-      </Button>
+              <div>
+                <label className="text-sm font-medium block mb-1">Keywords</label>
+                <Input
+                  value={form.keywords}
+                  onChange={(e) => setForm((p) => ({ ...p, keywords: e.target.value }))}
+                  className="rounded-xl"
+                  placeholder="soccer, camp, art…"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium block mb-1">Age Min</label>
+                  <Input
+                    type="number"
+                    value={form.age_min}
+                    onChange={(e) => setForm((p) => ({ ...p, age_min: e.target.value }))}
+                    className="rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium block mb-1">Age Max</label>
+                  <Input
+                    type="number"
+                    value={form.age_max}
+                    onChange={(e) => setForm((p) => ({ ...p, age_max: e.target.value }))}
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <Button
+          className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+          Save Preferences
+        </Button>
       </div>
     </div>
   );
