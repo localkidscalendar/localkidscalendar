@@ -214,7 +214,7 @@ export default function PostEvent() {
     }
     setSubmitting(true);
     try {
-      const categories = normalizeCategoryList(form.categories);
+      const categories = normalizeCategoryList(form.categories).slice(0, 3);
       const { categories: _cats, rules_agreed, ...formRest } = form;
       const data = {
         ...formRest,
