@@ -1,4 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  getEnv,
+  reviewImageWithOpenAI,
+  AD_CREATIVE_VISION_PROMPT,
+} from "./_lib/imageModeration.js";
 
 const PRIVATE_HOST_PATTERNS = [
   /^localhost$/i,
@@ -96,87 +101,6 @@ async function checkUrlSafety(linkUrl) {
   return { ok: true, normalizedUrl };
 }
 
-async function reviewWithOpenAI({ linkUrl, imageUrl }) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    // Without a vision key, pass URL checks only and auto-approve images.
-    // Community flagging remains the safety net — same fallback as Base44 when AI failed.
-    return { status: "approved", reason: "" };
-  }
-
-  const prompt = `You are a content moderator for a family-friendly community website focused on kids' activities.
-
-Review the following advertisement:
-- Destination URL: ${linkUrl}
-- Ad Image URL: ${imageUrl}
-
-Evaluate BOTH the destination URL and the ad image.
-
-STEP A — Destination URL review:
-Based on the URL/domain alone, decline if it strongly suggests adult/pornographic content, illegal products/services (drugs, weapons, gambling), hate/extremist content, or obvious scam/phishing patterns.
-
-STEP B — Ad Image review (only clear, obvious violations):
-1. Nudity or sexually explicit content
-2. Graphic violence or gore
-3. Hate speech or discriminatory symbols
-4. Illegal products or services (drugs, weapons, gambling)
-5. Completely illegible or blank image
-6. Content clearly inappropriate for children or families
-
-Return ONLY valid JSON:
-{"status":"approved"|"declined","reason":"explanation if declined, else empty string"}
-
-Be lenient on imagery — only decline clear violations. Be firm on unsafe URL domains.`;
-
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: imageUrl } },
-          ],
-        },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    console.error("OpenAI moderation failed:", response.status, text);
-    // Fail open like the original Base44 path so advertisers are not blocked by outages.
-    return { status: "approved", reason: "" };
-  }
-
-  const payload = await response.json();
-  const raw = payload?.choices?.[0]?.message?.content || "{}";
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { status: "approved", reason: "" };
-  }
-
-  const status = parsed.status === "declined" ? "declined" : "approved";
-  return { status, reason: typeof parsed.reason === "string" ? parsed.reason : "" };
-}
-
-function getEnv(name, ...fallbacks) {
-  for (const key of [name, ...fallbacks]) {
-    if (process.env[key]) return process.env[key];
-  }
-  return "";
-}
-
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -256,10 +180,11 @@ export default async function handler(req, res) {
       }).eq("id", adLibraryId);
     }
 
+    const linkUrl = urlCheck.normalizedUrl || ad.link_url;
     let aiResult;
     try {
-      aiResult = await reviewWithOpenAI({
-        linkUrl: urlCheck.normalizedUrl || ad.link_url,
+      aiResult = await reviewImageWithOpenAI({
+        prompt: AD_CREATIVE_VISION_PROMPT(linkUrl, ad.image_url),
         imageUrl: ad.image_url,
       });
     } catch (err) {
@@ -277,7 +202,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ status: newStatus, reason: aiResult.reason || "" });
   } catch (error) {
-    console.error("moderate-ad-content error:", error);
+    console.error("creative-review error:", error);
     return res.status(500).json({ error: error.message || "Moderation failed" });
   }
 }

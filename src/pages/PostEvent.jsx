@@ -11,9 +11,11 @@ import { useToast } from "@/components/ui/use-toast";
 import HelpTip from "@/components/shared/HelpTip";
 import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig"; // BETA MODE — remove with useBetaConfig.js
 import TimeInput from "@/components/shared/TimeInput";
-import { ArrowLeft, Upload, Loader2, Save, ShieldCheck, Users, AlertTriangle, HelpCircle } from "lucide-react";
+import HistoryBackLink from "@/components/shared/HistoryBackLink";
+import { Upload, Loader2, Save, ShieldCheck, Users, AlertTriangle, HelpCircle } from "lucide-react";
 import { ACTIVITY_CATEGORIES, normalizeCategoryList } from "@/lib/activityCategories";
 import { Checkbox } from "@/components/ui/checkbox";
+import { moderateEventImage } from "@/lib/moderateEventImage";
 
 export default function PostEvent() {
   const { user } = useOutletContext();
@@ -141,13 +143,39 @@ export default function PostEvent() {
       updateField(field, fileUrl);
 
       if (field === "event_image") {
-        // Image moderation will return later; approve by default for now.
-        setForm((prev) => ({
-          ...prev,
-          image_moderation_status: "approved",
-          image_moderation_notes: "",
-          image_moderation_date: new Date().toISOString(),
-        }));
+        setUploading(false);
+        setModeratingImage(true);
+        try {
+          const result = await moderateEventImage(fileUrl);
+          setForm((prev) => ({
+            ...prev,
+            image_moderation_status: result.status,
+            image_moderation_notes: result.reason || "",
+            image_moderation_date: new Date().toISOString(),
+          }));
+          if (result.status === "declined") {
+            toast({
+              title: "Photo not approved",
+              description: result.reason || "Please upload a different photo or request a manual review.",
+              variant: "destructive",
+            });
+          }
+        } catch (modErr) {
+          toast({
+            title: "Photo review unavailable",
+            description: modErr.message || "Please try uploading again.",
+            variant: "destructive",
+          });
+          setForm((prev) => ({
+            ...prev,
+            image_moderation_status: "declined",
+            image_moderation_notes: "Automated review could not finish. Please retry or request a manual review.",
+            image_moderation_date: new Date().toISOString(),
+          }));
+        } finally {
+          setModeratingImage(false);
+        }
+        return;
       }
     } catch (err) {
       toast({
@@ -161,7 +189,10 @@ export default function PostEvent() {
 
   const handleRequestManualImageReview = () => {
     setForm((prev) => ({ ...prev, image_moderation_status: "manual_review" }));
-    toast({ title: "Manual review requested", description: "Our team will review your photo shortly. You can still submit your activity now." });
+    toast({
+      title: "Manual review requested",
+      description: "We'll review your photo soon. Watch My Messages in My Account for the decision. You can still submit your activity now.",
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -246,12 +277,12 @@ export default function PostEvent() {
         const { error } = await supabase.from("events").update(data).eq("id", editId);
         if (error) throw error;
         toast({ title: "Activity updated!", description: "Your changes are now live." });
-        navigate(`/event/${editId}`);
+        navigate(`/event/${editId}`, { state: { fromApp: true, backLabel: "Back" } });
       } else {
         const { data: created, error } = await supabase.from("events").insert(data).select("id").single();
         if (error) throw error;
         toast({ title: "Activity posted!", description: "Your activity is now live and visible to the community." });
-        navigate(`/event/${created.id}`);
+        navigate(`/event/${created.id}`, { state: { fromApp: true, backLabel: "Back" } });
       }
     } catch (err) {
       toast({
@@ -273,9 +304,7 @@ export default function PostEvent() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-      <Button variant="ghost" className="mb-4 rounded-xl text-sm" onClick={() => navigate(-1)}>
-        <ArrowLeft className="w-4 h-4 mr-1" /> Back
-      </Button>
+      <HistoryBackLink variant="button" />
 
       <div className="bg-white rounded-2xl border border-border p-6">
         <h1 className="font-heading font-bold text-2xl mb-3">
@@ -456,7 +485,7 @@ export default function PostEvent() {
                     )}
                     {form.image_moderation_status === "manual_review" && (
                       <p className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl p-3">
-                        Your photo is queued for manual review by our team. Your activity will still be posted; the photo will appear once approved.
+                        Your photo is queued for manual review. Your activity can still be posted; the photo appears once approved. Check <strong>My Account → My Messages</strong> for the decision.
                       </p>
                     )}
                   </div>

@@ -133,21 +133,21 @@ const categories = [
       {
         id: "saved-filter-preferences",
         title: "Saved Filter Preferences (My Filters)",
-        overview: "Signed-in users can save their go-to homepage filter selections — activity type, subtype, sort order, zip code and distance, age range, and price range — from a 'My Filters' tab in My Account, then apply them all at once on the homepage with a single click. For signed-out visitors, the saved-filters button (along with saved-activities and favorite-organizers) appears greyed out, and clicking one prompts sign-in or registration.",
+        overview: "Signed-in users can save their go-to homepage filter selections — category, sort order, zip code and distance, age range, price range, and Free — from a 'My Filters' tab in My Account, then apply them all at once on the homepage with a single click. For signed-out visitors, the My Filters button (along with Saved Activities and Fav Organizers) appears greyed out, and clicking one prompts sign-in or registration. Applying My Filters turns off Saved Activities and Fav Organizers; changing any applied preference field afterward clears the My Filters highlight.",
         features: [
           "My Filters tab (My Account): save/edit go-to filter selections",
           "One-click apply: a dedicated homepage button loads the saved selections",
-          "Hover tooltips: each of the three related buttons (saved activities, fav organizers, my filters) explains what it does and that a signed-in account is required",
+          "Hover tooltips: each of the three related buttons (Saved Activities, Fav Organizers, My Filters) explains what it does",
+          "Mutually exclusive with Saved Activities and Fav Organizers on the homepage",
           "Signed-out behavior: buttons appear greyed out; clicking prompts sign-in/registration"
         ],
-        technicalOverview: "SavedFilter entity stores one record per user, holding the reusable subset of filter fields (excluding dates and toggle-only fields).",
+        technicalOverview: "saved_filters stores one record per user, holding the reusable subset of filter fields (excluding dates and the Saved Activities / Fav Organizers toggles).",
         technicalFeatures: [
-          "SavedFilter fields: search, category, subcategory, sortBy, zipCode, radiusMiles, ageMin, ageMax, priceMin, priceMax",
+          "saved_filters fields: search, category, sort_by, zip_code, radius_miles, age_min, age_max, price_min, price_max, free_only",
           "Excluded fields: dateFrom/dateTo, savedOnly, favOrgsOnly — not part of the reusable preference",
-          "No status field — the entity schema doesn't include an active/inactive selector",
-          "Numeric fields converted from form strings to numbers via a toNum() helper (undefined when blank) before saving",
+          "One row per user (unique on user_id); upsert on save",
           "SavedFiltersTab.jsx (Account.jsx 'My Filters' tab) loads any existing record on mount and upserts on Save with a confirmation toast",
-          "EventFilters.jsx: a Sliders-icon button beside Bookmark (saved activities) and Heart (favorite organizers) calls base44.entities.SavedFilter.filter({ created_by_id: user.id }) and merges results into active filters",
+          "EventFilters.jsx: UserCog button loads saved_filters for the signed-in user, merges into active filters, stores an applied snapshot for highlight state, and clears Saved Activities / Fav Organizers",
           "All three buttons share the same signed-out styling (opacity-50/cursor-not-allowed) and open AuthPromptModal when clicked while signed out"
         ]
       },
@@ -203,10 +203,10 @@ const categories = [
           "Admin approve/decline with optional reason",
           "Email notification to contributor on a decline decision"
         ],
-        technicalOverview: "Event entity tracks moderation status; the moderateEventImage backend function runs the AI check, and AdminActivityPhotoReviewPanel handles manual decisions.",
+        technicalOverview: "Event entity tracks moderation status; /api/photo-review runs OpenAI vision on upload, and AdminActivityPhotoReviewPanel handles manual decisions.",
         technicalFeatures: [
           "Event fields: image_moderation_status (pending/approved/declined/manual_review/manual_review_declined), image_moderation_notes, image_moderation_date",
-          "moderateEventImage: vision-capable InvokeLLM call classifies event_image on upload, resulting in auto approve/decline or a manual_review flag",
+          "/api/photo-review: OpenAI gpt-4o-mini vision classifies event_image on upload (approve/decline); fails open to approved if the key is missing or the API errors",
           "AdminActivityPhotoReviewPanel (Admin → Activities tab): lists manual_review items with Approve/Decline actions and an optional notes field",
           "Declining an image clears event_image on the Event record and triggers an automated contributor email explaining the decision"
         ]
@@ -214,28 +214,30 @@ const categories = [
       {
         id: "activity-filters",
         title: "Activity Filters & Sorting",
-        overview: "Users can filter activities by category, age range, location (city/zip) with a search radius up to 100 miles, date range, and cost. Sorting options include date posted, activity date, and registration date. All filter choices persist for the rest of the browser session, and reset back to defaults only when the session ends or filters are explicitly cleared. If a returning visitor has an age or price range set from earlier in the session, the 'More Filters' panel auto-expands so they can see those active values right away. The keyword search box matches any individual word typed (not the full phrase) against an activity's title, description, keywords, organizer name, or city, ignoring punctuation — hovering the search icon (or its counterpart in My Filters) explains this behavior. The 'My Saved Activities' and 'My Fav Organizers' toggle buttons work the same way as every other filter on the bar: each one narrows the results further, so turning both on shows only activities that are BOTH saved AND from a favorite organizer, not either/or.",
+        overview: "Users can filter activities by category, Free / price range, age range, location (zip) with a search radius up to 100 miles, and date range. Sorting options include date posted, activity date, and registration date. All filter choices persist for the rest of the browser session, and reset back to defaults only when the session ends or filters are explicitly cleared. If a returning visitor has an age or price range (or Free) set from earlier in the session, the 'More Filters' panel auto-expands so they can see those active values right away. The keyword search box matches any individual word typed (not the full phrase) against an activity's title, description, keywords, organizer name, or city, ignoring punctuation — hovering the search icon explains this behavior. The Help control on the filter bar explains AND/OR behavior, special buttons, and session retention. Saved Activities and Fav Organizers each further narrow results when combined with other filters, but Saved Activities, Fav Organizers, and My Filters are mutually exclusive — choosing one turns the others off. My Filters stays highlighted only while the current filter fields still match the applied saved preferences.",
         features: [
-          "Filter by: category, age range, location/radius (up to 100 miles), date range, cost",
+          "Filter by: category, Free / price, age range, location/radius (up to 100 miles), date range",
           "Sort by: date posted, activity date, or registration date",
           "Session persistence: filters stay applied across the browser session",
-          "Auto-expand: 'More Filters' panel opens automatically if age or price range is active from earlier in the session",
+          "Auto-expand: 'More Filters' panel opens automatically if age, price, or Free is active from earlier in the session",
           "Keyword search: matches any single word entered (OR logic), not the exact phrase, and ignores punctuation",
-          "Hover tooltip on the search icon (homepage and My Filters) explains the multi-word OR/punctuation-insensitive matching",
-          "'My Saved Activities' and 'My Fav Organizers' toggles can both be active at once, and combine as AND — consistent with every other filter on the bar"
+          "Hover tooltip on the search icon explains the multi-word OR/punctuation-insensitive matching",
+          "Filter Help panel on the homepage explains how filters combine and what the special buttons do",
+          "Saved Activities / Fav Organizers each AND with other filters; those two plus My Filters are mutually exclusive",
+          "My Filters highlight clears if the user changes any applied preference field afterward"
         ],
-        technicalOverview: "EventFilters component manages filter state, persisted to sessionStorage and applied against Event.filter() queries.",
+        technicalOverview: "EventFilters component manages filter state, persisted to sessionStorage and applied in Home.jsx.",
         technicalFeatures: [
           "Home.jsx persists the filters object (minus zipCode/radiusMiles, which use their own session keys) to sessionStorage under home_filters_session",
-          "A one-time effect checks restored ageMin/ageMax/priceMin/priceMax on mount; if either range is non-default, sets expandFilters=true (passed to EventFilters as a controlled 'expanded' prop)",
+          "A one-time effect checks restored ageMin/ageMax/priceMin/priceMax/freeOnly on mount; if any differ from defaults, sets expandFilters=true (passed to EventFilters as a controlled 'expanded' prop)",
           "Age filtering: $gte/$lte on age_min/age_max fields",
           "Location filtering: exact zip match, city string contains, or Haversine-based radius filtering against latitude/longitude",
-          "Date filtering compares start_date against the selected range",
+          "Date filtering compares start_date / end_date against the selected range",
           "Sorting uses list('-field_name') for descending or 'field_name' for ascending",
           "Results capped at 200 per query for performance",
           "Search: Home.jsx strips punctuation from the search string, splits it into individual words, joins title/description/keywords/org_name/city into one lowercase string per activity, and keeps any activity where at least one word matches (OR, not AND)",
-          "EventFilters.jsx wraps the search icon in a Tooltip (Radix) explaining the OR/punctuation-insensitive logic; SavedFiltersTab.jsx (My Filters) shows the same explanation via the shared HelpTip component next to the 'Keywords' label",
-          "Home.jsx applies filters.savedOnly and filters.favOrgsOnly as two separate, independent .filter() steps (each its own AND condition) rather than one combined OR check, matching how category/zip/age/price/date are applied"
+          "EventFilters.jsx wraps the search icon in a Tooltip (Radix) explaining the OR/punctuation-insensitive logic; SavedFiltersTab.jsx (My Filters) explains matching in its intro copy",
+          "EventFilters.jsx tracks an applied My Filters snapshot and clears the applied highlight when preference fields diverge; toggling Saved Activities / Fav Organizers / My Filters turns the other two off"
         ]
       },
       {
@@ -336,14 +338,14 @@ const categories = [
           "Always-visible button: greyed out with a tooltip for signed-out visitors, who are prompted to sign in/register on click",
           "Auto-moderation threshold: 3 flags from different users triggers automatic hiding (activities/comments) or 'flagged' status (ads)"
         ],
-        technicalOverview: "FlagReport entity stores every flag with its target type, reason, and reporter; each content entity tracks its own flag count.",
+        technicalOverview: "FlagReport entity stores every flag with its target type, reason, reporter, and optional admin_action disposition; each content entity tracks its own flag count.",
         technicalFeatures: [
-          "FlagReport fields: target_type (event/comment/ad), target_id, reason (inaccurate/inappropriate/spam/other), details (required client-side for 'other'), reporter_id, reporter_name, target_contributor_name",
-          "Event/Comment: flag_count and flagged_by track flags; status auto-sets to 'archived'/'deleted' at 3+ flags",
+          "FlagReport fields: target_type (event/comment/ad), target_id, reason (inaccurate/inappropriate/spam/other), details (required client-side for 'other'), reporter_id, reporter_name, target_contributor_name, admin_action (manually_deactivated/flag_cleared/reviewed), reviewed",
+          "Event/Comment: flag_count and flagged_by track flags; status auto-sets to 'archived' at 3+ flags",
           "BannerAd: same flag_count/flagged_by pattern; status auto-sets to 'flagged' at 3+ flags via SupporterAdCard",
           "SupporterAdCard, and the activity/comment flag buttons in EventDetail.jsx, share the same always-visible, disabled-when-signed-out UI (AuthPromptModal on click)",
-          "Admin's Flags tab (Admin.jsx) renders all three target_types: events/comments link to the activity via eventMap lookups; ad flags display the stored target_contributor_name directly",
-          "'Admin Manual Delete' is hidden for ad flags (ad status changes happen in the Ads tab); 'Reviewed'/'Remove Flag' work the same for all three types"
+          "Admin → Flags: one Flagged Content list (activities, comments, ads) with AdminPanelShell scroll, search, type filters, date+relative time, newest first; every disposition is appended to admin_action_history (Manually Deactivated / Reactivated / Flag Cleared / Reviewed) and shown on the card",
+          "Manually Deactivate confirms then hides content (events/comments → archived; ads → flagged) with Reactivate; Reactivate restores open highlight + action buttons; Reviewed clears highlight only; Clear Flag decrements target flag_count and removes reporter from flagged_by while keeping the report for My Flagged Content"
         ]
       }
     ]
@@ -369,7 +371,7 @@ const categories = [
           "BannerAd entity status workflow: pending_payment → pending_review → active (or rejected)",
           "createAdCheckout validates zip slot capacity and the one-slot-per-Supporter-per-zip rule before creating a Stripe session",
           "AdPricingConfig entity: monthly_rate, annual_discount_percent; AdPricingHistory tracks rate changes over time",
-          "moderateAdContent: InvokeLLM reviews ad images/text for policy compliance, returning auto_approved or needs_review"
+          "/api/creative-review: OpenAI vision + URL safety; approve/decline Ad Assets on submit (manual review only if the user requests it)"
         ]
       },
       {
@@ -440,12 +442,12 @@ const categories = [
           "Admin actions (approve/reject/pause/flag) always email the Supporter",
           "Deactivation/flagging requires an admin-provided explanation"
         ],
-        technicalOverview: "moderateAdContent runs an AI compliance check on submission; AdminAdsPanel and ManualReviewPanel handle human decisions and notifications.",
+        technicalOverview: "/api/creative-review runs URL safety + OpenAI image vision on Ad Asset submit; ManualReviewPanel handles human decisions after a manual-review request.",
         technicalFeatures: [
-          "moderateAdContent: InvokeLLM with a vision-capable model analyzes image content and text for adult content, violence, personal services, misleading claims, competitor references, and low quality",
-          "Returns { status: 'auto_approved' | 'needs_review', reason }",
-          "Auto-approved ads move to 'active' after payment; needs_review ads stay in 'pending_review' and surface in AdminAdsPanel/ManualReviewPanel",
-          "AdminAdsPanel enforces an admin-provided explanation on any status change and fires an automated Core.SendEmail notification to the affected Supporter"
+          "/api/creative-review: URL checks first, then gpt-4o-mini vision on the creative image",
+          "Returns { status: 'approved' | 'declined', reason }; Admin queue only for moderation_status = manual_review",
+          "Without OPENAI_API_KEY, URL checks still run and images fail open to approved (community flagging remains the safety net)",
+          "AdminAdsPanel / ManualReviewPanel enforce an admin-provided explanation on status changes and notify the Supporter"
         ]
       },
       {
@@ -577,7 +579,7 @@ const categories = [
         ],
         technicalOverview: "A set of email templates covers each Supporter lifecycle event, all sent via Core.SendEmail and previewable in the admin Email tab.",
         technicalFeatures: [
-          "Templates: subscription_renewing_soon (21 days before next_renewal_date), subscription_renewed (invoice.paid webhook), subscription_payment_failed (payment_intent.payment_failed webhook), waitlist_spot_available (processWaitlist), ad_status_changed (any admin action in AdminAdsPanel, includes the admin explanation), plan_upgrade_downgrade_confirmed (requestAdPlanUpgrade/processAdPlanUpgrades)",
+          "Templates (live): subscription_renewing_soon — in-app Message only via daily cron (~21 days before next_renewal_date); subscription_renewed — in-app Message only via invoice.payment_succeeded webhook; subscription_payment_failed — Message + Email via invoice.payment_failed (7-day grace); plan_upgrade_confirmed / plan_downgrade_confirmed — in-app Message only when pending switch locks in (~21 days before renewal); waitlist_spot_available — Message + Email via processWaitlist; ad placement/creative notices from Admin Ads / Manual Review as tagged in Previews",
           "All sent via Core.SendEmail",
           "Admin can preview every template with realistic sample data in the Email tab's Site Emails Tester (toggle sample data on/off)"
         ]
@@ -591,17 +593,17 @@ const categories = [
       {
         id: "contact-us",
         title: "Contact Us & Support Messages",
-        overview: "Anyone — registered or not — can send a message to the site through the Contact Us page, choosing a topic (technical issue, suggestion, activity question, general question). Admin reviews and resolves these in the Messages tab.",
+        overview: "Anyone — registered or not — can send a message to the site through the Contact Us page, choosing a topic (technical issue, suggestion, activity question, general question). Admin reviews and resolves these in the Contact Us tab.",
         features: [
           "Open to all visitors, registered or not",
           "Topic categories: technical issue, suggestion, activity question, general question",
-          "Reviewed and resolved by admin in the Messages tab"
+          "Reviewed and resolved by admin in the Contact Us tab"
         ],
-        technicalOverview: "ContactMessage entity stores each submission; ContactUs.jsx handles the form, and Admin's Messages tab manages the queue.",
+        technicalOverview: "ContactMessage entity stores each submission; ContactUs.jsx handles the form, and Admin's Contact Us tab manages the queue.",
         technicalFeatures: [
           "ContactMessage fields: sender_name, sender_email, sender_phone, subject (enum of topic categories), message, status (unread/read/resolved)",
           "ContactUs.jsx auto-fills sender fields for logged-in users but allows public/anonymous submission",
-          "Admin's Messages tab lists, marks read/resolved, and deletes messages"
+          "Admin's Contact Us tab lists, marks read/resolved, and deletes messages"
         ]
       },
       {
@@ -656,11 +658,13 @@ const categories = [
           "Ads: rates, discounts, filler ads, waitlist, and moderation queue",
           "Flags: flagged content, disabled items, flagging users, archived items",
           "Users: role management, disable/reactivate, Supporter grants, zip reports",
+          "Disable User: always turns off digests and blocks sign-in; Supporters also get ads cancelled (slots released), Stripe non-renew, and waitlist cleared",
           "Messages, FAQs, Email testing, Beta rollout, and this Manual"
         ],
         technicalOverview: "Admin.jsx is the main dashboard with a tabbed interface, sharing consistent components across tabs.",
         technicalFeatures: [
-          "Tabs: Activities (event list/edit/delete + AdminActivityPhotoReviewPanel), Ads (ManualReviewPanel, AdminAdsPanel, AdminWaitlistPanel, AdminAdRatesPanel, DiscountCodesPanel, AdminDefaultAdsPanel), Email (SiteEmailsTester), FAQs (FAQManager), Flags, Manual, Messages (ContactMessage CRUD), Users (role management + AdminUserZipReportsSection), Beta (AdminBetaPanel)",
+          "Tabs: Activities (event list/edit/delete + AdminActivityPhotoReviewPanel), Ads (ManualReviewPanel, AdminAdsPanel, AdminWaitlistPanel, AdminAdRatesPanel, DiscountCodesPanel, AdminDefaultAdsPanel), Email (SiteEmailsTester), FAQs (FAQManager), Flags, Manual, Contact Us (ContactMessage CRUD), Mass Messages, Users (role management + AdminUserZipReportsSection), Beta (AdminBetaPanel)",
+          "Disable User calls /api/admin-disable-user (admin-only): profiles.role=disabled, notification_preferences.frequency=none; if is_advertiser, cancels slot-holding banner_ads, Stripe cancel_at_period_end, cancels ad_waitlist waiting/offered, then runProcessWaitlist",
           "All tabs share the AdminSectionHeader component for consistent title/icon styling and uniform white, bordered containers",
           "All operations use base44.entities.* SDK methods",
           "Stats computed from entity counts on load; long lists use the shared Paginator component"
@@ -693,10 +697,10 @@ const categories = [
           "Active and waitlisted Supporter counts per zip code",
           "Top-zip ranking and per-zip search"
         ],
-        technicalOverview: "AdminUserZipReportsSection aggregates User, Event, BannerAd, and AdWaitlist data by zip code.",
+        technicalOverview: "AdminUserZipReportsSection aggregates profiles, BannerAd, and AdWaitlist data by zip code.",
         technicalFeatures: [
-          "Aggregates data from User, Event, BannerAd, and AdWaitlist entities, mapping records to zip codes",
-          "Tallies community member counts, unique organizer counts, and active/waitlisted Supporter counts per zip",
+          "Community Members and Organizers are tallied from profiles with a zip_code (by role)",
+          "Supporters tallied from active banner ads and waiting waitlist entries per zip",
           "Results render via ZipCodeRankingCard (top zips) and ZipCodeSearchCard (search any zip) inside the Users tab"
         ]
       }
