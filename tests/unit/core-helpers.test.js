@@ -16,6 +16,12 @@ import {
   makeDigestUnsubToken,
   verifyDigestUnsubToken,
 } from "../../api/_lib/emailGuards.js";
+import {
+  decideModerationPhase,
+  reasonFromModerationCategories,
+  MODERATION_HIGH_THRESHOLD,
+  MODERATION_LOW_THRESHOLD,
+} from "../../api/_lib/imageModeration.js";
 
 describe("phone helpers", () => {
   it("masks progressive input", () => {
@@ -119,5 +125,62 @@ describe("emailGuards", () => {
       false
     );
     expect(alreadySentDigestThisWeek(null)).toBe(false);
+  });
+});
+
+describe("imageModeration hybrid phase decision", () => {
+  it("declines high-confidence sexual content", () => {
+    expect(
+      decideModerationPhase({
+        flagged: true,
+        categories: { sexual: true },
+        category_scores: { sexual: 0.92 },
+      })
+    ).toBe("decline");
+  });
+
+  it("approves clearly clean images", () => {
+    expect(
+      decideModerationPhase({
+        flagged: false,
+        categories: { sexual: false, violence: false },
+        category_scores: { sexual: 0.01, violence: 0.02 },
+      })
+    ).toBe("approve");
+  });
+
+  it("escalates medium / gray scores to custom vision", () => {
+    expect(
+      decideModerationPhase({
+        flagged: false,
+        categories: { sexual: false },
+        category_scores: { sexual: 0.45 },
+      })
+    ).toBe("escalate");
+  });
+
+  it("declines flagged content with strong mid-high scores", () => {
+    expect(
+      decideModerationPhase({
+        flagged: true,
+        categories: { "violence/graphic": true },
+        category_scores: { "violence/graphic": 0.75 },
+      })
+    ).toBe("decline");
+  });
+
+  it("maps moderation categories to natural-language reasons", () => {
+    const reason = reasonFromModerationCategories(
+      { sexual: true },
+      { sexual: MODERATION_HIGH_THRESHOLD }
+    );
+    expect(reason.toLowerCase()).toContain("sexual");
+    expect(reason).not.toMatch(/^sexual$/i);
+  });
+
+  it("keeps threshold constants in expected bands", () => {
+    expect(MODERATION_LOW_THRESHOLD).toBeLessThan(MODERATION_HIGH_THRESHOLD);
+    expect(MODERATION_LOW_THRESHOLD).toBe(0.2);
+    expect(MODERATION_HIGH_THRESHOLD).toBe(0.85);
   });
 });

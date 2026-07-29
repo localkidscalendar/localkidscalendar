@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { apiUrl } from "@/lib/apiBase";
 
 /**
- * Automated activity cover-photo review via OpenAI vision.
+ * Automated activity cover-photo review via hybrid OpenAI Moderation + vision.
  */
 export async function moderateEventImage(imageUrl) {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();

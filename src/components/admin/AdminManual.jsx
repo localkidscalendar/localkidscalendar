@@ -26,7 +26,7 @@ const categories = [
           "Front end: React + Vite + Tailwind + shared UI components (shadcn-style)",
           "Auth & database: Supabase Auth + Postgres tables with Row Level Security",
           "Server: Vercel /api/* routes (checkout, webhooks, digests, photo/ad review, disable user)",
-          "Email: Resend; payments: Stripe; image review: OpenAI vision when a key is configured",
+          "Email: Resend; payments: Stripe; image review: OpenAI Moderation API + custom vision when a key is configured",
         ],
         technicalOverview:
           "Client uses @/lib/supabaseClient.js. Privileged server work uses SUPABASE_SERVICE_ROLE_KEY via createAdminClient() in api/_lib/stripeHelpers.js. Crons are declared in vercel.json and authenticated with CRON_SECRET (or x-vercel-cron).",
@@ -261,19 +261,23 @@ const categories = [
       {
         id: "activity-photo-moderation",
         title: "Activity Photo Moderation",
+        keywords: ["moderation api", "openai", "vision", "photo review", "hybrid"],
         overview:
-          "Cover photos are screened with OpenAI vision on upload. Clear passes go live; uncertain cases go to Admin manual review. Decline removes the photo and notifies the poster (in-app and/or email per catalog).",
+          "Cover photos are screened automatically on upload. Phase 1 uses OpenAI’s free Moderation API for clear approve/decline (with natural-language decline reasons). Phase 2 (custom gpt-4o-mini vision) runs only when Moderation scores are in the gray middle — still looking like one review to the user. Declines from either phase can request Admin manual review. Community flagging remains a safety net.",
         features: [
-          "Automatic review on upload",
-          "Manual queue for unsure cases",
+          "Automatic hybrid review on upload (Moderation first, custom vision only when needed)",
+          "Natural-language decline reasons (not raw category labels)",
+          "Request Manual Review after an automated decline",
           "Admin approve / decline with notes",
         ],
         technicalOverview:
-          "/api/photo-review + shared imageModeration helper. Admin → Reviews → Activity Manual Review (AdminActivityPhotoReviewPanel).",
+          "/api/photo-review → reviewImageHybrid in api/_lib/imageModeration.js. Admin → Reviews → Activity Manual Review (AdminActivityPhotoReviewPanel). Client: PostEvent.jsx + moderateEventImage.js.",
         technicalFeatures: [
-          "image_moderation_status: approved / declined / manual_review / …",
+          "image_moderation_status: approved / declined / manual_review / manual_review_declined / …",
+          "Phase 1: omni-moderation-latest; high score (≥0.85 or flagged ≥0.7) → decline; low (≤0.20, unflagged) → approve; else escalate",
+          "Phase 2: gpt-4o-mini vision with ACTIVITY_PHOTO_VISION_PROMPT",
           "Without OPENAI_API_KEY, fails open to approved (community flagging remains)",
-          "creative-review.js is the parallel path for Ad Assets",
+          "creative-review.js is the parallel path for Ad Assets (URL checks run separately first)",
         ],
       },
       {
@@ -470,16 +474,21 @@ const categories = [
       {
         id: "advertising-moderation",
         title: "Ad Creative Review",
+        keywords: ["moderation api", "openai", "vision", "ad review", "url check", "hybrid"],
         overview:
-          "On submit, URL checks + OpenAI vision usually approve or decline instantly. Uncertain or contested cases go to Admin → Reviews → Advertising Manual Review. Status changes that hurt the Supporter require an explanation and notify them.",
+          "On submit, destination URL safety is checked first (separately from images). Then the ad image goes through the same hybrid flow as activity photos: free Moderation API first, custom vision only for gray scores, still one seamless review for the Supporter. Declines from either image phase (or from URL checks) can request Admin → Reviews → Advertising Manual Review. Status changes that hurt the Supporter require an explanation and notify them.",
         features: [
-          "Automated URL + image review",
-          "Manual review queue",
+          "Separate URL safety checks (invalid, private, unsafe keywords, 404)",
+          "Hybrid image review (Moderation API → custom vision when needed)",
+          "Natural-language decline reasons",
+          "Manual review after automated decline",
           "Required admin reason on damaging actions",
         ],
         technicalOverview:
-          "/api/creative-review; ManualReviewPanel; AdminAdsPanel.",
+          "/api/creative-review (URL then reviewImageHybrid); ManualReviewPanel; AdminAdsPanel. Client: moderateAdContent.js + AdLibraryManager.",
         technicalFeatures: [
+          "URL declined before any OpenAI image call",
+          "Image phases same thresholds as activity photos (api/_lib/imageModeration.js)",
           "Fail-open image approve if OPENAI_API_KEY missing (URL checks still run)",
         ],
       },
@@ -789,7 +798,7 @@ const categories = [
         id: "admin-reviews",
         title: "Reviews Queues",
         overview:
-          "Human queues for activity photos and advertising creatives that automation could not auto-approve/decline.",
+          "Human queues for activity photos and advertising creatives that users send after an automated decline (from Moderation API phase 1 or custom vision phase 2), or that were escalated to manual_review. Automation usually finishes in one seamless pass; this queue is the human fallback.",
         features: [
           "Activity Manual Review",
           "Advertising Manual Review",
@@ -798,7 +807,8 @@ const categories = [
         technicalOverview:
           "Admin → Reviews. AdminActivityPhotoReviewPanel + ManualReviewPanel.",
         technicalFeatures: [
-          "Queues filter moderation_status = manual_review",
+          "Queues filter moderation_status / image_moderation_status = manual_review",
+          "Automated path: reviewImageHybrid (Moderation → optional vision); URL checks only on ads",
         ],
       },
       {

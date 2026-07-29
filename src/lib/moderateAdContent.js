@@ -2,7 +2,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { apiUrl } from "@/lib/apiBase";
 
 /**
- * Automated Ad Asset review: destination URL safety + OpenAI image vision.
+ * Automated Ad Asset review: destination URL safety + hybrid image review
+ * (Moderation API first, custom vision only on gray scores).
  * Uses /api/creative-review (Safari-safe name; called via apiUrl → Vercel host).
  */
 export async function moderateAdContent(adLibraryId) {

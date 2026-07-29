@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import {
   getEnv,
-  reviewImageWithOpenAI,
+  reviewImageHybrid,
   AD_CREATIVE_VISION_PROMPT,
 } from "./_lib/imageModeration.js";
 
@@ -180,15 +180,15 @@ export default async function handler(req, res) {
       }).eq("id", adLibraryId);
     }
 
-    const linkUrl = urlCheck.normalizedUrl || ad.link_url;
+    // Image review (URL already handled above). Hybrid: Moderation API → custom vision if gray.
     let aiResult;
     try {
-      aiResult = await reviewImageWithOpenAI({
-        prompt: AD_CREATIVE_VISION_PROMPT(linkUrl, ad.image_url),
+      aiResult = await reviewImageHybrid({
+        prompt: AD_CREATIVE_VISION_PROMPT,
         imageUrl: ad.image_url,
       });
     } catch (err) {
-      console.error("Vision review error:", err);
+      console.error("Creative image review error:", err);
       aiResult = { status: "approved", reason: "" };
     }
 
@@ -200,7 +200,11 @@ export default async function handler(req, res) {
       updated_at: new Date().toISOString(),
     }).eq("id", adLibraryId);
 
-    return res.status(200).json({ status: newStatus, reason: aiResult.reason || "" });
+    return res.status(200).json({
+      status: newStatus,
+      reason: aiResult.reason || "",
+      phase: aiResult.phase || "",
+    });
   } catch (error) {
     console.error("creative-review error:", error);
     return res.status(500).json({ error: error.message || "Moderation failed" });

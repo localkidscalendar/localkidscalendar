@@ -33,7 +33,7 @@ export default function ZipCodeSearchCard({ title, rows, columns }) {
         </Button>
       </div>
       {searched && result && (
-        <div className="mt-3 flex items-center gap-4 text-sm bg-muted/40 rounded-lg px-3 py-2">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm bg-muted/40 rounded-lg px-3 py-2">
           <span className="font-medium">{result.zip}</span>
           {columns.map((c) => (
             <span key={c.key} className="text-muted-foreground">

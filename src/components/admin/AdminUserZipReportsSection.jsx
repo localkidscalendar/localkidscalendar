@@ -29,14 +29,28 @@ export default function AdminUserZipReportsSection() {
       const ads = adsRes.data || [];
       const waitlist = waitlistRes.data || [];
 
-      // Active community members by zip
+      // Active community members by zip, plus post counts for those members
       const userZipMap = {};
+      const memberZipById = {};
       users.forEach((u) => {
         if (u.role !== "community_member" || !u.zip_code) return;
         if (!userZipMap[u.zip_code]) userZipMap[u.zip_code] = new Set();
         userZipMap[u.zip_code].add(u.id);
+        memberZipById[u.id] = u.zip_code;
       });
-      setUserRows(Object.entries(userZipMap).map(([zip, set]) => ({ zip, count: set.size })));
+      const memberPostsByZip = {};
+      events.forEach((e) => {
+        const zip = e.created_by_id && memberZipById[e.created_by_id];
+        if (!zip) return;
+        memberPostsByZip[zip] = (memberPostsByZip[zip] || 0) + 1;
+      });
+      setUserRows(
+        Object.entries(userZipMap).map(([zip, set]) => ({
+          zip,
+          count: set.size,
+          posts: memberPostsByZip[zip] || 0,
+        }))
+      );
 
       // Registered organizers by profile zip, plus post counts for those organizers
       const orgZipMap = {};
@@ -90,20 +104,77 @@ export default function AdminUserZipReportsSection() {
     );
   }
 
+  // Combined view: CM + organizers for ranking; search also breaks out roles + supporters
+  const allZipSet = new Set([
+    ...userRows.map((r) => r.zip),
+    ...organizerRows.map((r) => r.zip),
+    ...supporterRows.map((r) => r.zip),
+  ]);
+  const userByZip = Object.fromEntries(userRows.map((r) => [r.zip, r.count || 0]));
+  const userPostsByZip = Object.fromEntries(userRows.map((r) => [r.zip, r.posts || 0]));
+  const orgByZip = Object.fromEntries(organizerRows.map((r) => [r.zip, r.count || 0]));
+  const orgPostsByZip = Object.fromEntries(organizerRows.map((r) => [r.zip, r.posts || 0]));
+  const supporterByZip = Object.fromEntries(
+    supporterRows.map((r) => [r.zip, (r.advertisers || 0) + (r.waitlisted || 0)])
+  );
+  const allUserRows = [...allZipSet].map((zip) => {
+    const communityMembers = userByZip[zip] || 0;
+    const organizers = orgByZip[zip] || 0;
+    return {
+      zip,
+      total: communityMembers + organizers,
+      communityMembers,
+      organizers,
+      supporters: supporterByZip[zip] || 0,
+      posts: (userPostsByZip[zip] || 0) + (orgPostsByZip[zip] || 0),
+    };
+  });
+
   return (
     <div className="space-y-6">
+      <div>
+        <h3 className="font-heading font-semibold text-sm text-muted-foreground mb-2">All User Zip Codes</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ZipCodeRankingCard
+            title="Top 10 All User Zip Codes"
+            rows={allUserRows}
+            columns={[
+              { key: "total", label: "Members + Organizers" },
+              { key: "posts", label: "Posts" },
+            ]}
+          />
+          <ZipCodeSearchCard
+            title="Search All Users by Zip Code"
+            rows={allUserRows}
+            columns={[
+              { key: "total", label: "Members + Organizers" },
+              { key: "communityMembers", label: "Community Members" },
+              { key: "organizers", label: "Organizers" },
+              { key: "supporters", label: "Supporters" },
+              { key: "posts", label: "Posts" },
+            ]}
+          />
+        </div>
+      </div>
+
       <div>
         <h3 className="font-heading font-semibold text-sm text-muted-foreground mb-2">Community Member Zip Codes</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ZipCodeRankingCard
             title="Top 10 Community Member Zip Codes"
             rows={userRows}
-            columns={[{ key: "count", label: "Community Members" }]}
+            columns={[
+              { key: "count", label: "Community Members" },
+              { key: "posts", label: "Posts" },
+            ]}
           />
           <ZipCodeSearchCard
             title="Search Community Members by Zip Code"
             rows={userRows}
-            columns={[{ key: "count", label: "Community Members" }]}
+            columns={[
+              { key: "count", label: "Community Members" },
+              { key: "posts", label: "Posts" },
+            ]}
           />
         </div>
       </div>

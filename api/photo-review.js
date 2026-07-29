@@ -1,12 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import {
   getEnv,
-  reviewImageWithOpenAI,
+  reviewImageHybrid,
   ACTIVITY_PHOTO_VISION_PROMPT,
 } from "./_lib/imageModeration.js";
 
 /**
  * Automated activity cover-photo review (Organizer postings).
+ * Hybrid: Moderation API first, custom vision only on gray scores.
  * Body: { image_url }
  * Returns: { status: "approved"|"declined", reason }
  */
@@ -48,17 +49,21 @@ export default async function handler(req, res) {
 
     let aiResult;
     try {
-      aiResult = await reviewImageWithOpenAI({
+      aiResult = await reviewImageHybrid({
         prompt: ACTIVITY_PHOTO_VISION_PROMPT,
         imageUrl,
       });
     } catch (err) {
-      console.error("photo-review vision error:", err);
+      console.error("photo-review hybrid error:", err);
       aiResult = { status: "approved", reason: "" };
     }
 
     const status = aiResult.status === "declined" ? "declined" : "approved";
-    return res.status(200).json({ status, reason: aiResult.reason || "" });
+    return res.status(200).json({
+      status,
+      reason: aiResult.reason || "",
+      phase: aiResult.phase || "",
+    });
   } catch (error) {
     console.error("photo-review error:", error);
     return res.status(500).json({ error: error.message || "Photo review failed" });
