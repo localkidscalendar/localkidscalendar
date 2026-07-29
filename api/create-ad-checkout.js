@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { isAdminCaller } from "./_lib/adminAuth.js";
 import {
   getEnv,
   createAdminClient,
@@ -67,7 +68,7 @@ export default async function handler(req, res) {
       .select("role, email")
       .eq("id", authUser.id)
       .maybeSingle();
-    const isAdmin = profile?.role === "admin";
+    const isAdmin = isAdminCaller(profile, authUser.email);
     const userEmail = (profile?.email || authUser.email || "").trim();
 
     // Slot availability + one-ad-per-user-per-zip

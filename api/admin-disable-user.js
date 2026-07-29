@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { isAdminCaller } from "./_lib/adminAuth.js";
 import {
   createAdminClient,
   requireUser,
@@ -7,7 +8,6 @@ import {
 } from "./_lib/stripeHelpers.js";
 import { runProcessWaitlist } from "./_lib/processWaitlistCore.js";
 
-const ADMIN_EMAILS = new Set(["localkidscalendar@gmail.com"]);
 const QUEUE_STATUSES = ["waiting", "offered"];
 
 /**
@@ -43,7 +43,7 @@ export default async function handler(req, res) {
       .eq("id", authUser.id)
       .maybeSingle();
     const callerEmail = (callerProfile?.email || authUser.email || "").trim().toLowerCase();
-    if (callerProfile?.role !== "admin" && !ADMIN_EMAILS.has(callerEmail)) {
+    if (!isAdminCaller(callerProfile, authUser.email)) {
       return res.status(403).json({
         error: `Forbidden — admin role required (signed in as ${callerEmail || "unknown"}, role: ${callerProfile?.role || "none"})`,
       });

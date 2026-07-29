@@ -20,8 +20,11 @@ npx skills add base44/skills
 ## Key Files
 
 - `src/`: frontend application source.
-- `src/api/base44Client.js`: frontend Base44 SDK client.
-- `vite.config.js`: Vite config and Base44 Vite plugin setup.
+- `api/`: Vercel serverless routes (Stripe, Resend, digests, moderation, crons).
+- `shared/`: small helpers shared by frontend and API (e.g. filler-ad picker).
+- `tests/unit/`: Vitest unit tests (`npm run test`).
+- `tests/e2e/`: Playwright smoke tests (`npm run test:e2e`).
+- `vite.config.js`: Vite config.
 - `.env.local`: local-only environment values; never commit secrets.
 
 ## Working Notes

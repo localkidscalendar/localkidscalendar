@@ -42,7 +42,16 @@ export default function BetaStage1Gate({ children }) {
     } catch {}
   }, [config]);
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-mint-100 border-t-mint-500 rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground font-heading">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   if (!config?.stage1_enabled || !config?.access_code) return children;
   if (verified) return children;
 

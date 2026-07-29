@@ -1,8 +1,8 @@
+import { isAdminCaller } from "./_lib/adminAuth.js";
 import { createAdminClient, requireUser } from "./_lib/stripeHelpers.js";
 import { countOpenAdSlots, renumberZipQueue } from "./_lib/waitlistQueue.js";
 import { sendOfferEmailForEntry } from "./_lib/processWaitlistCore.js";
 
-const ADMIN_EMAILS = new Set(["localkidscalendar@gmail.com"]);
 const OFFER_HOURS = 24;
 
 /**
@@ -34,7 +34,7 @@ export default async function handler(req, res) {
       .eq("id", user.id)
       .maybeSingle();
     const email = (profile?.email || user.email || "").trim().toLowerCase();
-    if (profile?.role !== "admin" && !ADMIN_EMAILS.has(email)) {
+    if (!isAdminCaller(profile, user.email)) {
       return res.status(403).json({ error: "Forbidden — admin role required" });
     }
 

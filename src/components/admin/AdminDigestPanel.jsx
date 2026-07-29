@@ -189,7 +189,12 @@ export default function AdminDigestPanel({ toast }) {
           <div className="rounded-xl bg-muted/40 border border-border p-4 text-xs text-muted-foreground space-y-2">
             <p className="font-medium text-foreground text-sm">Also in place</p>
             <ul className="list-disc pl-4 space-y-1">
-              <li>Env kill switch <code className="text-[11px]">EMAIL_SENDING_ENABLED=false</code> stops all Resend email (digests + transactional).</li>
+              <li>
+                Env kill switch: set <code className="text-[11px]">EMAIL_SENDING_ENABLED=false</code> in{" "}
+                <strong className="font-medium text-foreground">Vercel → Project → Settings → Environment Variables</strong>
+                {" "}(then redeploy). Stops all Resend email (digests + transactional). Omit or set to{" "}
+                <code className="text-[11px]">true</code> for normal sending.
+              </li>
               <li>Disabled accounts and inactive accounts (no sign-in within the days above) are skipped; inactive Weekly prefs are turned Off.</li>
               <li>Same-week retry protection via last-sent stamp; bounce/complaint webhooks suppress future mail.</li>
             </ul>

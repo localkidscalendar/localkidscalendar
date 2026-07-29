@@ -1,49 +1,80 @@
-import React, { useState } from "react";
-import { BookOpen, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { BookOpen, ExternalLink, ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
-// Each category groups related topics. Add new topics under the right category,
-// or add a new category object as the site grows.
-// Each section has: overview (paragraph) + features (bullet list) for the layman view,
-// and technicalOverview (paragraph) + technicalFeatures (bullet list) for the technical view.
+/**
+ * Admin Site Manual — layman overview + technical breakdown per topic.
+ * Update this file whenever product rules or major workflows change.
+ *
+ * Shape per section:
+ *   id, title, overview, features[], technicalOverview, technicalFeatures[]
+ * Optional: keywords[] — extra search terms not already in the prose
+ */
+
 const categories = [
   {
     id: "platform",
     label: "Platform & Design",
     sections: [
       {
+        id: "stack-overview",
+        title: "Tech Stack (Post–Base44)",
+        keywords: ["supabase", "vercel", "react", "vite", "postgres", "resend", "stripe"],
+        overview:
+          "LocalKidsCalendar runs as a React (Vite) front end on Vercel, with Supabase for auth and Postgres data, and Vercel serverless API routes for Stripe, Resend email, OpenAI moderation, and cron jobs. Base44 is no longer the runtime for the live site.",
+        features: [
+          "Front end: React + Vite + Tailwind + shared UI components (shadcn-style)",
+          "Auth & database: Supabase Auth + Postgres tables with Row Level Security",
+          "Server: Vercel /api/* routes (checkout, webhooks, digests, photo/ad review, disable user)",
+          "Email: Resend; payments: Stripe; image review: OpenAI vision when a key is configured",
+        ],
+        technicalOverview:
+          "Client uses @/lib/supabaseClient.js. Privileged server work uses SUPABASE_SERVICE_ROLE_KEY via createAdminClient() in api/_lib/stripeHelpers.js. Crons are declared in vercel.json and authenticated with CRON_SECRET (or x-vercel-cron).",
+        technicalFeatures: [
+          "Env (Vite): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY; optional VITE_API_BASE_URL / VITE_APP_URL",
+          "Env (server): SUPABASE_*, RESEND_*, STRIPE_*, OPENAI_API_KEY, CRON_SECRET, EMAIL_SENDING_ENABLED, RESEND_WEBHOOK_SECRET",
+          "Migrations live under supabase/migrations/; production SQL is often applied via the Supabase SQL Editor",
+          "Legacy base44/ folder may still exist in the repo but is not the live path for Admin/email/ads",
+        ],
+      },
+      {
         id: "layout-design",
         title: "Layout & Design",
-        overview: "The site uses a clean, modern design with a mint green and navy color scheme. The layout is responsive, working well on desktop, tablet, and mobile devices.",
+        overview:
+          "The site uses a clean, modern design with a mint green and navy color scheme. The layout is responsive for desktop, tablet, and mobile.",
         features: [
-          "Color palette: mint green and navy scheme applied consistently across the site",
+          "Color palette: mint green and navy applied consistently",
           "Typography: Quicksand for headings, Nunito for body text",
-          "Visual style: rounded corners on cards, consistent spacing, clear visual hierarchy",
-          "Responsive design: adapts to desktop, tablet, and mobile screen sizes"
+          "Visual style: rounded corners, consistent spacing, clear hierarchy",
+          "Responsive layout with sticky nav; dialogs sit above the nav (z-index)",
         ],
-        technicalOverview: "Built with React + Vite, styled using Tailwind CSS with a custom design token system defined in src/index.css.",
+        technicalOverview:
+          "Built with React + Vite, styled with Tailwind and design tokens in src/index.css. AppLayout wraps authenticated pages with Navbar, BetaBanner, and Footer.",
         technicalFeatures: [
-          "Design tokens: color palette uses HSL values for consistency, defined in src/index.css",
-          "Component library: shared UI components live in src/components/ui/ (shadcn/ui)",
-          "Routing: React Router with protected routes for authenticated pages",
-          "Layout: AppLayout component wraps all authenticated pages with a consistent Navbar header and footer"
-        ]
+          "Shared UI under src/components/ui/",
+          "Routing: React Router in src/App.jsx; AppLayout outlet for main pages",
+          "Mobile: hamburger for site pages; profile menu for Account / Ad Manager; Post CTA on the top bar",
+        ],
       },
       {
         id: "zip-code-validation",
-        title: "Zip Code Input Validation",
-        overview: "Anywhere a zip code is entered — posting an activity, account settings, ad checkout — the site requires a valid 5-digit number. This keeps location-based search, filtering, and ad targeting accurate across the whole site.",
+        title: "Zip Code & Distance Defaults",
+        overview:
+          "Anywhere a zip is entered, the site requires a valid 5-digit US zip. Signed-in users also set a preferred search distance on Profile (default 15 miles). Together these drive homepage filtering and “local” meaning for the session.",
         features: [
-          "5-digit format required: rejects letters, extra digits, or ZIP+4 formats",
-          "Applied everywhere: PostEvent form, Account settings, Ad checkout",
-          "Consistency: matches the format expected by the site's geocoding lookups"
+          "5-digit zip only (no letters, no ZIP+4)",
+          "Profile distance options typically 5 / 10 / 15 / 25 / 50 / 100 miles; default 15",
+          "Used on Post Activity, Profile, Ad checkout, and filters",
         ],
-        technicalOverview: "PostEvent.jsx, Account.jsx, and any other zip-code input enforce a strict 5-digit numeric pattern on both the input mask and form submission.",
+        technicalOverview:
+          "Client masks enforce /^\\d{5}$/. Profile stores zip_code and radius_miles on profiles. Distance filtering uses Haversine against geocoded coordinates (zippopotam.us).",
         technicalFeatures: [
-          "Validation pattern: regex /^\\d{5}$/ enforced on input mask and submit",
-          "Geocoding compatibility: mirrors the format required by zippopotam.us lookups used for distance-based filtering and email matching"
-        ]
-      }
-    ]
+          "profiles.radius_miles column (migration profile_radius_miles)",
+          "locationDefaults.js centralizes default radius where used",
+          "Exact zip matching is still used in weekly digest matching today (radius geocoding for digests is not applied yet)",
+        ],
+      },
+    ],
   },
   {
     id: "users",
@@ -52,123 +83,158 @@ const categories = [
       {
         id: "user-registration",
         title: "User Registration & Login",
-        overview: "Users can register with email/password or Google OAuth. During registration, they must choose between Community Member or Organizer account type (this choice is permanent). After registration, users verify their email via an OTP code. Returning users log in with email/password or Google, and can reset a forgotten password via a secure email link.",
+        keywords: ["otp", "google", "oauth", "password", "sign up"],
+        overview:
+          "Users register with email/password or Google. At signup they choose Community Member or Organizer (permanent for that account). Email verification uses Supabase OTP/confirm flows. Returning users sign in the same ways, or reset a password via email link.",
         features: [
-          "Sign-up methods: email/password or Google OAuth",
-          "Account type: Community Member or Organizer, chosen at registration and permanent",
-          "Email verification: OTP code sent after registration, required before full access",
-          "Duplicate prevention: one email cannot be used for multiple accounts",
-          "Password reset: secure email link flow for forgotten passwords",
-          "No phone number collected during registration"
+          "Sign-up: email/password or Google OAuth",
+          "Account type: Community Member or Organizer — one email cannot be both",
+          "Email verification required before full access (OTP / confirm link)",
+          "Password reset via secure email link",
+          "Phone may be collected later on Profile where enabled; not required for signup",
+          "Register form includes timing/honeypot bot checks",
         ],
-        technicalOverview: "Registration flow: Register.jsx collects email, password, and account type (community_member/organizer), then routes through OTP verification before granting access.",
+        technicalOverview:
+          "Register.jsx / Login.jsx / ForgotPassword.jsx / ResetPassword.jsx / AuthCallback.jsx use supabase.auth. Profile rows are created by handle_new_user from auth metadata (role, names, zip). Organizer shell rows can be created in finalizeProfile or AuthContext when org metadata is present.",
         technicalFeatures: [
-          "Register.jsx calls base44.auth.register(), which sends an OTP email",
-          "verifyOtp() returns an access_token, stored via setToken(), then hard-redirects to the homepage",
-          "Account type is stored on the User entity",
-          "Google OAuth uses base44.auth.loginWithProvider('google')",
-          "Login.jsx handles loginViaEmailPassword(); ForgotPassword.jsx/ResetPassword.jsx handle resetPasswordRequest()/resetPassword() with a token query param",
-          "Phone numbers are not collected during registration"
-        ]
+          "profiles.role from metadata; default community_member if missing",
+          "Auth invite links can prefill role/email query params on Register",
+          "Primary admin email may be promoted to role=admin via SQL migrations (ensure_admin_role)",
+          "Navbar/Admin access: role === 'admin' (Admin page hard-requires admin)",
+        ],
       },
       {
         id: "user-types",
-        title: "Community Member vs Organizer",
-        overview: "Community Members can browse, save, and flag activities, post events on behalf of organizations, and receive notifications. Organizers have all Community Member features plus can represent their organization with official branding, post activities that get highlighted placement, and build follower bases. Account types are separate — one email cannot be both.",
+        title: "Roles: Community Member, Organizer, Admin, Disabled",
+        keywords: ["role", "organizer", "community_member", "admin"],
+        overview:
+          "Community Members browse, save, flag, comment, and can post activities. Organizers get org branding and directory presence. Admin is a privileged operator role (not chosen at signup). Disabled accounts cannot use the site normally and see the Account Disabled experience.",
         features: [
-          "Community Member: browse, save, flag activities, post events, receive notifications",
-          "Organizer: all Community Member features plus official org branding (logo, org name), highlighted activity placement, and followers",
-          "Separation: one email/account can only be one type at a time"
+          "community_member: core family/user experience",
+          "organizer: same plus org profile (name, logo, website, email) and directory listing",
+          "admin: Admin panel + elevated APIs; primary account often localkidscalendar@gmail.com",
+          "disabled: blocked; digests forced off; prior role stored for restore",
+          "Supporter is not a role — it is profiles.is_advertiser on top of CM or Organizer",
         ],
-        technicalOverview: "User entity has a 'role' field distinguishing account types, with Organizer-specific data stored on a separate entity.",
+        technicalOverview:
+          "profiles.role check constraint: admin | organizer | community_member | disabled. organizers table is 1:1 with user_id. Admin Users list shows the live profiles.role label.",
         technicalFeatures: [
-          "User.role values: community_member, organizer, admin, disabled",
-          "Organizer entity: org_name, org_description, org_logo, org_website, org_email, linked by user_id",
-          "posted_by_role on Event determines card styling (Organizer posts get a green border highlight)",
-          "FavoriteOrganizer entity tracks follower relationships (organizer_id, poster_user_id)",
-          "Organizers cannot be created via SDK — users must register with the organizer role"
-        ]
+          "role_before_disabled preserved on disable; restoreRoleFromProfile in authRoles.js",
+          "Weekly digests intentionally skip organizer and admin recipients",
+          "ProfileTab locks role after setup for non-admins; admins keep their real role on save",
+        ],
+      },
+      {
+        id: "account-disable-reactivation",
+        title: "Disable Account & Reactivation Requests",
+        keywords: ["disable", "reactivate", "banned", "account disabled"],
+        overview:
+          "Admins can disable a user with a required note. The user is treated as signed out for normal features, digests turn Off, and they see an Account Disabled page with the note. They may submit one reactivation request for Admin review.",
+        features: [
+          "Always: role → disabled, digests Off, note shown on Account Disabled",
+          "Supporters also: slot-holding ads cancelled, Stripe set not to renew, waitlist cleared, waitlist processor runs",
+          "Reactivation: one request per user lifetime (pending / reactivated / declined)",
+          "On approve: prior role restored (admin prior is stored carefully; organizer restores as organizer)",
+        ],
+        technicalOverview:
+          "Admin Users → disable calls /api/admin-disable-user. Reactivation rows live in account_reactivation_requests. UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
+        technicalFeatures: [
+          "Caller must be admin (or allowlisted admin email on the API)",
+          "Non-supporter path: simple role/digest updates",
+          "Supporter path: banner_ads + Stripe cancel_at_period_end + ad_waitlist cleanup + processWaitlist",
+          "authRoles.isAccountDisabled / isRegisteredUser gate registered-only features",
+        ],
       },
       {
         id: "supporter-users",
-        title: "Supporter (Advertiser) Role",
-        overview: "Supporters are businesses or organizations that purchase ad slots in specific zip codes. They get access to Ad Manager to upload ad creatives, track performance (impressions, clicks), manage subscriptions, and renew, upgrade, downgrade, or cancel ads. Supporter is a role that can be added to any user account (Community Member or Organizer). Each Supporter is limited to one ad slot per zip code to prevent monopolizing inventory.",
+        title: "Supporter (Advertiser) Flag",
+        overview:
+          "Supporters buy zip ad slots and use Ad Manager for creatives, billing, waitlist, and renewals. Supporter status is an add-on (is_advertiser) on a Community Member or Organizer account — one active slot per zip per Supporter.",
         features: [
-          "Ad Manager access: upload creatives, track impressions/clicks, manage subscription",
-          "Plan actions: renew, upgrade, downgrade, or cancel ads",
-          "Add-on role: can be granted to any Community Member or Organizer account",
-          "Slot limit: one active ad slot per Supporter per zip code"
+          "Ad Manager for creatives, placements, renewals, plan changes, waitlist",
+          "Granted automatically on first purchase or via Admin",
+          "One slot-holding placement per zip per Supporter",
         ],
-        technicalOverview: "Supporter status is tracked via a flag on the User entity, with all ad data stored on the BannerAd entity.",
+        technicalOverview:
+          "profiles.is_advertiser. Placements in banner_ads; creatives in ad_library. Checkout via /api/create-ad-checkout.",
         technicalFeatures: [
-          "User.is_advertiser boolean flag (granted via Admin panel or automatically on first ad purchase)",
-          "BannerAd entity: user_id, business_name, image_url, link_url, zip_code, status (pending_payment/pending_review/active/past_due/rejected/expired/cancelled/flagged), plan_type (monthly/annual), stripe_subscription_id, auto_renew, next_renewal_date",
-          "AdLibrary entity stores a user's approved ad creatives for reuse across zip codes",
-          "createAdCheckout enforces a per-Supporter, per-zip-code slot cap of one active/pending BannerAd before allowing a new purchase"
-        ]
+          "Slot-holding statuses: active, pending_payment, pending_review, flagged, past_due",
+          "Admin can grant advertiser flag from Users",
+        ],
       },
       {
         id: "user-dashboard",
-        title: "User Dashboard & Account Settings",
-        overview: "Registered users manage everything from one My Account page, organized into tabs: Saved Activities, Fav Organizers, My Posts (community members and organizers only), Flagged Content, Notifications, and Profile. There is no separate Dashboard page. Zip code fields on the Profile tab require a valid 5-digit number.",
+        title: "My Account Tabs",
+        overview:
+          "Everything personal lives under My Account. Default tab is Messages. There is no separate Dashboard and no Flagged Content tab anymore (flags are handled via moderation and Admin Flags).",
         features: [
-          "Saved Activities tab: activities the user bookmarked",
-          "Fav Organizers tab: organizers the user follows",
-          "My Posts tab: activities the user has posted (community members/organizers only)",
-          "Flagged Content tab: content the user has flagged",
-          "Notifications tab: email preference settings",
-          "Profile tab: account details, including a 5-digit zip code requirement"
+          "Messages (default) — in-app inbox",
+          "My Activity Posts — for community members / organizers / admin",
+          "Saved Activities, Fav Organizers, Email Notifications, Home Search Filters (My Filters), Profile",
         ],
-        technicalOverview: "Account.jsx is the single account hub (route /account), rendering each area as a tab.",
+        technicalOverview:
+          "Account.jsx VALID_TABS: messages, posts, saved, saved-organizers, notifications, saved-filters, profile. Unread badge uses countUnreadMessages.",
         technicalFeatures: [
-          "SavedActivitiesTab: queries SavedEvent entity",
-          "SavedOrganizersTab: queries FavoriteOrganizer entity",
-          "MyPostsTab: shown only when role is community_member/organizer/admin; queries Event.filter({ created_by_id: user.id })",
-          "FlaggedContentTab: shows the user's flagged content",
-          "NotificationsTab: reads/writes the NotificationPreference entity",
-          "ProfileTab: reads/writes the User entity via base44.auth.updateMe(), including zip_code with 5-digit validation",
-          "Newly registered users with no saved data yet see empty-state messaging rather than errors"
-        ]
+          "?tab=flagged redirects to messages (legacy links)",
+          "?setup=1 opens Profile for zip completion after OAuth/setup",
+        ],
+      },
+      {
+        id: "user-messages-inbox",
+        title: "In-App Messages Inbox",
+        keywords: ["inbox", "user_messages", "welcome"],
+        overview:
+          "One-way inbox for site notices: welcome messages, billing/plan notices, photo/ad decisions, flag outcomes, and Admin mass messages. Users can mark read and soft-delete. Many items include optional action buttons (e.g. open Ad Manager).",
+        features: [
+          "Unread count in nav / Account tab",
+          "System + Admin-authored messages",
+          "Optional action label + in-app path",
+          "Soft-delete from the user’s view",
+        ],
+        technicalOverview:
+          "user_messages table + helpers in userMessages.js / userMessagesCatalog.js. Welcome onboarding inserts on new profile. Admin Previews → Automated Messages shows catalog samples.",
+        technicalFeatures: [
+          "Mass messages fan out copies then can be retracted (soft-delete copies + remove archive row)",
+          "Some flows are inbox-only (e.g. renewal-soon); others also send Resend email (payment failed, waitlist offer)",
+        ],
       },
       {
         id: "saved-filter-preferences",
         title: "Saved Filter Preferences (My Filters)",
-        overview: "Signed-in users can save their go-to homepage filter selections — category, sort order, zip code and distance, age range, price range, and Free — from a 'My Filters' tab in My Account, then apply them all at once on the homepage with a single click. For signed-out visitors, the My Filters button (along with Saved Activities and Fav Organizers) appears greyed out, and clicking one prompts sign-in or registration. Applying My Filters turns off Saved Activities and Fav Organizers; changing any applied preference field afterward clears the My Filters highlight.",
+        overview:
+          "Signed-in users save go-to homepage filters (category, sort, zip/distance, ages, price/Free) and apply them in one click. My Filters, Saved Activities, and Fav Organizers are mutually exclusive on the homepage.",
         features: [
-          "My Filters tab (My Account): save/edit go-to filter selections",
-          "One-click apply: a dedicated homepage button loads the saved selections",
-          "Hover tooltips: each of the three related buttons (Saved Activities, Fav Organizers, My Filters) explains what it does",
-          "Mutually exclusive with Saved Activities and Fav Organizers on the homepage",
-          "Signed-out behavior: buttons appear greyed out; clicking prompts sign-in/registration"
+          "My Account → Home Search Filters to save",
+          "Homepage My Filters button applies them",
+          "Highlight clears if the user changes a preference field after apply",
+          "Signed-out: buttons greyed; click opens auth prompt",
         ],
-        technicalOverview: "saved_filters stores one record per user, holding the reusable subset of filter fields (excluding dates and the Saved Activities / Fav Organizers toggles).",
+        technicalOverview:
+          "saved_filters one row per user. EventFilters.jsx merges into active filters and tracks an applied snapshot.",
         technicalFeatures: [
-          "saved_filters fields: search, category, sort_by, zip_code, radius_miles, age_min, age_max, price_min, price_max, free_only",
-          "Excluded fields: dateFrom/dateTo, savedOnly, favOrgsOnly — not part of the reusable preference",
-          "One row per user (unique on user_id); upsert on save",
-          "SavedFiltersTab.jsx (Account.jsx 'My Filters' tab) loads any existing record on mount and upserts on Save with a confirmation toast",
-          "EventFilters.jsx: UserCog button loads saved_filters for the signed-in user, merges into active filters, stores an applied snapshot for highlight state, and clears Saved Activities / Fav Organizers",
-          "All three buttons share the same signed-out styling (opacity-50/cursor-not-allowed) and open AuthPromptModal when clicked while signed out"
-        ]
+          "Does not store date range or Saved/Fav toggles",
+          "Help panel on the filter bar explains AND/OR and session retention",
+        ],
       },
       {
         id: "notification-preferences",
-        title: "Notification Preferences",
-        overview: "Users choose how often they want activity update emails (weekly or none), and can narrow results by category, age range, keywords, favorite organizers, home zip code, and search radius (up to 100 miles).",
+        title: "Email Notification Preferences",
+        overview:
+          "Weekly activity digests are Off by default. Users can choose Weekly and include Favorite Organizers and/or Activity Matches (zip, keywords, age). Digests only send when there is matching content. A More… link explains auto-off and unsubscribe behavior without cluttering the form.",
         features: [
-          "Frequency: weekly or none",
-          "Filters: category, age range, keywords, favorite organizers",
-          "Location: home zip code with search radius up to 100 miles"
+          "Frequency: Off (default) or Weekly (Mondays)",
+          "Favorite Organizers and/or Activity Matches toggles",
+          "No empty “nothing new” emails",
+          "One-click unsubscribe in each digest; Manage Preferences in Account",
         ],
-        technicalOverview: "NotificationPreference entity (one per user) stores the matching criteria used by the email-sending function.",
+        technicalOverview:
+          "notification_preferences: frequency weekly|none; include_fav_organizers; include_other_activities; zip/keywords/ages/locations. UI: NotificationsTab.jsx.",
         technicalFeatures: [
-          "Fields: frequency, categories (array), organizer_ids (array), keywords, zip_code, radius_miles (up to 100), age_min, age_max",
-          "Notifications.jsx is the settings UI, saving directly to the entity",
-          "initUserPreferences backend function creates a default preference record for brand-new users",
-          "sendNotificationEmails reads this entity to determine who gets emailed and what content matches"
-        ]
-      }
-    ]
+          "Digest matching in api/_lib/sendNotificationDigestsCore.js",
+          "See Email Digest Safeguards for pause, inactivity, suppressions, and caps",
+        ],
+      },
+    ],
   },
   {
     id: "activities",
@@ -177,178 +243,157 @@ const categories = [
       {
         id: "posting-activity",
         title: "Posting an Activity",
-        overview: "Community Members and Organizers can post a new activity (camp, class, event, sport, general interest) with details like dates, ages, cost, location, and an optional photo. Organizer-posted activities display official branding and a highlighted border. End dates cannot be earlier than the start date, zip codes must be valid 5-digit numbers, and posters must agree to the Community Rules before submitting.",
+        overview:
+          "Community Members and Organizers post activities with dates, ages, cost, location, categories (up to three), and optional photo. End date is required and cannot be before start date. Community Rules must be accepted.",
         features: [
-          "Activity types: camp, class, event, sport, general interest",
-          "Details captured: dates, ages, cost, location, optional photo",
-          "Organizer branding: official logo/org name and highlighted border on Organizer posts",
-          "Validation: end date can't precede start date, zip code must be 5 digits",
-          "Community Rules agreement required before submitting"
+          "Categories / types for camps, classes, sports, etc.",
+          "Organizer posts show org branding / highlight styling",
+          "Photo optional; goes through AI review on upload",
+          "Zip must be 5 digits; end date required",
         ],
-        technicalOverview: "PostEvent.jsx is a multi-field form writing to the Event entity.",
+        technicalOverview:
+          "PostEvent.jsx inserts into events. Image upload then /api/photo-review. posted_by_role / org fields drive EventCard styling.",
         technicalFeatures: [
-          "Event fields: title, description, category, age_min/max, start/end dates, registration window, recurring pattern, time, address/city/state/zip, cost, contact info, website, event_image, org info",
-          "posted_by_role set from the poster's User.role at submission, used by EventCard for conditional styling",
-          "Images uploaded via Core.UploadFile before the entity is created, then routed through activity photo moderation",
-          "Form validation enforces end_date >= start_date, a 5-digit zip_code pattern, and a mandatory Community Rules checkbox before submit is enabled"
-        ]
+          "events.status active vs archived for moderation/removal",
+          "HistoryBackLink / navigation history for cancel/back UX where wired",
+        ],
       },
       {
         id: "activity-photo-moderation",
         title: "Activity Photo Moderation",
-        overview: "Photos uploaded with an activity are automatically screened by AI before the listing goes live, to keep images appropriate for a family site. Most photos pass instantly. If AI is unsure, the photo is queued for a human admin to manually approve or decline it. If an admin declines a photo, it's removed from the listing and the contributor is notified by email with the reason.",
+        overview:
+          "Cover photos are screened with OpenAI vision on upload. Clear passes go live; uncertain cases go to Admin manual review. Decline removes the photo and notifies the poster (in-app and/or email per catalog).",
         features: [
-          "Automatic AI screening on upload",
-          "Manual review queue for uncertain cases",
-          "Admin approve/decline with optional reason",
-          "Email notification to contributor on a decline decision"
+          "Automatic review on upload",
+          "Manual queue for unsure cases",
+          "Admin approve / decline with notes",
         ],
-        technicalOverview: "Event entity tracks moderation status; /api/photo-review runs OpenAI vision on upload, and AdminActivityPhotoReviewPanel handles manual decisions.",
+        technicalOverview:
+          "/api/photo-review + shared imageModeration helper. Admin → Reviews → Activity Manual Review (AdminActivityPhotoReviewPanel).",
         technicalFeatures: [
-          "Event fields: image_moderation_status (pending/approved/declined/manual_review/manual_review_declined), image_moderation_notes, image_moderation_date",
-          "/api/photo-review: OpenAI gpt-4o-mini vision classifies event_image on upload (approve/decline); fails open to approved if the key is missing or the API errors",
-          "AdminActivityPhotoReviewPanel (Admin → Activities tab): lists manual_review items with Approve/Decline actions and an optional notes field",
-          "Declining an image clears event_image on the Event record and triggers an automated contributor email explaining the decision"
-        ]
+          "image_moderation_status: approved / declined / manual_review / …",
+          "Without OPENAI_API_KEY, fails open to approved (community flagging remains)",
+          "creative-review.js is the parallel path for Ad Assets",
+        ],
       },
       {
         id: "activity-filters",
         title: "Activity Filters & Sorting",
-        overview: "Users can filter activities by category, Free / price range, age range, location (zip) with a search radius up to 100 miles, and date range. Sorting options include date posted, activity date, and registration date. All filter choices persist for the rest of the browser session, and reset back to defaults only when the session ends or filters are explicitly cleared. If a returning visitor has an age or price range (or Free) set from earlier in the session, the 'More Filters' panel auto-expands so they can see those active values right away. The keyword search box matches any individual word typed (not the full phrase) against an activity's title, description, keywords, organizer name, or city, ignoring punctuation — hovering the search icon explains this behavior. The Help control on the filter bar explains AND/OR behavior, special buttons, and session retention. Saved Activities and Fav Organizers each further narrow results when combined with other filters, but Saved Activities, Fav Organizers, and My Filters are mutually exclusive — choosing one turns the others off. My Filters stays highlighted only while the current filter fields still match the applied saved preferences.",
+        overview:
+          "Homepage filters combine with AND logic (every selected filter must match). Keyword search is the exception: multiple words use OR across title, description, keywords, organizer name, and city. Filters persist for the browser session. Help on the filter bar explains this.",
         features: [
-          "Filter by: category, Free / price, age range, location/radius (up to 100 miles), date range",
-          "Sort by: date posted, activity date, or registration date",
-          "Session persistence: filters stay applied across the browser session",
-          "Auto-expand: 'More Filters' panel opens automatically if age, price, or Free is active from earlier in the session",
-          "Keyword search: matches any single word entered (OR logic), not the exact phrase, and ignores punctuation",
-          "Hover tooltip on the search icon explains the multi-word OR/punctuation-insensitive matching",
-          "Filter Help panel on the homepage explains how filters combine and what the special buttons do",
-          "Saved Activities / Fav Organizers each AND with other filters; those two plus My Filters are mutually exclusive",
-          "My Filters highlight clears if the user changes any applied preference field afterward"
+          "Category, free/price, ages, zip+radius, dates, sort",
+          "Session persistence; More Filters auto-expands when advanced values restored",
+          "Saved Activities / Fav Organizers / My Filters mutually exclusive",
         ],
-        technicalOverview: "EventFilters component manages filter state, persisted to sessionStorage and applied in Home.jsx.",
+        technicalOverview:
+          "EventFilters + Home.jsx sessionStorage (home_filters_session). Distance via Haversine. Cap ~200 results.",
         technicalFeatures: [
-          "Home.jsx persists the filters object (minus zipCode/radiusMiles, which use their own session keys) to sessionStorage under home_filters_session",
-          "A one-time effect checks restored ageMin/ageMax/priceMin/priceMax/freeOnly on mount; if any differ from defaults, sets expandFilters=true (passed to EventFilters as a controlled 'expanded' prop)",
-          "Age filtering: $gte/$lte on age_min/age_max fields",
-          "Location filtering: exact zip match, city string contains, or Haversine-based radius filtering against latitude/longitude",
-          "Date filtering compares start_date / end_date against the selected range",
-          "Sorting uses list('-field_name') for descending or 'field_name' for ascending",
-          "Results capped at 200 per query for performance",
-          "Search: Home.jsx strips punctuation from the search string, splits it into individual words, joins title/description/keywords/org_name/city into one lowercase string per activity, and keeps any activity where at least one word matches (OR, not AND)",
-          "EventFilters.jsx wraps the search icon in a Tooltip (Radix) explaining the OR/punctuation-insensitive logic; SavedFiltersTab.jsx (My Filters) explains matching in its intro copy",
-          "EventFilters.jsx tracks an applied My Filters snapshot and clears the applied highlight when preference fields diverge; toggling Saved Activities / Fav Organizers / My Filters turns the other two off"
-        ]
+          "Search strips punctuation and splits words (OR)",
+          "My Filters applied snapshot clears highlight when fields diverge",
+        ],
       },
       {
         id: "search-location",
         title: "Search & Location-Based Results",
-        overview: "The homepage can use the visitor's device location (with permission) to prioritize nearby activities, or users can manually enter a zip code to see what's happening in their area — including a manual zip override right in the homepage banner. If no location can be determined at all, a modal prompts the visitor for a zip code before they can use the rest of the site, since results are always local.",
+        overview:
+          "Signed-in users prefer profile zip + radius. Guests use geolocation or a required zip modal / banner override. The site is local-first — browsing without a zip is blocked when location cannot be resolved.",
         features: [
-          "Device location: used with permission to prioritize nearby activities",
-          "Manual zip entry: quick override in the homepage banner",
-          "Required zip prompt: shown if no location can be resolved by any method"
+          "Profile zip wins when signed in",
+          "Geolocation or manual zip for guests",
+          "ZipRequiredModal when nothing is available",
         ],
-        technicalOverview: "useGeoLocation hook wraps the browser geolocation API; Home.jsx merges profile zip, session zip, and geolocation with profile zip taking precedence.",
+        technicalOverview:
+          "session_zip_current, profile zip, useGeoLocation, ZipRequiredModal. Zippopotam for lat/lng.",
         technicalFeatures: [
-          "useGeoLocation wraps navigator.geolocation, returning coordinates when permission is granted",
-          "Home.jsx merges signed-in profile zip, session zip (sessionStorage session_zip_current), and geolocation — profile zip always takes precedence when authenticated",
-          "ZipRequiredModal blocks app usage and forces zip entry when no location can be resolved",
-          "Distance calculations use a Haversine formula (also used server-side in sendNotificationEmails)",
-          "Zip-to-coordinates lookups via the free zippopotam.us API"
-        ]
+          "Banner zip override for the session without permanently changing Profile until saved",
+        ],
       },
       {
         id: "comments",
         title: "Comments on Activities",
-        overview: "Users can leave comments on an activity's detail page, ask questions, or share experiences. Comments can be flagged by the community just like activities, and removed if they violate guidelines.",
+        overview:
+          "Signed-in users comment on Event Detail. Comments can be flagged and auto-archived at the same 3-flag threshold as activities.",
         features: [
-          "Comment threads on each activity's detail page",
-          "Community flagging with the same rules as activities",
-          "Auto-removal once flag threshold is reached"
+          "Thread on Event Detail",
+          "Flag with the same reason set as activities",
+          "Auto-hide at 3 distinct flaggers",
         ],
-        technicalOverview: "Comment entity stores each comment along with its own flag tracking, rendered by EventDetail.jsx.",
+        technicalOverview:
+          "comments table with flag_count / flagged_by / status. Shown in Admin → Flags with events and ads.",
         technicalFeatures: [
-          "Comment fields: event_id, content, author_name, flag_count, flagged_by (array), status (active/deleted/archived)",
-          "EventDetail.jsx renders the comment thread and submission form",
-          "Comments follow the same flagging/auto-archive rules as activities (see Flagging Self-Moderation System) and appear in the Admin Flags tab alongside flagged events"
-        ]
+          "status active | deleted | archived",
+        ],
       },
       {
         id: "liking-favoriting",
-        title: "Liking & Favoriting",
-        overview: "Users can save activities to view later (bookmarks) and favorite organizers to follow their updates. Saved activities appear in the user's My Account page.",
+        title: "Saved Activities & Favorite Organizers",
+        overview:
+          "Bookmark activities and favorite organizers. Both appear in My Account and power homepage filter buttons and digest Favorite Organizers matching.",
         features: [
-          "Save/bookmark activities for later",
-          "Favorite organizers to follow their future activities",
-          "Saved items appear in My Account"
+          "Save activity (bookmark)",
+          "Favorite organizer (follow)",
+          "Used by digests when Favorite Organizers is enabled",
         ],
-        technicalOverview: "SavedEvent and FavoriteOrganizer entities track per-user saves and follows.",
+        technicalOverview:
+          "saved_events and favorite_organizers tables. EventDetail / EventCard toggle UX with auth prompt when signed out.",
         technicalFeatures: [
-          "SavedEvent entity: event_id and created_by_id (user); each save increments Event.save_count for display on the card",
-          "FavoriteOrganizer entity: links organizer_id (User entity for organizer) and poster_user_id (follower)",
-          "Both entities are user-scoped — users only see their own saves/favorites",
-          "My Account queries SavedEvent.filter({ created_by_id: user.id }) to populate the saved list"
-        ]
+          "Digest uses favorite_organizers.poster_user_id vs event.created_by_id",
+        ],
       },
       {
         id: "invite-templates",
-        title: "Invite Templates (Community Member, Organizer, Supporter)",
-        overview: "Users can invite others to join the community using ready-made message templates, one for each audience: Community Member, Organizer, and Supporter. Each template page shows a preview of the invitation message and offers three ways to send it: copy the message to the clipboard, open it as a pre-filled email, or open it as a pre-filled text message. A row of three buttons — Invite a Community Member, Invite an Organizer, Invite a Supporter — appears on the Organizers, Supporters, and About pages, so visitors can invite the right kind of person from wherever they are. A 'Back' link at the top of each template returns to whichever page the visitor came from.",
+        title: "Invite Templates",
+        overview:
+          "Static invite pages for Community Member, Organizer, and Supporter with copy / email / SMS share. Buttons on Organizers, Supporters, and About highlight the page’s primary audience.",
         features: [
-          "Three dedicated invite template pages: Community Member, Organizer, Supporter",
-          "Each template offers Copy to Clipboard, Create Email, and Create Text options",
-          "Invite button row (Community Member / Organizer / Supporter) appears on Organizers, Supporters, and About pages",
-          "The button matching that page's primary audience is shown in the darker green; the other two are lighter green",
-          "Dynamic 'Back' link returns to the page the visitor came from rather than a fixed destination"
+          "Three invite routes with ready-made copy",
+          "Copy, mailto, and sms actions",
+          "Back uses browser history",
         ],
-        technicalOverview: "InviteCommunityMemberPage.jsx, InviteOrganizerPage.jsx, and InviteSupporterPage.jsx are static template pages using mailto: and sms: protocols; no entity storage is involved.",
+        technicalOverview:
+          "InviteCommunityMemberPage / InviteOrganizerPage / InviteSupporterPage — no DB writes.",
         technicalFeatures: [
           "Routes: /invite-community-member, /invite-organizer, /invite-supporter",
-          "Copy to Clipboard uses navigator.clipboard.writeText() with a confirmation toast",
-          "Create Email builds a mailto: link with encoded subject/body",
-          "Create Text builds an sms: link with an encoded body (no subject, per SMS protocol limits)",
-          "Back link uses navigate(-1) (React Router) to return to the actual previous page in browser history",
-          "Organizers.jsx, Supporters.jsx, and About.jsx each render the same three-button row, styling the button for that page's primary audience with bg-mint-500 and the other two with bg-mint-200"
-        ]
+        ],
       },
       {
         id: "organizer-directory",
         title: "Organizer Directory",
-        overview: "A public directory lets community members browse all registered Organizers, view their profile (logo, description, contact info), and follow/favorite them to keep track of their future activities.",
+        overview:
+          "Public list of registered organizers with profile details and favorite actions for signed-in users.",
         features: [
-          "Public directory of registered Organizers",
-          "Profile view: logo, description, contact info",
-          "Follow/favorite an organizer from the directory"
+          "Browse organizers",
+          "Org name, description, links, logo when set",
+          "Favorite from directory",
         ],
-        technicalOverview: "Organizers.jsx queries the Organizer entity and displays cards with profile details and follow actions.",
+        technicalOverview:
+          "Organizers.jsx reads organizers (+ related events proximity rules as implemented).",
         technicalFeatures: [
-          "Organizers.jsx queries the Organizer entity, displaying org_logo, org_name, org_description, and links to org_website/org_email",
-          "'Favorite' action writes to FavoriteOrganizer",
-          "Sample Organizer records can't be created directly as Users via the SDK — only real registrations populate this list"
-        ]
+          "Unique organizers.user_id",
+        ],
       },
       {
         id: "flagging-system",
-        title: "Flagging Self-Moderation System",
-        overview: "Any registered user can flag inappropriate or inaccurate content — activities, comments, or Supporter ads — using the same 4 reasons everywhere: Inaccurate, Inappropriate, Spam, or Other (choosing Other requires typing a short explanation). When something receives 3 flags from different users, it's automatically hidden (activities/comments) or marked flagged and pulled from rotation (ads), and queued for admin review.",
+        title: "Flagging & Admin Disposition",
+        keywords: ["flag", "3 flags", "manually_deactivated", "cascade"],
+        overview:
+          "Registered users flag activities, comments, or ads (Inaccurate, Inappropriate, Spam, Other with required details). At 3 distinct flaggers, content auto-hides (or ads go flagged). Admin Flags reviews dispositions and history.",
         features: [
-          "Unified reasons: Inaccurate, Inappropriate, Spam, Other (Other requires a written explanation)",
-          "Applies to: activities, comments, and Supporter ads",
-          "Always-visible button: greyed out with a tooltip for signed-out visitors, who are prompted to sign in/register on click",
-          "Auto-moderation threshold: 3 flags from different users triggers automatic hiding (activities/comments) or 'flagged' status (ads)"
+          "Same reasons everywhere; Other requires text",
+          "Threshold: 3 different users",
+          "Admin: Manually Deactivate, Reactivate, Reviewed, Clear Flag / flags cleared",
+          "Ad asset cascade: disabling a creative can affect all zip placements using it",
         ],
-        technicalOverview: "FlagReport entity stores every flag with its target type, reason, reporter, and optional admin_action disposition; each content entity tracks its own flag count.",
+        technicalOverview:
+          "flag_reports + admin_action_history arrays. Admin → Flags → Flagged Content / Users Flagging. Ad quarantine helpers in quarantineAdLibrary.js + RPCs.",
         technicalFeatures: [
-          "FlagReport fields: target_type (event/comment/ad), target_id, reason (inaccurate/inappropriate/spam/other), details (required client-side for 'other'), reporter_id, reporter_name, target_contributor_name, admin_action (manually_deactivated/flag_cleared/reviewed), reviewed",
-          "Event/Comment: flag_count and flagged_by track flags; status auto-sets to 'archived' at 3+ flags",
-          "BannerAd: same flag_count/flagged_by pattern; status auto-sets to 'flagged' at 3+ flags via SupporterAdCard",
-          "SupporterAdCard, and the activity/comment flag buttons in EventDetail.jsx, share the same always-visible, disabled-when-signed-out UI (AuthPromptModal on click)",
-          "Admin → Flags: one Flagged Content list (activities, comments, ads) with AdminPanelShell scroll, search, type filters, date+relative time, newest first; every disposition is appended to admin_action_history (Manually Deactivated / Reactivated / Flag Cleared / Reviewed) and shown on the card",
-          "Manually Deactivate confirms then hides content (events/comments → archived; ads → flagged) with Reactivate; Reactivate restores open highlight + action buttons; Reviewed clears highlight only; Clear Flag decrements target flag_count and removes reporter from flagged_by while keeping the report for My Flagged Content"
-        ]
-      }
-    ]
+          "Dispositions include manually_deactivated, reactivated, reviewed, flags_cleared / flag_cleared",
+          "Community 3-flag on ads can notify via notify-ad-asset-disabled (idempotent disable_notified_at)",
+          "Threshold filters in Admin: All / 3+ / 5+ / 10+",
+        ],
+      },
+    ],
   },
   {
     id: "advertising",
@@ -356,238 +401,307 @@ const categories = [
     sections: [
       {
         id: "advertising-overview",
-        title: "General Overview",
-        overview: "Supporters purchase ad slots in specific zip codes at $150/month or $1,260/year (30% discount). Ads appear in activity digest emails and on the homepage feed. Each zip code has a limited number of slots (default 3, configurable by admin), and each Supporter can only hold one slot per zip code. Ads go through automated AI moderation before going live.",
+        title: "Advertising Overview",
+        overview:
+          "Supporters buy zip slots ($150/mo or $1,260/yr ≈ 30% off). Ads show on the homepage feed and in weekly digests. Default 3 slots per zip (admin-configurable). One slot per Supporter per zip. Creatives go through automated review.",
         features: [
-          "Pricing: $150/month or $1,260/year (30% discount)",
-          "Placement: activity digest emails and homepage feed",
-          "Slot limits: default 3 per zip code, admin-configurable",
-          "One slot per Supporter per zip code",
-          "AI moderation before ads go live"
+          "Monthly / annual pricing",
+          "Homepage + digest placement",
+          "Configurable slots; one per Supporter per zip",
+          "AI + URL review on Ad Assets",
         ],
-        technicalOverview: "AdZipConfig, BannerAd, AdPricingConfig, and moderateAdContent together manage slot capacity, ad records, pricing, and content review.",
+        technicalOverview:
+          "ad_zip_config, banner_ads, ad_library, ad pricing tables. Checkout /api/create-ad-checkout. Review /api/creative-review.",
         technicalFeatures: [
-          "AdZipConfig entity: max_slots per zip_code (default 3, admin-editable overrides)",
-          "BannerAd entity status workflow: pending_payment → pending_review → active (or rejected)",
-          "createAdCheckout validates zip slot capacity and the one-slot-per-Supporter-per-zip rule before creating a Stripe session",
-          "AdPricingConfig entity: monthly_rate, annual_discount_percent; AdPricingHistory tracks rate changes over time",
-          "/api/creative-review: OpenAI vision + URL safety; approve/decline Ad Assets on submit (manual review only if the user requests it)"
-        ]
+          "Statuses: pending_payment, pending_review, active, past_due, rejected, expired, cancelled, flagged, …",
+          "Filler ads fill empty slots (admin_default_ads)",
+        ],
       },
       {
         id: "ad-library",
-        title: "Ad Library & Asset Management",
-        overview: "Supporters build a reusable library of approved ad creatives (images + links). When buying or renewing a zip code slot, they pick from their library instead of re-uploading and re-approving artwork every time. New or edited assets go through review before they can be used. Assets currently in use by a live ad campaign can't be deleted, and flagged assets can't be selected for a new ad until the associated issue is resolved.",
+        title: "Ad Library & Asset Cascade",
+        overview:
+          "Reusable approved creatives (image + link). In-use assets cannot be deleted. Flagging/disabling an asset can cascade across zip placements; Supporters are notified and can assign a different approved creative.",
         features: [
-          "Reusable library of approved ad creatives (image + link pairs)",
-          "Pick from library during checkout/renewal instead of re-uploading",
-          "New/edited assets go through review before use",
-          "Deletion blocked for assets in use by a live campaign",
-          "Flagged assets can't be selected until the issue is resolved"
+          "Library reuse at checkout/renewal",
+          "Cannot delete assets used by live placements",
+          "Cascade disable across matching placements",
+          "What next messaging points Supporter to Ad Manager",
         ],
-        technicalOverview: "AdLibrary entity stores reusable creatives; AdLibraryManager component handles listing, selection, and moderation-aware restrictions.",
+        technicalOverview:
+          "ad_library + banner_ads.ad_library_id. quarantineAdLibrary.js / disable RPCs. Admin Ads + Flags.",
         technicalFeatures: [
-          "AdLibrary fields: user_id, ad_name, image_url, link_url, moderation_status (pending/approved/declined/manual_review/manual_review_declined), moderation_notes",
-          "AdLibraryManager: in 'selector mode' (passed an onSelectAsset callback), hides add/delete/edit/resubmit actions and decline notes",
-          "Deletion blocked client-side when an asset's image_url/link_url matches any live BannerAd",
-          "Selector mode blocks choosing an asset while its associated ad is flagged/unresolved",
-          "updateAdCreative backend function swaps a live BannerAd's creative to a chosen approved library asset, and reactivates ads flagged/rejected/paused for a content reason",
-          "AdLibraryManualRequest entity queues declined assets for human review when a Supporter contests an automated decline; ManualReviewPanel is the admin-side queue"
-        ]
+          "moderation_status on assets; ManualReviewPanel for manual_review queue",
+          "notifyAdCreativeDisabledAdmin / email paths for admin vs community cascade",
+        ],
       },
       {
         id: "advertising-discounts",
         title: "Discount Codes",
-        overview: "Admins can create discount codes with percentage discounts (e.g., 20% off) applicable to monthly or annual plans. Codes can have expiration dates, maximum uses, per-user limits, and can optionally be restricted to one specific person's email (a personal code). During checkout, the ad plan step previews the discount by showing the original price struck through next to the new discounted price. Discount usage is tracked with detailed logs.",
+        overview:
+          "Admin percentage codes for monthly/annual/both, with expiry, max uses, per-user limits, and optional single-email restriction. Checkout shows struck-through original price.",
         features: [
-          "Percentage-based discount codes for monthly or annual plans",
-          "Optional limits: expiration date, max uses, per-user limit",
-          "Optional personal-code restriction to a single email",
-          "Live price preview: original price struck through next to the discounted price",
-          "Detailed usage logs"
+          "Percent off with plan targeting",
+          "Usage limits and personal codes",
+          "Live discount preview at plan step",
         ],
-        technicalOverview: "DiscountCode entity stores rules and usage history; createAdCheckout validates and applies codes at checkout.",
+        technicalOverview:
+          "discount_codes validated in create-ad-checkout; usage stamped on banner_ads.",
         technicalFeatures: [
-          "DiscountCode fields: code, discount_percent, plan_type (monthly/annual/both), renewals_applicable, expires_date, max_uses, max_uses_per_user, restricted_email, times_used, used_by_user_ids (array), used_by_records (array with user_id, user_name, ad_name, zip_code, used_date)",
-          "createAdCheckout validates expiration, plan compatibility, prior usage, global max uses, and restricted_email match when set",
-          "Applies the discount to the Stripe session and stamps discount_code_used/discount_amount on the resulting BannerAd",
-          "The Ad Plan step computes and displays the pre/post-discount price live as codes are entered"
-        ]
+          "DiscountCodesPanel in Admin → Ads → Discounts",
+        ],
       },
       {
         id: "advertising-rules",
         title: "Rules & Terms",
-        overview: "Supporter ads must meet community standards: no adult content, no personal solicitation, no misleading claims, appropriate for families. Ads are reviewed before going live. Supporters agree to Terms of Service during checkout. Ads can be flagged by users and removed if they violate policies.",
+        overview:
+          "Family-appropriate standards; TOS agreement at checkout; community flagging can pull ads from rotation.",
         features: [
-          "Content standards: no adult content, no personal solicitation, no misleading claims, family-appropriate",
-          "Pre-launch review required",
-          "Terms of Service agreement required at checkout",
-          "Community flagging can lead to removal"
+          "TOS on Advertiser Terms + checkout agreement fields",
+          "3-flag auto flagged status",
+          "Clear unavailable messaging in Ad Manager",
         ],
-        technicalOverview: "Terms are documented in-app and enforced via TOS agreement fields and flag-triggered status changes on BannerAd.",
+        technicalOverview:
+          "AdvertiserTerms.jsx; banner_ads.tos_agreed / tos_agreed_date.",
         technicalFeatures: [
-          "Supporter TOS embedded in AdManager.jsx (Rules & Terms tab, 13 sections) and as a standalone page at AdvertiserTerms.jsx",
-          "BannerAd.tos_agreed (boolean) and tos_agreed_date stored on submission",
-          "Flagged ads increment flag_count; at 3+ flags, status auto-sets to 'flagged' and the ad is hidden pending admin review",
-          "A clear 'Flagged — Unavailable' notice is shown to the Supporter in Ad Manager"
-        ]
+          "InactiveAdCard explains past_due / flagged / admin disabled states",
+        ],
       },
       {
         id: "advertising-moderation",
-        title: "Automated Review & Approval",
-        overview: "When a Supporter submits an ad, it's automatically reviewed by AI for policy compliance. Most ads are auto-approved within seconds. Ads that need human review are held in 'Pending Review' status until admin manually approves or rejects them. Any admin action that changes an ad's status (approve, reject, pause, flag) always emails the Supporter, and deactivation/flagging requires the admin to provide an explanation.",
+        title: "Ad Creative Review",
+        overview:
+          "On submit, URL checks + OpenAI vision usually approve or decline instantly. Uncertain or contested cases go to Admin → Reviews → Advertising Manual Review. Status changes that hurt the Supporter require an explanation and notify them.",
         features: [
-          "Automatic AI review on submission, most ads auto-approved within seconds",
-          "'Pending Review' status for ads needing human judgment",
-          "Admin actions (approve/reject/pause/flag) always email the Supporter",
-          "Deactivation/flagging requires an admin-provided explanation"
+          "Automated URL + image review",
+          "Manual review queue",
+          "Required admin reason on damaging actions",
         ],
-        technicalOverview: "/api/creative-review runs URL safety + OpenAI image vision on Ad Asset submit; ManualReviewPanel handles human decisions after a manual-review request.",
+        technicalOverview:
+          "/api/creative-review; ManualReviewPanel; AdminAdsPanel.",
         technicalFeatures: [
-          "/api/creative-review: URL checks first, then gpt-4o-mini vision on the creative image",
-          "Returns { status: 'approved' | 'declined', reason }; Admin queue only for moderation_status = manual_review",
-          "Without OPENAI_API_KEY, URL checks still run and images fail open to approved (community flagging remains the safety net)",
-          "AdminAdsPanel / ManualReviewPanel enforce an admin-provided explanation on status changes and notify the Supporter"
-        ]
+          "Fail-open image approve if OPENAI_API_KEY missing (URL checks still run)",
+        ],
       },
       {
         id: "zip-reservation",
-        title: "Zip Code Reservation & Checkout Flow",
-        overview: "While a Supporter is choosing a zip code and completing checkout, that slot is temporarily held for them (a 10-minute countdown) so two people can't accidentally buy the same spot. If they don't finish in time, the hold is released.",
+        title: "Zip Reservation & Checkout",
+        overview:
+          "Choosing a zip holds the slot for 10 minutes during checkout so two Supporters cannot buy the same slot. Countdown shows in the flow; hold releases if abandoned.",
         features: [
-          "Temporary 10-minute hold on a chosen zip code during checkout",
-          "Live countdown shown throughout the checkout flow",
-          "Hold released automatically if checkout isn't completed in time"
+          "10-minute reservation",
+          "Live countdown",
+          "Completes on successful Stripe checkout",
         ],
-        technicalOverview: "ZipCodeReservation entity backs a client-side countdown across the checkout steps in AdManager.jsx.",
+        technicalOverview:
+          "Zip reservation records + AdManager checkout steps.",
         technicalFeatures: [
-          "ZipCodeReservation fields: user_id, zip_code, expires_at, status (active/completed/expired)",
-          "Created when a user confirms a zip in the New Ad form (RESERVATION_MINUTES = 10)",
-          "CountdownBanner displays the live countdown across the Creative/Plan/Review steps",
-          "On successful Stripe checkout, the reservation is marked 'completed'; otherwise it expires client-side and the user must restart the zip check"
-        ]
+          "RESERVATION_MINUTES = 10",
+        ],
       },
       {
         id: "advertising-waitlist",
-        title: "Waitlist",
-        overview: "When a zip code's ad slots are full, Supporters can join a waitlist. When a slot opens (ad expires or cancels), the first person on the waitlist is notified via email and given time to claim it. If they decline or don't respond, the offer goes to the next person.",
+        title: "Ad Waitlist",
+        overview:
+          "When a zip is full, Supporters join a waitlist. When a slot opens, the next person gets an offer (email + in-app) with a 24-hour window. Up to 3 offer attempts; then the queue moves on. Cron checks about every 30 minutes.",
         features: [
-          "Join a waitlist when a zip code is full",
-          "First-in-line notification by email when a slot opens",
-          "Time-limited offer window to claim the slot",
-          "Offer rolls to the next person if declined or unanswered"
+          "FIFO-style queue per zip",
+          "24-hour offer window",
+          "Max 3 offer attempts",
+          "Admin can override / re-offer",
         ],
-        technicalOverview: "AdWaitlist entity tracks queue position and offer status; processWaitlist runs daily to manage offers.",
+        technicalOverview:
+          "ad_waitlist + /api/cron-process-waitlist (*/30) + processWaitlistCore. Manual /api/offer-waitlist-spot and expire helpers.",
         technicalFeatures: [
-          "AdWaitlist fields: user_id, business_name, email, zip_code, plan_type, position, status (waiting/offered/accepted/expired/declined/cancelled), offer_sent_date, offer_expires_date, offer_count",
-          "processWaitlist backend function runs daily: checks for expired/cancelled ads, finds the next waitlisted user per zip, sets status='offered' with an expiry window, and sends an email",
-          "If the user doesn't accept in time, status auto-sets to 'expired' and the offer rolls to the next position",
-          "Admin can override queue order, reset offer counts, and re-add cancelled entries via AdminWaitlistPanel"
-        ]
+          "Statuses: waiting, offered, accepted, expired, declined, cancelled",
+          "AdminWaitlistPanel under Ads → Waitlist",
+        ],
       },
       {
         id: "advertising-payments",
-        title: "Payment Processing & Renewal",
-        overview: "Payments are processed through Stripe. Supporters can pay monthly or annually. Subscriptions auto-renew unless cancelled. Payment failures put ads in 'Past Due' status with a 7-day grace period before suspension. Starting 14 days before a renewal date, Supporters see a cancellation warning banner on their ad, and the app explains exactly what happens if they choose not to renew: cancel immediately, or run until the end of the current paid term, depending on how close the renewal date is.",
+        title: "Payments, Grace Period & Cancellation",
+        overview:
+          "Stripe Checkout + subscriptions. Failed renewal → Past Due with a 7-day grace period, then cleanup. From 14 days before renewal, Ad Manager shows cancel-outcome messaging. ~21 days before renewal, in-app renewal reminders can fire.",
         features: [
-          "Payment via Stripe: monthly or annual billing",
-          "Auto-renewal unless cancelled",
-          "Failed payments: 'Past Due' status with a 7-day grace period before suspension",
-          "14-day renewal warning banner with clear cancellation-outcome messaging",
-          "All transactions tracked in the system"
+          "Stripe monthly/annual",
+          "7-day grace on payment failure",
+          "14-day cancel warning UI",
+          "21-day renewal-soon notices (in-app)",
         ],
-        technicalOverview: "createAdCheckout and stripeAdWebhook manage the Stripe subscription lifecycle; adGracePeriodCleanup and cancelAdRenewal handle grace periods and non-renewal.",
+        technicalOverview:
+          "api/stripe-webhook.js; cancel-ad-renewal; cron-grace-period-cleanup; cron-renewal-reminders; adBillingNotices.js.",
         technicalFeatures: [
-          "createAdCheckout creates a Stripe Checkout Session with metadata (base44_app_id, user_id, zip_code, plan_type, discount_code)",
-          "stripeAdWebhook handles checkout.session.completed (creates/updates BannerAd with stripe_subscription_id, plan_start_date, plan_end_date, next_renewal_date, rate_at_purchase), invoice.paid (renewals), payment_intent.payment_failed (sets status='past_due', starts grace_period_start), and customer.subscription.updated (auto_renew changes)",
-          "AdCard components render a 14-day renewal cancellation warning banner once next_renewal_date is within that window",
-          "cancelAdRenewal uses Stripe's cancel_at_period_end and returns whether the ad terminates immediately or continues to the end of the current term based on the 14-day window",
-          "adGracePeriodCleanup runs daily to remove ads past the 7-day grace period"
-        ]
+          "invoice.payment_failed → notifyPaymentFailed (message + email)",
+          "invoice.payment_succeeded → renew notices / plan switches as applicable",
+        ],
       },
       {
         id: "advertising-plan-changes",
-        title: "Plan Upgrades & Downgrades (Monthly ↔ Annual)",
-        overview: "A monthly Supporter can request to switch to the annual plan (locking in the discounted annual rate), and an annual Supporter can request to switch back to monthly. The change doesn't happen immediately — it takes effect at the Supporter's next renewal date, and the rate is locked in 21 days ahead of that renewal so there's no surprise about what will be charged.",
+        title: "Plan Upgrades & Downgrades",
+        overview:
+          "Monthly ↔ annual switches are requested in Ad Manager, take effect at next renewal, and lock the new rate ~21 days before renewal.",
         features: [
-          "Monthly → Annual upgrade request, locking in the discounted annual rate",
-          "Annual → Monthly downgrade request",
-          "Change takes effect at the next renewal date, not immediately",
-          "Rate locked in 21 days ahead of renewal for predictability"
+          "Pending upgrade/downgrade flags",
+          "Effect at renewal, not immediately",
+          "21-day rate lock-in",
+          "Cancel pending change supported",
         ],
-        technicalOverview: "BannerAd stores pending-change flags and locked rates; requestAdPlanUpgrade and processAdPlanUpgrades manage the request and scheduled switch.",
+        technicalOverview:
+          "/api/request-ad-plan-change + /api/cron-process-ad-plan-changes (LOCK_IN_DAYS = 21).",
         technicalFeatures: [
-          "BannerAd fields: upgrade_to_annual_pending / downgrade_to_monthly_pending, upgrade_requested_date / downgrade_requested_date, upgrade_locked_annual_rate / downgrade_locked_monthly_rate",
-          "requestAdPlanUpgrade sets the pending flag and requested date when a Supporter opts in from Ad Manager",
-          "processAdPlanUpgrades runs on a schedule, locks in the target plan's rate for BannerAds within 21 days of next_renewal_date",
-          "At actual renewal (via the stripeAdWebhook invoice.paid handler), the plan_type switch applies, the Stripe subscription price updates, and pending fields clear"
-        ]
+          "Pending fields on banner_ads; Stripe price update at renewal",
+        ],
       },
       {
         id: "advertising-default-ads",
-        title: "Default/Filler Ads",
-        overview: "When a zip code has empty ad slots, default/filler ads are displayed instead. These are generic ads managed by admin, often promoting the site itself or community partners. They ensure ad space is never blank.",
+        title: "Default / Filler Ads",
+        overview:
+          "Empty zip slots show admin-managed filler creatives so the feed and digests are never blank.",
         features: [
-          "Filler ads shown in empty zip-code slots",
-          "Managed entirely by admin",
-          "Often promotes the site or community partners",
-          "No impressions/clicks tracked, no charges incurred"
+          "Admin assigns fillers to slots 1–3",
+          "No billing / impression charges",
+          "Used on homepage and digests",
         ],
-        technicalOverview: "AdminDefaultAd entity stores filler ad content and slot assignment; the feed and email digests fall back to these when no paid ads exist for a zip.",
+        technicalOverview:
+          "admin_default_ads + pickDefaultFillerAds (client and digest core).",
         technicalFeatures: [
-          "AdminDefaultAd fields: ad_name, image_url, link_url, priority, is_slot_1/is_slot_2/is_slot_3, status (active/inactive)",
-          "AdminDefaultAdsPanel lets admins upload images, set links, and assign to specific slots (reassigning a slot auto-unassigns the previous holder)",
-          "In digest emails and the homepage feed, if no active BannerAds exist for a zip code, the system falls back to AdminDefaultAds filtered by is_slot_X flags",
-          "Default ads don't track impressions/clicks or incur charges"
-        ]
-      }
-    ]
+          "Admin → Ads → Default/Filler",
+        ],
+      },
+    ],
   },
   {
     id: "emails",
-    label: "Emails",
+    label: "Emails & Digests",
     sections: [
       {
         id: "email-notifications",
-        title: "Activity Notifications",
-        overview: "Users can opt in to a weekly email digest of activities matching their interests. Default is Off. Users set preferences for zip, keywords, age ranges, and favorite organizers. Emails include curated activity cards and Supporter ads. Digests only send when there is matching content.",
+        title: "Weekly Activity Digests",
+        keywords: ["monday", "resend", "digest"],
+        overview:
+          "Opt-in weekly emails of matching activities for Community Members. Cron runs daily at 8:00am Pacific but only sends on Mondays. Default preference is Off. Emails include up to 8 activity cards plus supporter/filler ads for the user’s zip.",
         features: [
-          "Opt-in digest emails matching user interests",
-          "Frequency options: Off (default) or Weekly (Mondays at 8am PT)",
-          "Preferences: zip, keywords, age range, favorite organizers",
-          "Includes curated activity cards and Supporter ads",
-          "Admin → Mass Messages → Digest Notification can pause all weekly digests",
-          "Auto-off for inactive / disabled accounts; bounce & unsubscribe suppression"
+          "Weekly only (no daily/monthly)",
+          "Monday ~8am PT",
+          "Skip when zero matching activities",
+          "Skips organizers and admins as digest recipients",
+          "Manage Preferences + unsubscribe link in footer",
         ],
-        technicalOverview: "cron-send-notification-emails runs daily at 8am PT and only sends on Mondays. Safeguards: EMAIL_SENDING_ENABLED env kill switch, email_config.digests_paused Admin switch, skip disabled/inactive/suppressed, last_digest_sent_at same-week guard, max_sends_per_run, List-Unsubscribe + /api/unsubscribe-digest, Resend bounce/complaint webhook → email_suppressions.",
+        technicalOverview:
+          "vercel.json cron → /api/cron-send-notification-emails → sendMatchingDigests. HTML from buildDigestHtml. Send via sendViaResend.",
         technicalFeatures: [
-          "Runs daily at 8am PT; sends weekly digests only on Mondays",
-          "Loads notification_preferences where frequency = weekly",
-          "Filters events by zip, age, keywords, and favorite organizers; skips empty matches",
-          "Builds HTML digest cards and sends via Resend",
-          "Admin → Email previews the Activity Digest (Weekly) template with sample data",
-          "Admin → Mass Messages → Digest Notification for pause + limits"
-        ]
+          "frequenciesForToday() returns ['weekly'] only on Monday America/Los_Angeles",
+          "Prefs frequency must be weekly; include_fav_organizers / include_other_activities drive matching",
+          "Admin template preview: Previews → Emails (activity_digest)",
+        ],
+      },
+      {
+        id: "email-digest-safeguards",
+        title: "Email Digest Safeguards & Cost Controls",
+        keywords: [
+          "EMAIL_SENDING_ENABLED",
+          "pause",
+          "inactivity",
+          "suppression",
+          "unsubscribe",
+          "bounce",
+          "kill switch",
+        ],
+        overview:
+          "Digests are expensive if they go to abandoned or bad addresses. Safeguards: opt-in default Off; empty-week skip; hard-skip disabled; inactivity auto-off; Admin pause; env kill switch for all Resend mail; per-run cap; same-week send stamp; bounce/complaint suppressions; one-click unsubscribe.",
+        features: [
+          "Admin → Mass Messages → Digest Notification: Pause weekly digests (digests only; billing/waitlist still send)",
+          "Env EMAIL_SENDING_ENABLED=false: stops ALL Resend sends (emergency)",
+          "Inactivity: no sign-in within configured days (default 90) → Weekly forced Off",
+          "Max digests per Monday run (default 200); last_digest_sent_at blocks same-week retries",
+          "email_suppressions for bounce / complaint / unsubscribe / manual",
+          "List-Unsubscribe headers + /unsubscribe page (no login required)",
+          "Disabled accounts: digests Off on disable AND hard-skipped in the cron",
+        ],
+        technicalOverview:
+          "email_config, email_suppressions, profiles.last_seen_at (touched ≤ hourly in AuthContext). emailGuards.js + sendNotificationDigestsCore.js. Webhook /api/resend-webhook. Unsubscribe /api/unsubscribe-digest.",
+        technicalFeatures: [
+          "digests_paused, inactivity_days (14–365), max_sends_per_run (1–5000)",
+          "RESEND_WEBHOOK_SECRET verifies Svix signatures when set; test via send to bounced@resend.dev / complained@resend.dev",
+          "UNSUBSCRIBE_SECRET optional; falls back to CRON_SECRET for HMAC tokens",
+          "Account Email Notifications → More… documents auto-off for users; FAQs updated similarly",
+        ],
       },
       {
         id: "email-supporter",
-        title: "Supporter Follow-Up",
-        overview: "Supporters receive automated emails for subscription renewals (21 days before), successful renewals, payment failures, waitlist spot availability, plan upgrade/downgrade confirmations, and any manual status change an admin makes (approve, reject, pause, flag) with the reason included. All advertiser-facing emails are branded consistently and include clear calls to action.",
+        title: "Supporter & Transactional Emails",
+        overview:
+          "Not all notices are digests. Waitlist offers and payment-failed notices use email (+ often in-app). Many billing/plan/creative notices are in-app only to control cost. Admin Previews lists each template and channel.",
         features: [
-          "Renewal reminder: 21 days before renewal",
-          "Renewal confirmation and payment failure notices",
-          "Waitlist spot availability notice",
-          "Plan upgrade/downgrade confirmation",
-          "Admin status-change notice (approve/reject/pause/flag) with reason included"
+          "Waitlist offer: email + message",
+          "Payment failed: email + message",
+          "Renewal soon / renewed / plan change: typically in-app",
+          "Ad creative disabled / declined: notify Supporter (email and/or message per path)",
         ],
-        technicalOverview: "A set of email templates covers each Supporter lifecycle event, all sent via Core.SendEmail and previewable in the admin Email tab.",
+        technicalOverview:
+          "adBillingNotices.js, waitlist email helpers, quarantine notify routes, /api/send-email for Admin tester (sends to the signed-in admin).",
         technicalFeatures: [
-          "Templates (live): subscription_renewing_soon — in-app Message only via daily cron (~21 days before next_renewal_date); subscription_renewed — in-app Message only via invoice.payment_succeeded webhook; subscription_payment_failed — Message + Email via invoice.payment_failed (7-day grace); plan_upgrade_confirmed / plan_downgrade_confirmed — in-app Message only when pending switch locks in (~21 days before renewal); waitlist_spot_available — Message + Email via processWaitlist; ad placement/creative notices from Admin Ads / Manual Review as tagged in Previews",
-          "All sent via Core.SendEmail",
-          "Admin can preview every template with realistic sample data in the Email tab's Site Emails Tester (toggle sample data on/off)"
-        ]
-      }
-    ]
+          "Transactional mail still respects EMAIL_SENDING_ENABLED",
+          "Admin digest pause does NOT block transactional Resend mail",
+        ],
+      },
+    ],
+  },
+  {
+    id: "messaging",
+    label: "Mass & System Messaging",
+    sections: [
+      {
+        id: "mass-messages",
+        title: "Mass Messages",
+        overview:
+          "Admins compose one-way site messages to audiences (All, Community Members, Organizers, Advertisers — multi-select) and optional zip filters. Optional action button (label + in-app path). Archive lists past sends; Retract removes inbox copies and the archive row.",
+        features: [
+          "Audience chips + zip all/custom",
+          "Optional CTA from approved in-app paths",
+          "Archive + retract",
+          "Does not email — inbox only",
+        ],
+        technicalOverview:
+          "Admin → Mass Messages → Compose / Archive. send_mass_message / retract_mass_message RPCs. AdminMassMessagesPanel.jsx.",
+        technicalFeatures: [
+          "Audience excludes disabled users in SQL",
+          "messageActionPages.js whitelist for action hrefs",
+        ],
+      },
+      {
+        id: "digest-admin-controls",
+        title: "Digest Notification Controls",
+        overview:
+          "Same Mass Messages area hosts Digest Notification: pause switch, inactivity days, max sends per run, and counts of Weekly users vs suppressed addresses.",
+        features: [
+          "Pause weekly digests without redeploying",
+          "Tune inactivity days and send cap",
+          "See opted-in and suppressed counts",
+        ],
+        technicalOverview:
+          "AdminDigestPanel reads/writes email_config; notes env kill switch for operators.",
+        technicalFeatures: [
+          "Section id mass-digest under Mass Messages sub-nav",
+        ],
+      },
+      {
+        id: "automated-notices",
+        title: "Automated In-App Notices",
+        overview:
+          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, flags). Previewed under Admin → Previews → Automated Messages without sending.",
+        features: [
+          "Catalog-driven copy",
+          "Preview with sample data",
+          "Triggered by DB events, webhooks, or Admin actions",
+        ],
+        technicalOverview:
+          "userMessagesCatalog.js + insert helpers. PreviewsPanels.jsx.",
+        technicalFeatures: [
+          "Welcome trigger on new profiles migration",
+        ],
+      },
+    ],
   },
   {
     id: "support",
@@ -595,58 +709,52 @@ const categories = [
     sections: [
       {
         id: "contact-us",
-        title: "Contact Us & Support Messages",
-        overview: "Anyone — registered or not — can send a message to the site through the Contact Us page, choosing a topic (technical issue, suggestion, activity question, general question). Admin reviews and resolves these in the Contact Us tab.",
+        title: "Contact Us",
+        overview:
+          "Anyone can submit Contact Us (topic + message). Admin reviews in Contact Us tab by subject boxes. Messages soft-delete to a Deleted section and can be restored; they are not hard-deleted from the DB by that UI.",
         features: [
-          "Open to all visitors, registered or not",
-          "Topic categories: technical issue, suggestion, activity question, general question",
-          "Reviewed and resolved by admin in the Contact Us tab"
+          "Topics: technical, suggestions, activity questions, general",
+          "Admin: unread / resolved / deleted",
+          "Soft-delete with restore",
         ],
-        technicalOverview: "ContactMessage entity stores each submission; ContactUs.jsx handles the form, and Admin's Contact Us tab manages the queue.",
+        technicalOverview:
+          "contact_messages with deleted_at. ContactUs.jsx + Admin Contact sections. Honeypot / timing on the form.",
         technicalFeatures: [
-          "ContactMessage fields: sender_name, sender_email, sender_phone, subject (enum of topic categories), message, status (unread/read/resolved)",
-          "ContactUs.jsx auto-fills sender fields for logged-in users but allows public/anonymous submission",
-          "Admin's Contact Us tab lists, marks read/resolved, and deletes messages"
-        ]
+          "No Resend email on submit — Admin reviews in-app",
+        ],
       },
       {
         id: "bot-protection",
-        title: "Bot Protection (Contact Us & Registration)",
-        overview: "The Contact Us form and the Registration flow are the two places on the site anyone can submit without already being a trusted, signed-in user, so they're the most exposed to automated bot spam. Both are protected with two invisible checks that don't affect real visitors at all: a 'honeypot' field that only bots fill in, and a minimum-time check that blocks submissions completed faster than a human could realistically type. If either check trips, the submission is silently blocked — the bot sees no error message or hint that it was detected.",
+        title: "Bot Protection",
+        overview:
+          "Contact and Register use honeypot fields and minimum fill times to reduce spam submissions.",
         features: [
-          "Applies to: Contact Us form and account Registration",
-          "Honeypot field: an invisible field real visitors never see or fill; bots that auto-fill every field get caught",
-          "Time-trap: submissions completed faster than a human could type are blocked",
-          "Silent blocking: no error or hint is shown to the bot, so it can't easily adapt",
-          "No impact on real visitors — both checks run invisibly in the background"
+          "Honeypot fields",
+          "Minimum time on form before submit (~2s Contact / ~3s Register)",
         ],
-        technicalOverview: "ContactUs.jsx and Register.jsx each track a hidden form field and a load timestamp, checked just before the real submission (ContactMessage.create or base44.auth.register) fires.",
+        technicalOverview:
+          "Client-side checks before insert/signUp.",
         technicalFeatures: [
-          "Honeypot: a visually hidden input (absolute positioning off-screen, tabIndex=-1, autoComplete='off') included in the form; any non-empty value marks the submission as a bot",
-          "Time-trap: formLoadTime captured via useState(() => Date.now()) on mount; submission is blocked if Date.now() - formLoadTime is under the threshold (2s on Contact Us, 3s on Registration, matching each form's realistic minimum fill time)",
-          "ContactUs.jsx: if either check trips, handleSubmit sets submitted=true without calling ContactMessage.create, so the bot sees the normal 'Message Sent!' confirmation",
-          "Register.jsx: if either check trips in handleStep2, a generic error is shown and base44.auth.register() (which would trigger an OTP email) is never called",
-          "No new entity fields or backend functions were needed — both checks are purely client-side gating before the existing write/auth calls"
-        ]
+          "Not a CAPTCHA; keeps UX light for real users",
+        ],
       },
       {
         id: "tips-pages",
-        title: "Tips & Resource Pages",
-        overview: "Dedicated pages give each audience — Community Members, Organizers, and Supporters — tips on getting the most out of the site (e.g., how to find great activities, how to post an effective listing, how to make an ad perform well).",
+        title: "Tips Pages & FAQs",
+        overview:
+          "Public tips for Community Members, Organizers, and Supporters. FAQs are admin-managed and shown on About. Digest-related FAQ copy explains weekly-only and inactivity auto-off.",
         features: [
-          "Tips for Community Members",
-          "Tips for Organizers",
-          "Tips for Supporters",
-          "Searchable FAQ and Community Rules also live on the About page"
+          "Tips routes per audience",
+          "FAQ manager in Admin",
+          "Public FAQ search/filter on About",
         ],
-        technicalOverview: "Static content pages per audience, plus a searchable FAQ hosted on the About page.",
+        technicalOverview:
+          "faqs table; FAQManager; Tips* pages.",
         technicalFeatures: [
-          "Static pages: TipsCommunityMembers.jsx, TipsOrganizers.jsx, TipsSupporters.jsx, linked from navigation/footer based on relevance",
-          "About.jsx hosts the searchable FAQ (FAQ entity: question, answer, category, sort_order, status) and the Community Rules section",
-          "PostEvent.jsx links to the Community Rules via its mandatory agreement checkbox, shown to all visitors"
-        ]
-      }
-    ]
+          "Migrations update FAQ answers when product rules change",
+        ],
+      },
+    ],
   },
   {
     id: "admin-tools",
@@ -654,65 +762,173 @@ const categories = [
     sections: [
       {
         id: "admin-dashboard",
-        title: "Admin Dashboard Overview",
-        overview: "The Admin panel provides centralized management for all site content: activities (including photo review), users, ads (including rates, discounts, filler ads, waitlist), flags, messages, FAQs, email testing, beta rollout, and this manual. Admins can view stats, moderate content, manage ad inventory, send test emails, and review system health. Every tab follows a consistent visual style, with a titled header and content grouped in clean white bordered panels.",
+        title: "Admin Dashboard Map",
+        overview:
+          "Admin is a tabbed operator console. Many tabs have a sub-nav for sections. Access requires profiles.role = admin.",
         features: [
-          "Activities: list/edit/delete plus photo review queue",
-          "Ads: rates, discounts, filler ads, waitlist, and moderation queue",
-          "Flags: flagged content, disabled items, flagging users, archived items",
-          "Users: role management, disable/reactivate, Supporter grants, zip reports",
-          "Disable User: always turns off digests and blocks sign-in; Supporters also get ads cancelled (slots released), Stripe non-renew, and waitlist cleared",
-          "Messages, FAQs, Email testing, Beta rollout, and this Manual"
+          "Activities — list/edit/remove activities",
+          "Ads — supporter ads, zip config, waitlist, rates, discounts, fillers",
+          "Beta — stage gates / zip whitelist",
+          "Contact Us — inbound messages",
+          "FAQs — manage public FAQ entries",
+          "Flags — flagged content + users flagging",
+          "Manual — this document",
+          "Mass Messages — compose, archive, digest controls",
+          "Previews — emails, automated messages, site notices",
+          "Reviews — activity photos + ad creatives needing humans",
+          "Users — zip reports, user list, reactivation requests",
         ],
-        technicalOverview: "Admin.jsx is the main dashboard with a tabbed interface, sharing consistent components across tabs.",
+        technicalOverview:
+          "Admin.jsx tabs + AdminSubNav section arrays (ADS_SECTIONS, FLAGS_SECTIONS, USER_SECTIONS, PREVIEW_SECTIONS, REVIEW_SECTIONS, MASS_MESSAGE_SECTIONS, …).",
         technicalFeatures: [
-          "Tabs: Activities (event list/edit/delete + AdminActivityPhotoReviewPanel), Ads (ManualReviewPanel, AdminAdsPanel, AdminWaitlistPanel, AdminAdRatesPanel, DiscountCodesPanel, AdminDefaultAdsPanel), Email (SiteEmailsTester), FAQs (FAQManager), Flags, Manual, Contact Us (ContactMessage CRUD), Mass Messages, Users (role management + AdminUserZipReportsSection), Beta (AdminBetaPanel)",
-          "Disable User calls /api/admin-disable-user (admin-only): profiles.role=disabled, notification_preferences.frequency=none; if is_advertiser, cancels slot-holding banner_ads, Stripe cancel_at_period_end, cancels ad_waitlist waiting/offered, then runProcessWaitlist",
-          "All tabs share the AdminSectionHeader component for consistent title/icon styling and uniform white, bordered containers",
-          "All operations use base44.entities.* SDK methods",
-          "Stats computed from entity counts on load; long lists use the shared Paginator component"
-        ]
+          "Hard gate: if user.role !== 'admin' navigate home",
+          "Consistent AdminSectionHeader + AdminPanelShell chrome",
+        ],
+      },
+      {
+        id: "admin-reviews",
+        title: "Reviews Queues",
+        overview:
+          "Human queues for activity photos and advertising creatives that automation could not auto-approve/decline.",
+        features: [
+          "Activity Manual Review",
+          "Advertising Manual Review",
+          "Approve/decline with notes; notify contributors/Supporters",
+        ],
+        technicalOverview:
+          "Admin → Reviews. AdminActivityPhotoReviewPanel + ManualReviewPanel.",
+        technicalFeatures: [
+          "Queues filter moderation_status = manual_review",
+        ],
       },
       {
         id: "admin-beta-mode",
-        title: "Beta Mode & Zip Code Rollout",
-        overview: "The site can be put into Beta Mode, where only an admin-approved list of zip codes is fully functional and a banner notifies visitors the site is in beta. This lets the team roll the product out gradually to new areas before opening it up everywhere.",
+        title: "Beta Mode",
+        overview:
+          "Temporary access controls: Stage 1 access code and/or Stage 2 zip whitelist. Banner can show when beta is enabled.",
         features: [
-          "Toggle beta mode on/off",
-          "Admin-approved zip code whitelist",
-          "Site-wide banner notice when beta mode is active"
+          "Toggle beta / stage 1",
+          "Access code",
+          "Allowed zip list",
         ],
-        technicalOverview: "BetaConfig entity stores the global beta toggle and zip whitelist; useBetaConfig and BetaBanner apply it client-side.",
+        technicalOverview:
+          "beta_config table; AdminBetaPanel; BetaBanner / BetaStage1Gate.",
         technicalFeatures: [
-          "BetaConfig entity (config_key='global'): enabled (boolean) and zip_codes (array of allowed zips)",
-          "AdminBetaPanel toggles beta mode and manages the zip whitelist, auto-initializing the config record on first load if missing",
-          "useBetaConfig hook reads this config client-side; BetaBanner renders the site-wide notice when enabled",
-          "When beta mode is on, non-whitelisted zip codes see restricted functionality throughout the app"
-        ]
+          "Publicly readable config for client gates",
+        ],
       },
       {
         id: "admin-user-zip-reports",
-        title: "User Zip Code Reports",
-        overview: "Admins can see, at a glance, how many Community Members, unique Organizers, and active/waitlisted Supporters exist in each zip code — useful for spotting where the community is strong and where the ad waitlist demand is building.",
+        title: "User Zip Reports",
+        overview:
+          "At-a-glance community strength by zip: Community Members, Organizers, active Supporters, waitlisted demand.",
         features: [
-          "Community Member counts per zip code",
-          "Unique Organizer counts per zip code",
-          "Active and waitlisted Supporter counts per zip code",
-          "Top-zip ranking and per-zip search"
+          "Per-zip tallies",
+          "Top-zip ranking + search",
         ],
-        technicalOverview: "AdminUserZipReportsSection aggregates profiles, BannerAd, and AdWaitlist data by zip code.",
+        technicalOverview:
+          "AdminUserZipReportsSection + ZipCodeRankingCard under Users → Zip Code Reports.",
         technicalFeatures: [
-          "Community Members and Organizers are tallied from profiles with a zip_code (by role)",
-          "Supporters tallied from active banner ads and waiting waitlist entries per zip",
-          "Results render via ZipCodeRankingCard (top zips) and ZipCodeSearchCard (search any zip) inside the Users tab"
-        ]
-      }
-    ]
-  }
+          "Aggregates profiles, banner_ads, ad_waitlist",
+        ],
+      },
+      {
+        id: "admin-previews",
+        title: "Previews Tab",
+        overview:
+          "Safe previews of outbound-looking content: email HTML templates, automated message catalog, and site notices — without blasting users.",
+        features: [
+          "Emails tester (send sample to the signed-in admin only)",
+          "Automated Messages catalog",
+          "Site Notices preview",
+        ],
+        technicalOverview:
+          "PreviewsPanels + SiteEmailsTester + SiteNoticesPreview under Admin → Previews.",
+        technicalFeatures: [
+          "Email send uses /api/send-email admin auth",
+        ],
+      },
+    ],
+  },
 ];
+
+function sectionSearchText(section, categoryLabel) {
+  return [
+    categoryLabel,
+    section.title,
+    section.overview,
+    section.technicalOverview,
+    ...(section.features || []),
+    ...(section.technicalFeatures || []),
+    ...(section.keywords || []),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function parseSearchTerms(query) {
+  return query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+}
+
+function filterCategories(query) {
+  const terms = parseSearchTerms(query);
+  if (!terms.length) return categories.map((c) => ({ ...c, sections: c.sections }));
+
+  return categories
+    .map((cat) => {
+      const sections = cat.sections.filter((section) => {
+        const hay = sectionSearchText(section, cat.label);
+        return terms.every((t) => hay.includes(t));
+      });
+      return { ...cat, sections };
+    })
+    .filter((cat) => cat.sections.length > 0);
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Split text into plain + highlighted parts for active search terms (case-insensitive). */
+function HighlightedText({ text, terms }) {
+  if (!text) return null;
+  if (!terms?.length) return text;
+
+  const pattern = new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi");
+  const parts = String(text).split(pattern);
+  if (parts.length === 1) return text;
+
+  const termSet = new Set(terms.map((t) => t.toLowerCase()));
+  return parts.map((part, i) =>
+    termSet.has(part.toLowerCase()) ? (
+      <mark
+        key={`${i}-${part}`}
+        className="bg-amber-200/90 text-foreground rounded-sm px-0.5 font-semibold not-italic"
+      >
+        {part}
+      </mark>
+    ) : (
+      <React.Fragment key={`${i}-${part}`}>{part}</React.Fragment>
+    )
+  );
+}
 
 export default function AdminManual() {
   const [openSection, setOpenSection] = useState(null);
+  const [query, setQuery] = useState("");
+
+  const searchTerms = useMemo(() => parseSearchTerms(query), [query]);
+  const visible = useMemo(() => filterCategories(query), [query]);
+  const matchCount = useMemo(
+    () => visible.reduce((n, c) => n + c.sections.length, 0),
+    [visible]
+  );
+  const searching = searchTerms.length > 0;
 
   const scrollToCategory = (catId) => {
     const el = document.getElementById(`manual-cat-${catId}`);
@@ -725,68 +941,119 @@ export default function AdminManual() {
         <BookOpen className="w-5 h-5 text-mint-500 shrink-0" />
         <h2 className="font-heading font-bold text-lg text-foreground">Site Manual</h2>
       </div>
-      <div className="bg-white rounded-2xl border border-border p-6">
-        <p className="text-sm text-muted-foreground mb-5">
-          This manual provides a comprehensive overview of LocalKidsCalendar's features, systems, and technical implementation.
-          Each topic includes a short overview paragraph followed by a bulleted list of features, plus a "Review in more detail" technical breakdown in the same format.
-          Update this manual as new features are built or existing ones change.
+
+      <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Operator reference for LocalKidsCalendar: what each area does, the rules that matter day-to-day, and a technical breakdown for implementation details.
+          Expand a topic for the overview bullets, then the technical section underneath. Update this manual when product behavior changes.
         </p>
-        <div className="flex flex-wrap gap-2">
-          {categories.map((cat) => (
+
+        <div className="relative max-w-md">
+          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search keywords (e.g. digest, waitlist, disable…)"
+            className="pl-9 pr-9 rounded-xl"
+            aria-label="Search site manual"
+          />
+          {searching && (
             <button
-              key={cat.id}
-              onClick={() => scrollToCategory(cat.id)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium bg-muted hover:bg-mint-100 hover:text-mint-600 transition-colors"
+              type="button"
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-foreground"
+              aria-label="Clear search"
             >
-              {cat.label}
+              <X className="w-4 h-4" />
             </button>
-          ))}
+          )}
         </div>
+        {searching && (
+          <p className="text-xs text-muted-foreground">
+            {matchCount === 0
+              ? "No topics matched. Try a different keyword."
+              : `${matchCount} topic${matchCount === 1 ? "" : "s"} matched — sections expanded with search words highlighted.`}
+          </p>
+        )}
+
+        {!searching && (
+          <div className="flex flex-wrap gap-2">
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => scrollToCategory(cat.id)}
+                className="px-3 py-1.5 rounded-full text-xs font-medium bg-muted hover:bg-mint-100 hover:text-mint-600 transition-colors"
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {categories.map((category) => (
+      {visible.map((category) => (
         <div key={category.id} id={`manual-cat-${category.id}`} className="space-y-3 scroll-mt-4">
-          <h2 className="font-heading font-bold text-lg text-foreground px-1">{category.label}</h2>
-          {category.sections.map((section) => (
-            <div key={section.id} className="bg-white rounded-2xl border border-border overflow-hidden">
-              <button
-                className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-muted/40 transition-colors"
-                onClick={() => setOpenSection(openSection === section.id ? null : section.id)}
-              >
-                <span className="font-heading font-semibold text-sm text-foreground">{section.title}</span>
-                {openSection === section.id ? (
-                  <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+          <h2 className="font-heading font-bold text-lg text-foreground px-1">
+            <HighlightedText text={category.label} terms={searchTerms} />
+          </h2>
+          {category.sections.map((section) => {
+            const isOpen = searching || openSection === section.id;
+            return (
+              <div key={section.id} className="bg-white rounded-2xl border border-border overflow-hidden">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-muted/40 transition-colors"
+                  onClick={() => {
+                    if (searching) return;
+                    setOpenSection(openSection === section.id ? null : section.id);
+                  }}
+                >
+                  <span className="font-heading font-semibold text-sm text-foreground">
+                    <HighlightedText text={section.title} terms={searchTerms} />
+                  </span>
+                  {isOpen ? (
+                    <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                  )}
+                </button>
+                {isOpen && (
+                  <div className="px-5 pb-5 space-y-4 border-t border-border pt-4">
+                    <div>
+                      <h4 className="font-medium text-sm text-foreground mb-2">Overview</h4>
+                      <p className="text-sm text-muted-foreground leading-relaxed mb-2">
+                        <HighlightedText text={section.overview} terms={searchTerms} />
+                      </p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        {section.features.map((f, i) => (
+                          <li key={i} className="text-sm text-muted-foreground leading-relaxed">
+                            <HighlightedText text={f} terms={searchTerms} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="bg-muted/40 rounded-xl p-4">
+                      <h4 className="font-medium text-sm text-foreground mb-2 flex items-center gap-2">
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Review in more detail — technical breakdown
+                      </h4>
+                      <p className="text-xs text-muted-foreground leading-relaxed font-mono mb-2">
+                        <HighlightedText text={section.technicalOverview} terms={searchTerms} />
+                      </p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        {section.technicalFeatures.map((f, i) => (
+                          <li key={i} className="text-xs text-muted-foreground leading-relaxed font-mono">
+                            <HighlightedText text={f} terms={searchTerms} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
                 )}
-              </button>
-              {openSection === section.id && (
-                <div className="px-5 pb-5 space-y-4 border-t border-border pt-4">
-                  <div>
-                    <h4 className="font-medium text-sm text-foreground mb-2">Overview</h4>
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-2">{section.overview}</p>
-                    <ul className="list-disc pl-5 space-y-1">
-                      {section.features.map((f, i) => (
-                        <li key={i} className="text-sm text-muted-foreground leading-relaxed">{f}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="bg-muted/40 rounded-xl p-4">
-                    <h4 className="font-medium text-sm text-foreground mb-2 flex items-center gap-2">
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Review in more detail — technical breakdown
-                    </h4>
-                    <p className="text-xs text-muted-foreground leading-relaxed font-mono mb-2">{section.technicalOverview}</p>
-                    <ul className="list-disc pl-5 space-y-1">
-                      {section.technicalFeatures.map((f, i) => (
-                        <li key={i} className="text-xs text-muted-foreground leading-relaxed font-mono">{f}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>

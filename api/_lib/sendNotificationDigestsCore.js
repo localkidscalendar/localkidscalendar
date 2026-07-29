@@ -1,4 +1,5 @@
 import { sendViaResend } from "./resendSend.js";
+import { pickDefaultFillerAds } from "../../shared/pickDefaultFillerAds.js";
 import {
   alreadySentDigestThisWeek,
   digestUnsubscribeApiUrl,
@@ -30,23 +31,6 @@ function categoryDisplay(raw) {
   const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
   if (list.length === 0) return "Activity";
   return list.map((c) => CATEGORY_LABELS[c] || c).join(", ");
-}
-
-/** Mirror of src/lib/pickDefaultFillerAds.js for API runtime. */
-function pickDefaultFillerAds(defaultAds = [], emptySlots = 0) {
-  if (emptySlots <= 0 || !defaultAds.length) return [];
-  const slot1 = defaultAds.find((a) => a.is_slot_1);
-  const slot2 = defaultAds.find((a) => a.is_slot_2);
-  const slot3 = defaultAds.find((a) => a.is_slot_3);
-  const ordered = [slot1, slot2, slot3].filter(Boolean);
-  const seen = new Set();
-  return ordered
-    .filter((a) => {
-      if (seen.has(a.id)) return false;
-      seen.add(a.id);
-      return true;
-    })
-    .slice(0, emptySlots);
 }
 
 function formatEventCard(event) {

@@ -1,7 +1,6 @@
+import { isAdminCaller } from "./_lib/adminAuth.js";
 import { createAdminClient, requireUser } from "./_lib/stripeHelpers.js";
 import { runProcessWaitlist } from "./_lib/processWaitlistCore.js";
-
-const ADMIN_EMAILS = new Set(["localkidscalendar@gmail.com"]);
 
 /**
  * Admin-only waitlist processor (Expire / Run processor buttons).
@@ -32,7 +31,7 @@ export default async function handler(req, res) {
       .eq("id", user.id)
       .maybeSingle();
     const email = (profile?.email || user.email || "").trim().toLowerCase();
-    if (profile?.role !== "admin" && !ADMIN_EMAILS.has(email)) {
+    if (!isAdminCaller(profile, user.email)) {
       return res.status(403).json({
         error: `Forbidden — admin role required (signed in as ${email || "unknown"}, role: ${profile?.role || "none"})`,
       });
