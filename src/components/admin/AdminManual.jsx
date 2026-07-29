@@ -83,7 +83,7 @@ const categories = [
       {
         id: "user-registration",
         title: "User Registration & Login",
-        keywords: ["otp", "google", "oauth", "password", "sign up"],
+        keywords: ["otp", "google", "oauth", "password", "sign up", "register", "honeypot", "bot", "spam"],
         overview:
           "Users register with email/password or Google. At signup they choose Community Member or Organizer (permanent for that account). Email verification uses Supabase OTP/confirm flows. Returning users sign in the same ways, or reset a password via email link.",
         features: [
@@ -92,7 +92,7 @@ const categories = [
           "Email verification required before full access (OTP / confirm link)",
           "Password reset via secure email link",
           "Phone may be collected later on Profile where enabled; not required for signup",
-          "Register form includes timing/honeypot bot checks",
+          "First-line bot defense on Register: honeypot + minimum time before continuing (~3 seconds)",
         ],
         technicalOverview:
           "Register.jsx / Login.jsx / ForgotPassword.jsx / ResetPassword.jsx / AuthCallback.jsx use supabase.auth. Profile rows are created by handle_new_user from auth metadata (role, names, zip). Organizer shell rows can be created in finalizeProfile or AuthContext when org metadata is present.",
@@ -101,6 +101,7 @@ const categories = [
           "Auth invite links can prefill role/email query params on Register",
           "Primary admin email may be promoted to role=admin via SQL migrations (ensure_admin_role)",
           "Navbar/Admin access: role === 'admin' (Admin page hard-requires admin)",
+          "Register honeypot field hp_website (hidden); step-2 blocked if filled or form open < 3s",
         ],
       },
       {
@@ -743,32 +744,51 @@ const categories = [
       {
         id: "contact-us",
         title: "Contact Us",
+        keywords: ["contact", "support message", "honeypot", "bot", "spam"],
         overview:
-          "Anyone can submit Contact Us (topic + message). Admin reviews in Contact Us tab by subject boxes. Messages soft-delete to a Deleted section and can be restored; they are not hard-deleted from the DB by that UI.",
+          "Anyone can submit Contact Us (topic + message). Admin reviews in Contact Us tab by subject boxes. Messages soft-delete to a Deleted section and can be restored; they are not hard-deleted from the DB by that UI. The public form includes first-line bot defense (honeypot + minimum fill time).",
         features: [
           "Topics: technical, suggestions, activity questions, general",
           "Admin: unread / resolved / deleted",
           "Soft-delete with restore",
+          "Honeypot + ~2s minimum time before a real insert is allowed",
         ],
         technicalOverview:
-          "contact_messages with deleted_at. ContactUs.jsx + Admin Contact sections. Honeypot / timing on the form.",
+          "contact_messages with deleted_at. ContactUs.jsx + Admin Contact sections. Honeypot / timing on the form (see Bot Protection).",
         technicalFeatures: [
           "No Resend email on submit — Admin reviews in-app",
+          "Bot hits still show the success screen (silent fail) so scrapers get less signal",
         ],
       },
       {
         id: "bot-protection",
-        title: "Bot Protection",
+        title: "Bot Protection (Honeypot & Timing)",
+        keywords: [
+          "bot",
+          "bots",
+          "spam",
+          "honeypot",
+          "captcha",
+          "first line of defense",
+          "register",
+          "contact",
+          "reactivation",
+          "timing",
+        ],
         overview:
-          "Contact and Register use honeypot fields and minimum fill times to reduce spam submissions.",
+          "Public forms that anyone can submit use a lightweight first line of defense against bots—not a CAPTCHA. Hidden honeypot fields must stay empty, and the form must stay open for a short minimum time before a real submit is accepted. Real users never see these checks.",
         features: [
-          "Honeypot fields",
-          "Minimum time on form before submit (~2s Contact / ~3s Register)",
+          "Register (new profile): honeypot + ~3 second minimum before continuing to profile step / sign-up",
+          "Contact Us: honeypot + ~2 second minimum before inserting a contact_messages row",
+          "Account reactivation request (disabled users): honeypot field on the request form",
+          "Failed bot checks fail closed without creating accounts/messages (Contact may still show a fake success screen)",
         ],
         technicalOverview:
-          "Client-side checks before insert/signUp.",
+          "Client-side only (no third-party CAPTCHA). Register.jsx (hp_website + formLoadTime), ContactUs.jsx (hpField + formLoadTime), AccountDisabledView.jsx (honeypot on reactivation). Complement—not a replacement—for auth rate limits and Admin review of Contact messages.",
         technicalFeatures: [
-          "Not a CAPTCHA; keeps UX light for real users",
+          "Honeypot inputs are visually hidden (off-screen / aria-hidden); bots that autofill every field get caught",
+          "Timing: Contact < 2000ms or Register < 3000ms from form mount → treat as bot",
+          "Not perfect against sophisticated bots; intended as low-friction spam reduction",
         ],
       },
       {
