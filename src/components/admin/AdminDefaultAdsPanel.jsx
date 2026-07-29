@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Upload, Trash2, ExternalLink, Plus, Star } from "lucide-react";
 import { DEFAULT_AD_IMAGE_RECOMMENDED } from "@/lib/supporterContent";
 import HelpTip from "@/components/shared/HelpTip";
+import { processImageForUpload } from "@/lib/imageProcess";
 
 const SLOT_LABELS = { is_slot_1: "Ad 1", is_slot_2: "Ad 2", is_slot_3: "Ad 3" };
 
@@ -37,16 +38,17 @@ export default function AdminDefaultAdsPanel({ toast }) {
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
     setUploading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not signed in");
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${user.id}/default-ad-${Date.now()}.${ext}`;
+      const processed = await processImageForUpload(file, "defaultAd");
+      const path = `${user.id}/default-ad-${Date.now()}.${processed.file.name.split(".").pop() || "jpg"}`;
       const { error: uploadError } = await supabase.storage
         .from("event-media")
-        .upload(path, file, { upsert: false, contentType: file.type });
+        .upload(path, processed.file, { upsert: false, contentType: processed.file.type });
       if (uploadError) throw uploadError;
       const { data: publicData } = supabase.storage.from("event-media").getPublicUrl(path);
       setForm((f) => ({ ...f, image_url: publicData.publicUrl }));

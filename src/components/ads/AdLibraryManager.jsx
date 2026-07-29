@@ -12,6 +12,7 @@ import ImagePreviewModal from "@/components/ads/ImagePreviewModal";
 import { AD_IMAGE_REVIEW_GUIDELINES, SUPPORTER_AD_IMAGE_RECOMMENDED } from "@/lib/supporterContent";
 import { moderateAdContent } from "@/lib/moderateAdContent";
 import { deleteAdLibraryAsset } from "@/lib/quarantineAdLibrary";
+import { processImageForUpload } from "@/lib/imageProcess";
 
 const MOD_CONFIG = {
   pending: { label: "Reviewing…", color: "bg-yellow-100 text-yellow-700", icon: Clock },
@@ -66,14 +67,15 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${user.id}/ad-${Date.now()}.${ext}`;
+      const processed = await processImageForUpload(file, "adCreative");
+      const path = `${user.id}/ad-${Date.now()}.${processed.file.name.split(".").pop() || "jpg"}`;
       const { error: uploadError } = await supabase.storage
         .from("event-media")
-        .upload(path, file, { upsert: false, contentType: file.type });
+        .upload(path, processed.file, { upsert: false, contentType: processed.file.type });
       if (uploadError) throw uploadError;
       const { data: publicData } = supabase.storage.from("event-media").getPublicUrl(path);
       setForm((f) => ({ ...f, image_url: publicData.publicUrl }));

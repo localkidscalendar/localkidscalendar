@@ -26,7 +26,7 @@ const categories = [
           "Front end: React + Vite + Tailwind + shared UI components (shadcn-style)",
           "Auth & database: Supabase Auth + Postgres tables with Row Level Security",
           "Server: Vercel /api/* routes (checkout, webhooks, digests, photo/ad review, disable user)",
-          "Email: Resend; payments: Stripe; image review: OpenAI Moderation API + custom vision when a key is configured",
+          "Email: Resend; payments: Stripe; image review: OpenAI Moderation API + custom vision when a key is configured; uploads resized client-side before Storage/OpenAI",
         ],
         technicalOverview:
           "Client uses @/lib/supabaseClient.js. Privileged server work uses SUPABASE_SERVICE_ROLE_KEY via createAdminClient() in api/_lib/stripeHelpers.js. Crons are declared in vercel.json and authenticated with CRON_SECRET (or x-vercel-cron).",
@@ -248,14 +248,36 @@ const categories = [
         features: [
           "Categories / types for camps, classes, sports, etc.",
           "Organizer posts show org branding / highlight styling",
-          "Photo optional; goes through AI review on upload",
+          "Photo optional; auto-resized then AI-reviewed on upload",
           "Zip must be 5 digits; end date required",
         ],
         technicalOverview:
-          "PostEvent.jsx inserts into events. Image upload then /api/photo-review. posted_by_role / org fields drive EventCard styling.",
+          "PostEvent.jsx inserts into events. Client processImageForUpload then Supabase event-media upload, then /api/photo-review. posted_by_role / org fields drive EventCard styling.",
         technicalFeatures: [
           "events.status active vs archived for moderation/removal",
           "HistoryBackLink / navigation history for cancel/back UX where wired",
+          "src/lib/imageProcess.js presets: activityPhoto + logo",
+        ],
+      },
+      {
+        id: "image-upload-sizing",
+        title: "Image Upload Size Management",
+        keywords: ["resize", "compress", "storage", "2mb", "logo", "photo", "supabase", "openai"],
+        overview:
+          "Before any image hits Supabase Storage or OpenAI review, the browser resizes and compresses it to managed dimensions and file size. Users may pick normal phone photos (often 3–8 MB); originals over 15 MB are rejected as too large to process. After processing, a 2 MB hard ceiling applies (512 KB for logos). This keeps review costs and storage under control without asking users to manually shrink files.",
+        features: [
+          "Auto resize/compress on activity photos, org logos, Ad Assets, and Admin default ads",
+          "Accept typical phone photos; fail fast only on absurd originals (>15 MB)",
+          "Validate type + minimum dimensions; SVG not allowed",
+          "Help tips / Supporter copy explain best display fit and automatic resizing",
+        ],
+        technicalOverview:
+          "Shared helper src/lib/imageProcess.js (processImageForUpload). Wired in PostEvent.jsx, ProfileTab.jsx, AdLibraryManager.jsx, AdminDefaultAdsPanel.jsx. Uploads go to the public event-media bucket.",
+        technicalFeatures: [
+          "Presets: activityPhoto ≤1600×1200 JPEG; adCreative ≤1200×800 JPEG; defaultAd ≤1200×934 JPEG; logo ≤512×512 PNG (falls back to JPEG if still large)",
+          "MAX_ORIGINAL_BYTES = 15 MB; MAX_OUTPUT_BYTES_DEFAULT = 2 MB; logo maxOutputBytes = 512 KB",
+          "Pipeline: validate original → canvas fitWithin (no upscale) → quality/scale encode → validate result → upload",
+          "OpenAI and Storage only see the processed file URL/bytes",
         ],
       },
       {
@@ -263,15 +285,16 @@ const categories = [
         title: "Activity Photo Moderation",
         keywords: ["moderation api", "openai", "vision", "photo review", "hybrid"],
         overview:
-          "Cover photos are screened automatically on upload. Phase 1 uses OpenAI’s free Moderation API for clear approve/decline (with natural-language decline reasons). Phase 2 (custom gpt-4o-mini vision) runs only when Moderation scores are in the gray middle — still looking like one review to the user. Declines from either phase can request Admin manual review. Community flagging remains a safety net.",
+          "Cover photos are resized/compressed in the browser, then screened automatically. Phase 1 uses OpenAI’s free Moderation API for clear approve/decline (with natural-language decline reasons). Phase 2 (custom gpt-4o-mini vision) runs only when Moderation scores are in the gray middle — still looking like one review to the user. Declines from either phase can request Admin manual review. Community flagging remains a safety net.",
         features: [
+          "Client resize/compress before upload and review",
           "Automatic hybrid review on upload (Moderation first, custom vision only when needed)",
           "Natural-language decline reasons (not raw category labels)",
           "Request Manual Review after an automated decline",
           "Admin approve / decline with notes",
         ],
         technicalOverview:
-          "/api/photo-review → reviewImageHybrid in api/_lib/imageModeration.js. Admin → Reviews → Activity Manual Review (AdminActivityPhotoReviewPanel). Client: PostEvent.jsx + moderateEventImage.js.",
+          "processImageForUpload → event-media → /api/photo-review → reviewImageHybrid. Admin → Reviews → Activity Manual Review (AdminActivityPhotoReviewPanel). Client: PostEvent.jsx + moderateEventImage.js + imageProcess.js.",
         technicalFeatures: [
           "image_moderation_status: approved / declined / manual_review / manual_review_declined / …",
           "Phase 1: omni-moderation-latest; high score (≥0.85 or flagged ≥0.7) → decline; low (≤0.20, unflagged) → approve; else escalate",
@@ -476,8 +499,9 @@ const categories = [
         title: "Ad Creative Review",
         keywords: ["moderation api", "openai", "vision", "ad review", "url check", "hybrid"],
         overview:
-          "On submit, destination URL safety is checked first (separately from images). Then the ad image goes through the same hybrid flow as activity photos: free Moderation API first, custom vision only for gray scores, still one seamless review for the Supporter. Declines from either image phase (or from URL checks) can request Admin → Reviews → Advertising Manual Review. Status changes that hurt the Supporter require an explanation and notify them.",
+          "On submit, destination URL safety is checked first (separately from images). Ad images are resized/compressed in the browser first, then go through the same hybrid flow as activity photos: free Moderation API first, custom vision only for gray scores, still one seamless review for the Supporter. Declines from either image phase (or from URL checks) can request Admin → Reviews → Advertising Manual Review. Status changes that hurt the Supporter require an explanation and notify them.",
         features: [
+          "Client resize/compress before upload (adCreative preset)",
           "Separate URL safety checks (invalid, private, unsafe keywords, 404)",
           "Hybrid image review (Moderation API → custom vision when needed)",
           "Natural-language decline reasons",
@@ -485,7 +509,7 @@ const categories = [
           "Required admin reason on damaging actions",
         ],
         technicalOverview:
-          "/api/creative-review (URL then reviewImageHybrid); ManualReviewPanel; AdminAdsPanel. Client: moderateAdContent.js + AdLibraryManager.",
+          "AdLibraryManager processImageForUpload → event-media → /api/creative-review (URL then reviewImageHybrid); ManualReviewPanel; AdminAdsPanel. Client: moderateAdContent.js + imageProcess.js.",
         technicalFeatures: [
           "URL declined before any OpenAI image call",
           "Image phases same thresholds as activity photos (api/_lib/imageModeration.js)",

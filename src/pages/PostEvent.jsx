@@ -13,6 +13,7 @@ import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig"; // BETA MODE 
 import TimeInput from "@/components/shared/TimeInput";
 import HistoryBackLink from "@/components/shared/HistoryBackLink";
 import { Upload, Loader2, Save, ShieldCheck, Users, AlertTriangle, HelpCircle } from "lucide-react";
+import { processImageForUpload } from "@/lib/imageProcess";
 import { ACTIVITY_CATEGORIES, normalizeCategoryList } from "@/lib/activityCategories";
 import { Checkbox } from "@/components/ui/checkbox";
 import { moderateEventImage } from "@/lib/moderateEventImage";
@@ -123,6 +124,7 @@ export default function PostEvent() {
 
   const handleImageUpload = async (e, field) => {
     const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
     if (!user?.id) {
       toast({ title: "Please sign in to upload images", variant: "destructive" });
@@ -131,11 +133,12 @@ export default function PostEvent() {
     const setUploading = field === "event_image" ? setUploadingImage : setUploadingLogo;
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${user.id}/${field}-${Date.now()}.${ext}`;
+      const preset = field === "event_image" ? "activityPhoto" : "logo";
+      const processed = await processImageForUpload(file, preset);
+      const path = `${user.id}/${field}-${Date.now()}.${processed.file.name.split(".").pop() || "jpg"}`;
       const { error: uploadError } = await supabase.storage
         .from("event-media")
-        .upload(path, file, { upsert: false, contentType: file.type });
+        .upload(path, processed.file, { upsert: false, contentType: processed.file.type });
       if (uploadError) throw uploadError;
 
       const { data: publicData } = supabase.storage.from("event-media").getPublicUrl(path);
@@ -462,7 +465,7 @@ export default function PostEvent() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                   <Label className="text-sm flex items-center gap-1">Activity Photo <HelpTip text="Recommended: JPG or WebP, 16:9 ratio (e.g. 1280×720px), under 2MB. Keep the main subject centered and avoid text overlays." /></Label>
+                   <Label className="text-sm flex items-center gap-1">Activity Photo <HelpTip text="Best fit: JPG or WebP, about 16:9 (e.g. 1280×720). Phone photos are OK — we resize and compress automatically before upload and review. Keep the main subject centered and avoid heavy text overlays." /></Label>
                    <div className="mt-1">
                      {form.event_image && form.image_moderation_status !== "declined" && form.image_moderation_status !== "manual_review_declined" && (
                        <div className="w-full aspect-video rounded-xl mb-2 border border-border bg-muted/40 overflow-hidden flex items-center justify-center">
@@ -491,7 +494,7 @@ export default function PostEvent() {
                   </div>
                 </div>
                 <div>
-                   <Label className="text-sm flex items-center gap-1">Activity/Event Logo <HelpTip text="Recommended: PNG with transparent background, square (e.g. 500×500px), under 1MB. Will be displayed as a small circular thumbnail." /></Label>
+                   <Label className="text-sm flex items-center gap-1">Activity/Event Logo <HelpTip text="Best fit: square PNG (e.g. 500×500) with a simple/clear mark. Large files are resized automatically. Shown as a small circular thumbnail." /></Label>
                    <div className="mt-1">
                      {form.org_logo && <img src={form.org_logo} alt="Logo" className="w-16 h-16 object-cover rounded-full mb-2" onError={(e) => e.target.style.display = 'none'} />}
                     <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">

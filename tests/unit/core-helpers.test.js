@@ -22,6 +22,13 @@ import {
   MODERATION_HIGH_THRESHOLD,
   MODERATION_LOW_THRESHOLD,
 } from "../../api/_lib/imageModeration.js";
+import {
+  fitWithin,
+  validateOriginalImageFile,
+  IMAGE_PRESETS,
+  MAX_ORIGINAL_BYTES,
+  MAX_OUTPUT_BYTES_DEFAULT,
+} from "../../src/lib/imageProcess.js";
 
 describe("phone helpers", () => {
   it("masks progressive input", () => {
@@ -182,5 +189,31 @@ describe("imageModeration hybrid phase decision", () => {
     expect(MODERATION_LOW_THRESHOLD).toBeLessThan(MODERATION_HIGH_THRESHOLD);
     expect(MODERATION_LOW_THRESHOLD).toBe(0.2);
     expect(MODERATION_HIGH_THRESHOLD).toBe(0.85);
+  });
+});
+
+describe("imageProcess sizing helpers", () => {
+  it("fits within max box without upscaling", () => {
+    expect(fitWithin(4000, 3000, 1600, 1200)).toEqual({ width: 1600, height: 1200 });
+    expect(fitWithin(800, 600, 1600, 1200)).toEqual({ width: 800, height: 600 });
+    expect(fitWithin(2000, 500, 1200, 800)).toEqual({ width: 1200, height: 300 });
+  });
+
+  it("rejects non-images and oversized originals", () => {
+    expect(() =>
+      validateOriginalImageFile(new File(["x"], "a.txt", { type: "text/plain" }))
+    ).toThrow(/image file/i);
+    expect(() =>
+      validateOriginalImageFile(
+        new File([new Uint8Array(MAX_ORIGINAL_BYTES + 1)], "big.jpg", { type: "image/jpeg" })
+      )
+    ).toThrow(/15 MB/i);
+  });
+
+  it("exposes expected preset ceilings", () => {
+    expect(IMAGE_PRESETS.activityPhoto.maxWidth).toBe(1600);
+    expect(IMAGE_PRESETS.adCreative.maxHeight).toBe(800);
+    expect(IMAGE_PRESETS.logo.maxOutputBytes).toBe(512 * 1024);
+    expect(MAX_OUTPUT_BYTES_DEFAULT).toBe(2 * 1024 * 1024);
   });
 });

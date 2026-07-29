@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import HelpTip from "@/components/shared/HelpTip";
 import { Upload, Save, AlertTriangle, Loader2, KeyRound } from "lucide-react";
 import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
+import { processImageForUpload } from "@/lib/imageProcess";
 
 function namesFromMetadata(meta = {}) {
   const full = (meta.full_name || meta.name || "").trim();
@@ -104,14 +105,15 @@ export default function ProfileTab({ user, setUser }) {
 
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
     setUploadingLogo(true);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${user.id}/org-logo-${Date.now()}.${ext}`;
+      const processed = await processImageForUpload(file, "logo");
+      const path = `${user.id}/org-logo-${Date.now()}.${processed.file.name.split(".").pop() || "png"}`;
       const { error: uploadError } = await supabase.storage
         .from("event-media")
-        .upload(path, file, { upsert: false, contentType: file.type });
+        .upload(path, processed.file, { upsert: false, contentType: processed.file.type });
       if (uploadError) throw uploadError;
       const { data: publicData } = supabase.storage.from("event-media").getPublicUrl(path);
       updateField("org_logo", publicData.publicUrl);
@@ -327,7 +329,10 @@ export default function ProfileTab({ user, setUser }) {
             <Input value={form.org_description} onChange={(e) => updateField("org_description", e.target.value)} className="rounded-xl mt-1" placeholder="Brief description of your organization and programs" />
           </div>
           <div>
-            <Label className="text-sm">Organization Logo</Label>
+            <Label className="text-sm flex items-center gap-1">
+              Organization Logo
+              <HelpTip text="Best fit: square image (e.g. 500×500). Large files are resized automatically before upload." />
+            </Label>
             <div className="flex items-center gap-3 mt-1">
               {form.org_logo && <img src={form.org_logo} alt="Logo" className="w-12 h-12 rounded-full object-cover border border-border" />}
               <label className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
