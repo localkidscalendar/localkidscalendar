@@ -550,20 +550,23 @@ const categories = [
       {
         id: "email-notifications",
         title: "Activity Notifications",
-        overview: "Users can opt in to a weekly email digest of activities matching their interests. Default is Off. Users set preferences for zip, keywords, age ranges, and favorite organizers. Emails include curated activity cards and Supporter ads.",
+        overview: "Users can opt in to a weekly email digest of activities matching their interests. Default is Off. Users set preferences for zip, keywords, age ranges, and favorite organizers. Emails include curated activity cards and Supporter ads. Digests only send when there is matching content.",
         features: [
           "Opt-in digest emails matching user interests",
           "Frequency options: Off (default) or Weekly (Mondays at 8am PT)",
           "Preferences: zip, keywords, age range, favorite organizers",
-          "Includes curated activity cards and Supporter ads"
+          "Includes curated activity cards and Supporter ads",
+          "Admin → Mass Messages → Digest Notification can pause all weekly digests",
+          "Auto-off for inactive / disabled accounts; bounce & unsubscribe suppression"
         ],
-        technicalOverview: "cron-send-notification-emails runs daily at 8am PT and only sends on Mondays. Preview the digest look-and-feel under Admin → Email (Activity Digest Weekly).",
+        technicalOverview: "cron-send-notification-emails runs daily at 8am PT and only sends on Mondays. Safeguards: EMAIL_SENDING_ENABLED env kill switch, email_config.digests_paused Admin switch, skip disabled/inactive/suppressed, last_digest_sent_at same-week guard, max_sends_per_run, List-Unsubscribe + /api/unsubscribe-digest, Resend bounce/complaint webhook → email_suppressions.",
         technicalFeatures: [
           "Runs daily at 8am PT; sends weekly digests only on Mondays",
           "Loads notification_preferences where frequency = weekly",
-          "Filters events by zip, age, keywords, and favorite organizers",
+          "Filters events by zip, age, keywords, and favorite organizers; skips empty matches",
           "Builds HTML digest cards and sends via Resend",
-          "Admin → Email previews the Activity Digest (Weekly) template with sample data"
+          "Admin → Email previews the Activity Digest (Weekly) template with sample data",
+          "Admin → Mass Messages → Digest Notification for pause + limits"
         ]
       },
       {

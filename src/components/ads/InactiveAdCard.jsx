@@ -24,16 +24,22 @@ function getReasonText(ad) {
   switch (ad.status) {
     case "flagged":
       return (ad.flag_count || 0) >= 3
-        ? `This ad was flagged by ${ad.flag_count} users and automatically paused for review.`
-        : "This ad was flagged by our Admin team for review.";
+        ? `This ad creative was flagged by the community and disabled across all zip placements using it.`
+        : "This ad creative was disabled by our Admin team. Assign a different approved creative to restore this zip.";
     case "cancelled":
       return ad.cancelled_at
         ? "This ad's subscription has ended and is no longer billing."
         : "This ad was deactivated by our Admin team.";
     case "rejected":
       return "This ad was not approved by our Admin team.";
-    case "past_due":
-      return "This ad requires payment to reactivate.";
+    case "past_due": {
+      const deadline = ad.grace_period_start
+        ? moment(ad.grace_period_start).add(7, "days").format("MMM D, YYYY")
+        : null;
+      return deadline
+        ? `Payment failed. Your spot is reserved until ${deadline}. If payment isn’t updated by then, this spot will be released and may be offered to the waitlist.`
+        : "Payment failed. Update your payment method within 7 days or this spot may be released to the waitlist.";
+    }
     case "expired":
       return "This ad's subscription expired after a failed payment grace period.";
     case "pending_payment":
@@ -67,6 +73,7 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
   const statusLabel = STATUS_LABELS[ad.status] || "Inactive";
   const impressions = Number(ad.impressions || 0);
   const clicks = Number(ad.clicks || 0);
+  const ctr = impressions > 0 ? `${((clicks / impressions) * 100).toFixed(1)}%` : "—";
 
   const handleChangeCreative = async (asset) => {
     setCreativeLoading(true);
@@ -93,7 +100,7 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
       if (error) throw error;
       toast({
         title: isRecoverable ? "Ad reactivated!" : "Creative updated",
-        description: isRecoverable ? "Your new creative is now live." : undefined,
+        description: isRecoverable ? "Your new creative is now live for this zip." : undefined,
       });
       setShowChangeCreative(false);
       onRefresh?.();
@@ -104,123 +111,124 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-border p-5">
-      <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-        {ad.image_url && (
+    <div className="rounded-xl border border-border bg-white p-3">
+      <div className="flex gap-3">
+        {ad.image_url ? (
           <img
             src={ad.image_url}
             alt={ad.business_name}
-            className="w-full sm:w-40 aspect-[2/1] object-contain rounded-xl border border-border shrink-0 opacity-70 bg-muted/30"
+            className="w-24 sm:w-28 aspect-[2/1] object-contain rounded-lg border border-border shrink-0 opacity-70 bg-muted/30"
           />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <h3 className="font-heading font-semibold">Zip {ad.zip_code}</h3>
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+        ) : null}
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="font-heading font-semibold text-sm">Zip {ad.zip_code}</h3>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
               {statusLabel}
             </span>
           </div>
-          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-1">
-            <span>{ad.business_name}</span>
-          </div>
-          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-3">
+          <p className="text-xs text-muted-foreground truncate">{ad.business_name}</p>
+          <p className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5">
             <span className="capitalize">{ad.plan_type} plan</span>
-            {ad.plan_start_date && (
+            {ad.plan_start_date ? (
               <span>
-                {moment(ad.plan_start_date).format("MMM D, YYYY")} →{" "}
+                {moment(ad.plan_start_date).format("MMM D, YYYY")}
+                {" → "}
                 {ad.plan_end_date ? moment(ad.plan_end_date).format("MMM D, YYYY") : "—"}
               </span>
+            ) : null}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        {[
+          { label: "Impressions", value: impressions.toLocaleString() },
+          { label: "Clicks", value: clicks.toLocaleString() },
+          { label: "CTR", value: ctr },
+        ].map(({ label, value }) => (
+          <div key={label} className="bg-muted/40 rounded-lg px-1.5 py-1.5 text-center">
+            <p className="font-heading font-bold text-xs sm:text-sm leading-tight">{value}</p>
+            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {ad.moderation_notes ? (
+        <div className="mt-2 bg-red-50 border border-red-100 rounded-lg px-2.5 py-2 text-[11px] text-red-700">
+          <span className="font-semibold">Note: </span>
+          {ad.moderation_notes}
+        </div>
+      ) : null}
+
+      <div className="mt-2 pt-2 border-t border-border space-y-2">
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+          Updates
+        </p>
+
+        {ad.status === "past_due" ? (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg px-2.5 py-2 text-[11px] text-orange-700">
+            <p className="mb-2">
+              {getReasonText(ad)} Update your payment method in Ad Manager to restore this ad.
+            </p>
+            {ad.stripe_customer_id ? (
+              <Button
+                size="sm"
+                className="rounded-xl h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
+                disabled={portalLoading}
+                onClick={handleOpenBillingPortal}
+              >
+                {portalLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CreditCard className="w-3 h-3 mr-1" />}
+                Update Payment Method
+              </Button>
+            ) : (
+              <p className="text-orange-600/80 italic">No billing account found for this ad — contact support.</p>
             )}
           </div>
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            {[
-              { label: "Impressions", value: impressions.toLocaleString() },
-              { label: "Clicks", value: clicks.toLocaleString() },
-              {
-                label: "CTR",
-                value: impressions > 0 ? `${((clicks / impressions) * 100).toFixed(1)}%` : "—",
-              },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-muted/40 rounded-xl p-2 text-center">
-                <p className="font-heading font-bold text-sm">{value}</p>
-                <p className="text-xs text-muted-foreground">{label}</p>
-              </div>
-            ))}
-          </div>
+        ) : null}
 
-          {ad.moderation_notes && (
-            <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-xs text-red-700 mb-3">
-              <p className="font-semibold mb-1">Note:</p>
-              <p>{ad.moderation_notes}</p>
-            </div>
-          )}
-
-          {ad.status === "past_due" && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-xs text-orange-700">
+        {isRecoverable ? (
+          !showChangeCreative ? (
+            <div className="bg-mint-50 border border-mint-200 rounded-lg px-2.5 py-2 text-[11px] text-mint-700">
               <p className="mb-2">
-                {getReasonText(ad)} Your renewal payment failed — update your payment method to restore this ad.
+                {getReasonText(ad)} Select a different approved creative to fix this zip and go live again.
               </p>
-              {ad.stripe_customer_id ? (
+              <Button
+                size="sm"
+                className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white"
+                onClick={() => setShowChangeCreative(true)}
+              >
+                <ImagePlus className="w-3 h-3 mr-1" /> Change Creative &amp; Reactivate
+              </Button>
+            </div>
+          ) : (
+            <div className="bg-muted/30 border border-border rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold">Select an approved asset to reactivate</p>
                 <Button
+                  variant="ghost"
                   size="sm"
-                  className="rounded-xl h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
-                  disabled={portalLoading}
-                  onClick={handleOpenBillingPortal}
+                  className="rounded-xl h-7 text-xs"
+                  onClick={() => setShowChangeCreative(false)}
+                  disabled={creativeLoading}
                 >
-                  {portalLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CreditCard className="w-3 h-3 mr-1" />}
-                  Update Payment Method
+                  Cancel
                 </Button>
-              ) : (
-                <p className="text-orange-600/80 italic">No billing account found for this ad — contact support.</p>
-              )}
-            </div>
-          )}
-
-          {isRecoverable && (
-            <div>
-              {!showChangeCreative ? (
-                <div className="bg-mint-50 border border-mint-200 rounded-xl p-3 text-xs text-mint-700">
-                  <p className="mb-2">
-                    {getReasonText(ad)} Select a pre-approved creative to fix this and go live again.
-                  </p>
-                  <Button
-                    size="sm"
-                    className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white"
-                    onClick={() => setShowChangeCreative(true)}
-                  >
-                    <ImagePlus className="w-3 h-3 mr-1" /> Change Creative & Reactivate
-                  </Button>
+              </div>
+              {creativeLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-mint-500" />
                 </div>
               ) : (
-                <div className="bg-muted/30 border border-border rounded-xl p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold">Select an approved asset to reactivate this ad</p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="rounded-xl h-7 text-xs"
-                      onClick={() => setShowChangeCreative(false)}
-                      disabled={creativeLoading}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                  {creativeLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="w-4 h-4 animate-spin text-mint-500" />
-                    </div>
-                  ) : (
-                    <AdLibraryManager user={user} onSelectAsset={handleChangeCreative} allowAddNew />
-                  )}
-                </div>
+                <AdLibraryManager user={user} onSelectAsset={handleChangeCreative} allowAddNew />
               )}
             </div>
-          )}
+          )
+        ) : null}
 
-          {!isRecoverable && ad.status !== "past_due" && getReasonText(ad) && (
-            <p className="text-xs text-muted-foreground">{getReasonText(ad)}</p>
-          )}
-        </div>
+        {!isRecoverable && ad.status !== "past_due" && getReasonText(ad) ? (
+          <p className="text-[11px] text-muted-foreground">{getReasonText(ad)}</p>
+        ) : null}
       </div>
     </div>
   );

@@ -1,23 +1,28 @@
 import React from "react";
 
 /**
- * Consistent Admin Ads content frame: white card, fixed scroll height, optional WIP note.
- * Height sized for Default/Filler Ads density so long lists scroll inside the card.
+ * Consistent Admin/Account content frame: white card that grows with content.
+ * Page scroll handles overflow — no fixed height or inner scroll pane.
  */
-export default function AdminPanelShell({ children, wipNote, className = "" }) {
+export default function AdminPanelShell({
+  children,
+  wipNote,
+  className = "",
+  contentClassName = "",
+}) {
   return (
-    <div
-      className={`bg-white border border-border rounded-2xl flex flex-col min-h-[520px] max-h-[520px] overflow-hidden ${className}`}
-    >
+    <div className={`bg-white border border-border rounded-2xl overflow-hidden ${className}`}>
       {wipNote && (
-        <div className="shrink-0 px-4 py-2 border-b border-amber-100 bg-amber-50/80 flex items-start gap-2">
+        <div className="px-4 py-2 border-b border-amber-100 bg-amber-50/80 flex items-start gap-2">
           <span className="text-[10px] font-bold uppercase tracking-wide text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded mt-0.5">
             WIP
           </span>
           <p className="text-xs text-amber-800 leading-relaxed">{wipNote}</p>
         </div>
       )}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">{children}</div>
+      <div className={`p-4 sm:p-5 ${contentClassName}`}>
+        {children}
+      </div>
     </div>
   );
 }

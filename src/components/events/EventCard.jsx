@@ -1,17 +1,30 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { MapPin, Clock, Users, CalendarDays, AlertCircle, DollarSign, Bookmark } from "lucide-react";
 import CategoryBadge from "@/components/shared/CategoryBadge";
 import moment from "moment";
 
-export default function EventCard({ event, isSaved, onToggleSave }) {
+function defaultBackLabel(pathname) {
+  if (pathname === "/" || pathname === "") return "Back to Activities";
+  if (pathname.startsWith("/account")) return "Back to My Account";
+  if (pathname.startsWith("/admin")) return "Back to Admin";
+  if (pathname.startsWith("/organizers")) return "Back to Organizers";
+  return "Back";
+}
+
+export default function EventCard({ event, isSaved, onToggleSave, backLabel }) {
+  const location = useLocation();
   const isRegistrationFull = event.registration_full;
   const startDate = moment(event.start_date);
   const hasImage = event.event_image && event.posted_by_role === "organizer" && (!event.image_moderation_status || event.image_moderation_status === "approved");
   const isOrganizerPost = event.posted_by_role === "organizer";
+  const linkState = {
+    fromApp: true,
+    backLabel: backLabel || defaultBackLabel(location.pathname),
+  };
 
   return (
-    <Link to={`/event/${event.id}`} className="block group">
+    <Link to={`/event/${event.id}`} state={linkState} className="block group">
       <div className={`bg-white rounded-2xl border-2 overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 animate-settle ${isOrganizerPost ? "border-mint-500 shadow-mint-100/30" : "border-border"}`}>
         {hasImage && (
           <div className="aspect-video bg-muted/30 overflow-hidden flex items-center justify-center">
@@ -19,13 +32,15 @@ export default function EventCard({ event, isSaved, onToggleSave }) {
           </div>
         )}
         <div className="p-4">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <div className="flex flex-wrap gap-1">
-              {(Array.isArray(event.category) ? event.category : event.category ? [event.category] : []).map((c) => <CategoryBadge key={c} category={c} />)}
+          <div className="flex items-start gap-2 mb-2">
+            <div className="flex flex-wrap gap-1 min-w-0 flex-1">
+              {(Array.isArray(event.category) ? event.category : event.category ? [event.category] : []).map((c) => (
+                <CategoryBadge key={c} category={c} />
+              ))}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               {isRegistrationFull && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-peach-50 text-peach-500">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-peach-50 text-peach-500 whitespace-nowrap">
                   <AlertCircle className="w-3 h-3" /> Full
                 </span>
               )}

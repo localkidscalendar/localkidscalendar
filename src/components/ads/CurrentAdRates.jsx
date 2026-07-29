@@ -40,7 +40,7 @@ export default function CurrentAdRates() {
   return (
     <div>
       <p className="text-xs text-muted-foreground mb-4">
-        These are the published rates Supporters will pay when billing launches after beta. During beta, placement is waived.
+        Current published rates per zip code. Your plan renews at the rate in effect at renewal time.
       </p>
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="bg-muted/30 rounded-xl p-4 text-center">

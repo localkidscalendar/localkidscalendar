@@ -26,7 +26,7 @@ export default function BetaBanner() {
             <p className="text-sm text-muted-foreground">No zip codes have been added yet.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {zip_codes.map((z) => (
+              {[...zip_codes].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).map((z) => (
                 <span key={z} className="px-3 py-1 rounded-full bg-mint-50 text-mint-600 text-sm font-medium">{z}</span>
               ))}
             </div>

@@ -1,5 +1,6 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
+import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { isAccountDisabled, isRegisteredUser } from "@/lib/authRoles";
 
 const AuthContext = createContext();
 
@@ -31,6 +32,15 @@ async function buildAppUser(authUser) {
     }
   }
 
+  // Touch last_seen_at at most once per hour (used for digest inactivity auto-off).
+  const lastSeenMs = profile?.last_seen_at ? new Date(profile.last_seen_at).getTime() : 0;
+  if (!lastSeenMs || Date.now() - lastSeenMs > 60 * 60 * 1000) {
+    void supabase
+      .from("profiles")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("id", authUser.id);
+  }
+
   const { data: organizer } = await supabase
     .from("organizers")
     .select("*")
@@ -49,8 +59,13 @@ async function buildAppUser(authUser) {
     first_name: firstName,
     last_name: lastName,
     zip_code: profile?.zip_code || "",
+    radius_miles: Number(profile?.radius_miles) > 0 ? Number(profile.radius_miles) : 15,
     full_name: organizer?.org_name || fullName || authUser.email || "Member",
     org_name: organizer?.org_name || "",
+    role_before_disabled: profile?.role_before_disabled || null,
+    disabled_note: profile?.disabled_note || "",
+    disabled_at: profile?.disabled_at || null,
+    disabled_by: profile?.disabled_by || null,
   };
 }
 
@@ -133,11 +148,19 @@ export const AuthProvider = ({ children }) => {
     window.location.href = "/login";
   };
 
+  const accountDisabled = isAccountDisabled(user);
+  const registered = isRegisteredUser(user);
+  /** Feature for registered-only features — null when disabled (treated as signed out). */
+  const registeredUser = useMemo(() => (registered ? user : null), [registered, user]);
+
   return (
     <AuthContext.Provider
       value={{
         user,
         setUser,
+        registeredUser,
+        isAccountDisabled: accountDisabled,
+        isRegistered: registered,
         isAuthenticated,
         isLoadingAuth,
         isLoadingPublicSettings,

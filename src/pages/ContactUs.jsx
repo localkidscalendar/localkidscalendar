@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Mail, AlertCircle, CheckCircle2 } from "lucide-react";
+import { formatPhoneInput } from "@/lib/phone";
 
 const SUBJECTS = [
   "Report Technical Issues",
@@ -128,7 +129,7 @@ export default function ContactUs() {
       <div className="bg-white rounded-2xl border border-border p-6">
         {user ? (
           <p className="text-sm text-muted-foreground mb-6">
-            Your contact information is pulled from your account automatically. Fill in the subject and your message below.
+            Your name and email are pulled from your account. Add an optional phone number if you&apos;d like, then choose a subject and write your message.
           </p>
         ) : (
           <p className="text-sm text-muted-foreground mb-6">
@@ -150,7 +151,7 @@ export default function ContactUs() {
               onChange={(e) => setHpField(e.target.value)}
             />
           </div>
-          {/* Contact fields - editable for non-logged-in users */}
+          {/* Name/email from account when signed in; phone is always editable (not stored on profile) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label className="text-sm">Name {user ? "" : "*"}</Label>
@@ -178,10 +179,13 @@ export default function ContactUs() {
             <Label className="text-sm">Phone {user ? "(optional)" : "*"}</Label>
             <Input
               value={senderPhone}
-              onChange={(e) => setSenderPhone(e.target.value)}
-              readOnly={!!user}
+              onChange={(e) => setSenderPhone(formatPhoneInput(e.target.value))}
               className="rounded-xl mt-1"
-              placeholder={user ? "Not provided" : "Your phone number"}
+              placeholder="(555) 123-4567"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              maxLength={14}
             />
           </div>
 

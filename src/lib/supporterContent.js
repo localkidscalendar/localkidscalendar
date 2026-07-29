@@ -12,7 +12,7 @@ export const SUPPORTER_RULES = [
   { title: "Compliance with Laws", text: "All ads must comply with applicable local, state, and federal laws, including truth-in-advertising standards, privacy laws, and any regulations relevant to your industry." },
   { title: "Community Flagging", text: "Our community of parents can flag ads they feel are inappropriate. Ads flagged 3 or more times are automatically suspended pending review. Repeated violations will result in permanent removal without refund." },
   { title: "Replacement Ads", text: "If your ad is removed due to flagging or violation, you must submit a compliant replacement before your spot can be restored. Replacement ads undergo manual review." },
-  { title: "No Refunds for Policy Violations", text: "Ads removed due to policy violations, community flags, or Terms of Service breaches are not eligible for refunds or credits, regardless of remaining plan time." },
+  { title: "No Refunds for Policy Violations", text: "Ads removed due to policy violations, community flags, or Terms of Service breaches are not eligible for refunds or credits, regardless of remaining plan time. This also applies if the Supporter is prohibited from the site for not adhering to the Our Community Rules or Our Supporter rules." },
 ];
 
 /** Display sizes for ad creatives (object-cover frames). */

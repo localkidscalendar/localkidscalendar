@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lock, Loader2, AlertTriangle } from "lucide-react";
+import { Lock, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 
 export default function ResetPassword() {
@@ -69,7 +69,7 @@ export default function ResetPassword() {
 
   if (!ready) {
     return (
-      <AuthLayout icon={Lock} title="New password" subtitle="Checking your reset link…">
+      <AuthLayout title="New password" subtitle="Checking your reset link…">
         <div className="flex justify-center py-6">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
@@ -80,7 +80,6 @@ export default function ResetPassword() {
   if (!hasRecoverySession) {
     return (
       <AuthLayout
-        icon={AlertTriangle}
         title="Invalid reset link"
         subtitle="This password reset link is missing or expired"
         footer={
@@ -97,7 +96,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <AuthLayout icon={Lock} title="New password" subtitle="Enter your new password below">
+    <AuthLayout title="New password" subtitle="Enter your new password below">
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
           {error}

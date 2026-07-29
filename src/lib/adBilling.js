@@ -77,3 +77,8 @@ export async function openBillingPortal({ ad_id, return_url } = {}) {
 export async function cancelAdRenewal({ ad_id } = {}) {
   return postJson("/api/cancel-ad-renewal", { ad_id });
 }
+
+/** Schedule or cancel a monthly ↔ annual plan switch at next renewal. */
+export async function requestAdPlanChange({ ad_id, action } = {}) {
+  return postJson("/api/request-ad-plan-change", { ad_id, action });
+}

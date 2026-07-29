@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 import BetaStage1Gate from '@/components/beta/BetaStage1Gate';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // Layout
 import AppLayout from '@/components/layout/AppLayout';
@@ -34,6 +35,9 @@ import Supporters from '@/pages/Supporters';
 import AdvertiserTerms from '@/pages/AdvertiserTerms';
 import AdManager from '@/pages/AdManager';
 import AdManagerPreview from '@/pages/AdManagerPreview';
+import AccountDisabled from '@/pages/AccountDisabled';
+import AccountDisabledPreview from '@/pages/AccountDisabledPreview';
+import UnsubscribeDigest from '@/pages/UnsubscribeDigest';
 import InviteOrganizerPage from '@/pages/InviteOrganizerPage';
 import InviteCommunityMemberPage from '@/pages/InviteCommunityMemberPage';
 import InviteSupporterPage from '@/pages/InviteSupporterPage';
@@ -77,7 +81,10 @@ const AuthenticatedApp = () => {
         <Route path="/invite-community-member" element={<InviteCommunityMemberPage />} />
         <Route path="/invite-supporter" element={<InviteSupporterPage />} />
         <Route path="/account" element={<Account />} />
-        <Route path="/admin" element={<Admin />} />
+      <Route path="/account-disabled" element={<AccountDisabled />} />
+      <Route path="/account-disabled-preview" element={<AccountDisabledPreview />} />
+      <Route path="/unsubscribe" element={<UnsubscribeDigest />} />
+      <Route path="/admin" element={<Admin />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<ContactUs />} />
         <Route path="/tips-community-members" element={<TipsCommunityMembers />} />
@@ -96,17 +103,19 @@ const AuthenticatedApp = () => {
 
 function App() {
   return (
-    <BetaStage1Gate>
-      <AuthProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <Router>
-            <ScrollToTop />
-            <AuthenticatedApp />
-          </Router>
-          <Toaster />
-        </QueryClientProvider>
-      </AuthProvider>
-    </BetaStage1Gate>
+    <ErrorBoundary>
+      <BetaStage1Gate>
+        <AuthProvider>
+          <QueryClientProvider client={queryClientInstance}>
+            <Router>
+              <ScrollToTop />
+              <AuthenticatedApp />
+            </Router>
+            <Toaster />
+          </QueryClientProvider>
+        </AuthProvider>
+      </BetaStage1Gate>
+    </ErrorBoundary>
   )
 }
 

@@ -14,7 +14,7 @@ export default function ZipRequiredModal({ onSubmit }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-lg text-center">
         <div className="w-12 h-12 rounded-full bg-mint-100 flex items-center justify-center mx-auto mb-3">
           <MapPin className="w-6 h-6 text-mint-500" />

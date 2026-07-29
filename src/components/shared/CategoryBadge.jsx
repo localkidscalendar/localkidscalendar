@@ -14,7 +14,9 @@ export default function CategoryBadge({ category, className = "" }) {
   const key = normalizeCategoryValue(category) || category;
   const style = CATEGORY_STYLES[key] || { bg: "bg-gray-100", text: "text-gray-600" };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${style.bg} ${style.text} ${className}`}>
+    <span
+      className={`inline-flex items-center max-w-full px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 ${style.bg} ${style.text} ${className}`}
+    >
       {categoryLabel(category)}
     </span>
   );

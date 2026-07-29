@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import GoogleIcon from "@/components/GoogleIcon";
 import { Mail, Lock, Loader2, Users, Building2, MapPin, CheckCircle, AlertTriangle } from "lucide-react";
+import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
 
 // Step indicator
 function StepBar({ step }) {
@@ -54,6 +55,7 @@ export default function Register() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [zipCode, setZipCode] = useState("");
+  const [radiusMiles, setRadiusMiles] = useState(DEFAULT_RADIUS_MILES);
   const [orgName, setOrgName] = useState("");
   const [orgDescription, setOrgDescription] = useState("");
   const [orgWebsite, setOrgWebsite] = useState("");
@@ -130,6 +132,7 @@ export default function Register() {
             first_name: isOrganizer ? "" : firstName,
             last_name: isOrganizer ? "" : lastName,
             zip_code: zipCode,
+            radius_miles: normalizeRadiusMiles(radiusMiles),
             org_name: isOrganizer ? orgName : null,
             org_description: isOrganizer ? orgDescription : null,
             org_website: isOrganizer ? orgWebsite : null,
@@ -162,6 +165,7 @@ export default function Register() {
       first_name: isOrganizer ? "" : firstName,
       last_name: isOrganizer ? "" : lastName,
       zip_code: zipCode,
+      radius_miles: normalizeRadiusMiles(radiusMiles),
       updated_at: new Date().toISOString(),
     });
     if (profileError) throw profileError;
@@ -340,7 +344,19 @@ export default function Register() {
                   </div>
                   <div className="space-y-1">
                     <Label className="font-heading font-semibold text-sm flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Zip Code *</Label>
-                    <Input value={zipCode} onChange={(e) => setZipCode(e.target.value)} className="rounded-xl" placeholder="90210" maxLength={5} required />
+                    <Input value={zipCode} onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))} className="rounded-xl" placeholder="90210" maxLength={5} required />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="font-heading font-semibold text-sm">Distance *</Label>
+                    <select
+                      value={radiusMiles}
+                      onChange={(e) => setRadiusMiles(Number(e.target.value))}
+                      className="w-full h-10 rounded-xl text-sm border border-input bg-transparent px-3 py-2 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {RADIUS_OPTIONS.map((d) => (
+                        <option key={d} value={d}>{d} miles</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               )}
@@ -367,7 +383,19 @@ export default function Register() {
                     </div>
                     <div className="space-y-1">
                       <Label className="font-heading font-semibold text-sm flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Zip Code *</Label>
-                      <Input value={zipCode} onChange={(e) => setZipCode(e.target.value)} className="rounded-xl" placeholder="90210" maxLength={5} required />
+                      <Input value={zipCode} onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))} className="rounded-xl" placeholder="90210" maxLength={5} required />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="font-heading font-semibold text-sm">Distance *</Label>
+                      <select
+                        value={radiusMiles}
+                        onChange={(e) => setRadiusMiles(Number(e.target.value))}
+                        className="w-full h-10 rounded-xl text-sm border border-input bg-transparent px-3 py-2 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        {RADIUS_OPTIONS.map((d) => (
+                          <option key={d} value={d}>{d} miles</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>

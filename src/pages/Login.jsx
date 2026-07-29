@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
+import { Mail, Lock, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 
@@ -19,11 +19,23 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       if (signInError) throw signInError;
+      const uid = data?.user?.id;
+      if (uid) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", uid)
+          .maybeSingle();
+        if (profile?.role === "disabled") {
+          window.location.href = "/account-disabled";
+          return;
+        }
+      }
       window.location.href = "/";
     } catch (err) {
       setError(err.message || "Invalid email or password");
@@ -48,7 +60,6 @@ export default function Login() {
 
   return (
     <AuthLayout
-      icon={LogIn}
       title="Welcome back"
       subtitle="Log in to your account"
       footer={

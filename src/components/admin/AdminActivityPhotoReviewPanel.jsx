@@ -1,76 +1,41 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { buildEmail } from "@/lib/emailTemplates";
-import { sendEmail } from "@/lib/sendEmail";
+import { notifyActivityPhotoDecision } from "@/lib/userMessages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Link } from "react-router-dom";
-import { Check, X, Loader2, MessageSquare } from "lucide-react";
+import { Check, X, Loader2 } from "lucide-react";
 import moment from "moment";
 
-async function sendPhotoDecisionEmail(event, decision, notes) {
-  try {
-    if (!event.created_by_id) return;
-    const { data: contributor } = await supabase
-      .from("profiles")
-      .select("email, first_name, last_name")
-      .eq("id", event.created_by_id)
-      .maybeSingle();
-    if (!contributor?.email) return;
-
-    const contributorName =
-      [contributor.first_name, contributor.last_name].filter(Boolean).join(" ").trim() || "there";
-    const templateKey =
-      decision === "approved" ? "activity_photo_approved_admin" : "activity_photo_declined_admin";
-    const { subject, html } = buildEmail(templateKey, {
-      contributor_name: contributorName,
-      activity_title: event.title || "your activity",
-      reason: notes || undefined,
-    });
-    await sendEmail({ to: contributor.email, subject, html });
-  } catch (err) {
-    console.error("Failed to send activity photo decision email", err);
-  }
+function formatSubmittedAt(createdAt) {
+  const local = moment.utc(createdAt).local();
+  return `${local.format("MMM D, YYYY h:mm A")} · ${local.fromNow()}`;
 }
 
-function ActionCell({ item, processing, onApprove, onDecline }) {
-  const [showNote, setShowNote] = useState(false);
-  const [note, setNote] = useState("");
-  const busy = processing === item.id;
-
-  const decline = () => onDecline(item, note.trim() || null);
-
-  return (
-    <div className="flex flex-col gap-1.5 items-end">
-      <div className="flex gap-1">
-        <Button size="sm" className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white" disabled={busy} onClick={() => onApprove(item)}>
-          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Check className="w-3 h-3 mr-1" />Approve</>}
-        </Button>
-        <Button size="sm" variant="outline" className="rounded-xl h-7 text-xs text-destructive border-destructive/20" disabled={busy} onClick={decline}>
-          <X className="w-3 h-3 mr-1" />Decline
-        </Button>
-        <Button size="sm" variant="ghost" className={`rounded-xl h-7 w-7 p-0 ${showNote ? "text-purple-600" : "text-muted-foreground"}`} title="Add a note to the decline" onClick={() => setShowNote((v) => !v)}>
-          <MessageSquare className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-      {showNote && (
-        <Input
-          autoFocus
-          placeholder="Optional decline note…"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") decline(); }}
-          className="rounded-lg h-7 text-xs w-52"
-        />
-      )}
-    </div>
-  );
+function profileDisplayName(profile, orgName) {
+  if (orgName) return orgName;
+  if (!profile) return "";
+  const fromParts = [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim();
+  if (fromParts) return fromParts;
+  return profile.email || "";
 }
 
-export default function AdminActivityPhotoReviewPanel({ toast }) {
+export default function AdminActivityPhotoReviewPanel({ toast, onQueueChange }) {
   const [requests, setRequests] = useState([]);
+  const [users, setUsers] = useState({});
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(null);
+  const [declineItem, setDeclineItem] = useState(null);
+  const [declineNote, setDeclineNote] = useState("");
 
   useEffect(() => { load(); }, []);
 
@@ -85,8 +50,42 @@ export default function AdminActivityPhotoReviewPanel({ toast }) {
         .limit(100);
       if (error) throw error;
       setRequests(data || []);
+
+      const userIds = [...new Set((data || []).map((r) => r.created_by_id).filter(Boolean))];
+      if (userIds.length > 0) {
+        const [{ data: profiles }, { data: orgs }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("id, first_name, last_name, email")
+            .in("id", userIds),
+          supabase
+            .from("organizers")
+            .select("user_id, org_name")
+            .in("user_id", userIds),
+        ]);
+        const orgByUser = {};
+        (orgs || []).forEach((o) => {
+          if (o.user_id && o.org_name) orgByUser[o.user_id] = o.org_name;
+        });
+        const map = {};
+        (profiles || []).forEach((u) => {
+          map[u.id] = {
+            name: profileDisplayName(u, orgByUser[u.id]) || "Organizer",
+            email: u.email || "",
+          };
+        });
+        userIds.forEach((id) => {
+          if (!map[id] && orgByUser[id]) {
+            map[id] = { name: orgByUser[id], email: "" };
+          }
+        });
+        setUsers(map);
+      } else {
+        setUsers({});
+      }
     } catch {
       setRequests([]);
+      setUsers({});
     }
     setLoading(false);
   };
@@ -101,17 +100,23 @@ export default function AdminActivityPhotoReviewPanel({ toast }) {
         updated_at: new Date().toISOString(),
       }).eq("id", item.id);
       if (error) throw error;
-      sendPhotoDecisionEmail(item, "approved", null);
+      void notifyActivityPhotoDecision(item, "approved");
       toast({ title: "Photo approved", description: `"${item.title}"'s photo is now live.` });
       setRequests((r) => r.filter((x) => x.id !== item.id));
+      onQueueChange?.();
     } catch {
       toast({ title: "Failed to approve", variant: "destructive" });
     }
     setProcessing(null);
   };
 
-  const handleDecline = async (item, note) => {
+  const confirmDecline = async () => {
+    if (!declineItem) return;
+    const item = declineItem;
+    const note = declineNote.trim();
     setProcessing(item.id);
+    setDeclineItem(null);
+    setDeclineNote("");
     try {
       const notes = note || item.image_moderation_notes || "Declined by admin.";
       const { error } = await supabase.from("events").update({
@@ -122,9 +127,10 @@ export default function AdminActivityPhotoReviewPanel({ toast }) {
         updated_at: new Date().toISOString(),
       }).eq("id", item.id);
       if (error) throw error;
-      sendPhotoDecisionEmail(item, "declined", notes);
+      void notifyActivityPhotoDecision(item, "declined", notes);
       toast({ title: "Photo declined", description: `"${item.title}"'s photo has been declined.` });
       setRequests((r) => r.filter((x) => x.id !== item.id));
+      onQueueChange?.();
     } catch {
       toast({ title: "Failed to decline", variant: "destructive" });
     }
@@ -133,72 +139,140 @@ export default function AdminActivityPhotoReviewPanel({ toast }) {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border border-border p-4 flex items-center justify-center py-8">
+      <div className="flex justify-center py-12">
         <Loader2 className="w-5 h-5 animate-spin text-mint-500" />
       </div>
     );
   }
 
   return (
-    <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-heading font-semibold text-sm text-purple-800">
-          Activity Photo Manual Review Requests
-          {requests.length > 0 && (
-            <span className="ml-2 bg-purple-200 text-purple-800 text-xs font-bold px-2 py-0.5 rounded-full">{requests.length}</span>
-          )}
-        </h3>
-        <Button variant="ghost" size="sm" className="rounded-xl h-7 text-xs" onClick={load}>Refresh</Button>
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <p className="text-sm text-muted-foreground">
+          {requests.length === 0
+            ? "No manual review requests"
+            : `${requests.length} pending review${requests.length === 1 ? "" : "s"}`}
+        </p>
+        <Button variant="ghost" size="sm" className="rounded-xl h-7 text-xs" onClick={load}>
+          Refresh
+        </Button>
       </div>
 
       {requests.length === 0 ? (
-        <p className="text-sm text-purple-600 py-2">No manual review requests at this time.</p>
+        <p className="text-sm text-muted-foreground text-center py-12">No activity photos waiting for review</p>
       ) : (
-        <div className="bg-white rounded-xl border border-purple-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-purple-50">
-              <tr>
-                <th className="text-left px-4 py-2.5 font-medium text-purple-700">Activity</th>
-                <th className="text-left px-4 py-2.5 font-medium text-purple-700">Requested</th>
-                <th className="text-left px-4 py-2.5 font-medium text-purple-700">AI Decline Reason</th>
-                <th className="text-left px-4 py-2.5 font-medium text-purple-700">Photo</th>
-                <th className="text-right px-4 py-2.5 font-medium text-purple-700">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-purple-50">
-              {requests.map((item) => (
-                <tr key={item.id} className="hover:bg-purple-50/50">
-                  <td className="px-4 py-3 font-medium max-w-[160px] truncate">
-                    <Link to={`/event/${item.id}`} className="text-mint-600 hover:underline">{item.title}</Link>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                    {moment(item.created_at).format("MMM D, YYYY")}
-                  </td>
-                  <td className="px-4 py-3 max-w-[200px]">
-                    {item.image_moderation_notes ? (
-                      <p className="text-xs text-muted-foreground leading-relaxed">{item.image_moderation_notes}</p>
-                    ) : (
-                      <span className="text-xs text-muted-foreground/50">—</span>
+        <div className="space-y-3">
+          {requests.map((item) => {
+            const person = users[item.created_by_id];
+            const displayName =
+              person?.name
+              || item.org_name
+              || item.poster_display_name
+              || "Organizer";
+            const busy = processing === item.id;
+            return (
+              <div
+                key={item.id}
+                className="rounded-xl border border-border bg-white p-4 flex flex-col sm:flex-row sm:items-start gap-3 shadow-sm"
+              >
+                {item.event_image ? (
+                  <a
+                    href={item.event_image}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="View full size"
+                    className="shrink-0 w-20 aspect-video rounded-lg border border-border bg-muted/30 overflow-hidden flex items-center justify-center hover:ring-2 hover:ring-mint-300 transition"
+                  >
+                    <img src={item.event_image} alt={item.title || "Activity photo"} className="max-w-full max-h-full object-contain" />
+                  </a>
+                ) : (
+                  <div className="shrink-0 w-20 aspect-video rounded-lg border border-dashed border-border bg-muted/20" />
+                )}
+
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm">{displayName}</span>
+                    {person?.email && (
+                      <span className="text-xs text-muted-foreground">{person.email}</span>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {item.event_image ? (
-                      <a href={item.event_image} target="_blank" rel="noopener noreferrer" title="View photo" className="inline-block">
-                        <div className="w-20 aspect-video rounded border border-purple-100 bg-purple-50/50 overflow-hidden flex items-center justify-center">
-                          <img src={item.event_image} alt="" className="max-w-full max-h-full object-contain" />
-                        </div>
-                      </a>
-                    ) : <span className="text-xs text-muted-foreground/50">—</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <ActionCell item={item} processing={processing} onApprove={handleApprove} onDecline={handleDecline} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <Link to={`/event/${item.id}`} className="block text-sm text-mint-600 hover:underline font-medium truncate">
+                    {item.title || "Untitled activity"}
+                  </Link>
+                  {item.image_moderation_notes && (
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      <span className="font-medium text-foreground/80">Decline reason: </span>
+                      {item.image_moderation_notes}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {formatSubmittedAt(item.created_at)}
+                  </p>
+                </div>
+
+                <div className="flex gap-1 shrink-0 flex-wrap justify-end">
+                  <Button
+                    size="sm"
+                    className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white"
+                    disabled={busy}
+                    onClick={() => handleApprove(item)}
+                  >
+                    {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Check className="w-3 h-3 mr-1" />Approve</>}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl h-7 text-xs text-destructive border-destructive/20"
+                    disabled={busy}
+                    onClick={() => {
+                      setDeclineNote("");
+                      setDeclineItem(item);
+                    }}
+                  >
+                    <X className="w-3 h-3 mr-1" />Decline
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
+
+      <AlertDialog
+        open={Boolean(declineItem)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeclineItem(null);
+            setDeclineNote("");
+          }
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-heading">Decline This Photo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Decline the photo for “{declineItem?.title || "this activity"}”? You can add optional remarks for the poster.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            placeholder="Optional remarks…"
+            value={declineNote}
+            onChange={(e) => setDeclineNote(e.target.value)}
+            className="rounded-xl"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <Button
+              className="rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              disabled={processing === declineItem?.id}
+              onClick={confirmDecline}
+            >
+              {processing === declineItem?.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Decline
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

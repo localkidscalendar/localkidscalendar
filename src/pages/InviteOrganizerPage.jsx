@@ -1,8 +1,9 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import React from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { ArrowLeft, Copy, Mail, MessageSquare, Sparkles } from "lucide-react";
+import { Copy, Mail, MessageSquare, Sparkles } from "lucide-react";
+import HistoryBackLink from "@/components/shared/HistoryBackLink";
 
 const MEMO_SUBJECT = "I think your organization would be a great fit for LocalKidsCalendar.com";
 
@@ -27,7 +28,6 @@ Getting started is easy:
 We'd love to have you join our community!`;
 
 export default function InviteOrganizerPage() {
-  const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleCopy = async () => {
@@ -51,9 +51,7 @@ export default function InviteOrganizerPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
-      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-mint-500 mb-6 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Back
-      </button>
+      <HistoryBackLink />
 
       <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
         {/* Letter header */}

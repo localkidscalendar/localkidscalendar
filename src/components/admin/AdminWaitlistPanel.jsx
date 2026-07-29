@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import moment from "moment";
+import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
 import {
   QUEUE_STATUSES,
   compareWaitlistEntries,
@@ -58,10 +59,15 @@ export default function AdminWaitlistPanel({ toast }) {
   const [overrideNotes, setOverrideNotes] = useState({});
   const [saving, setSaving] = useState(null);
   const [runningProcessor, setRunningProcessor] = useState(false);
+  const [zipPage, setZipPage] = useState(1);
 
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    setZipPage(1);
+  }, [search]);
 
   const load = async () => {
     setLoading(true);
@@ -272,6 +278,7 @@ export default function AdminWaitlistPanel({ toast }) {
     byZip[zip].sort(compareWaitlistEntries);
   }
   const zips = Object.keys(byZip).sort();
+  const paginatedZips = zips.slice((zipPage - 1) * PAGE_SIZE, zipPage * PAGE_SIZE);
 
   if (loading) {
     return (
@@ -319,7 +326,7 @@ export default function AdminWaitlistPanel({ toast }) {
       )}
 
       <div className="space-y-3">
-        {zips.map((zip) => {
+        {paginatedZips.map((zip) => {
           const zipEntries = byZip[zip];
           const isExpanded = expandedId === zip;
 
@@ -491,6 +498,7 @@ export default function AdminWaitlistPanel({ toast }) {
             </div>
           );
         })}
+        <Paginator total={zips.length} page={zipPage} onPage={setZipPage} />
       </div>
     </div>
   );

@@ -8,9 +8,12 @@ export default function ZipCodeRankingCard({ title, rows, columns }) {
   const ranked = rows
     .filter((r) => columns.some((c) => (r[c.key] || 0) > 0))
     .sort((a, b) => {
-      const totalA = columns.reduce((sum, c) => sum + (a[c.key] || 0), 0);
-      const totalB = columns.reduce((sum, c) => sum + (b[c.key] || 0), 0);
-      return totalB - totalA;
+      // Rank by columns in order (primary, then tie-breakers)
+      for (const c of columns) {
+        const diff = (b[c.key] || 0) - (a[c.key] || 0);
+        if (diff !== 0) return diff;
+      }
+      return String(a.zip).localeCompare(String(b.zip), undefined, { numeric: true });
     })
     .slice(0, 10);
 
@@ -20,7 +23,14 @@ export default function ZipCodeRankingCard({ title, rows, columns }) {
       {ranked.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-6">No data yet</p>
       ) : (
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
+          <colgroup>
+            <col className="w-8" />
+            <col className="w-24" />
+            {columns.map((c) => (
+              <col key={c.key} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="text-muted-foreground text-xs">
               <th className="text-left py-1.5 font-medium">#</th>
@@ -36,7 +46,7 @@ export default function ZipCodeRankingCard({ title, rows, columns }) {
                 <td className="py-1.5 text-muted-foreground">{idx + 1}</td>
                 <td className="py-1.5 font-medium">{r.zip}</td>
                 {columns.map((c) => (
-                  <td key={c.key} className="py-1.5 text-right">{r[c.key] || 0}</td>
+                  <td key={c.key} className="py-1.5 text-right tabular-nums">{r[c.key] || 0}</td>
                 ))}
               </tr>
             ))}

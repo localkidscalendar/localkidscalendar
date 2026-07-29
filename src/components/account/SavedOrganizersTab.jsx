@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import OrganizerCard from "@/components/organizers/OrganizerCard";
 import EmptyState from "@/components/shared/EmptyState";
 import LoadingState from "@/components/shared/LoadingState";
+import { Input } from "@/components/ui/input";
 import { Heart } from "lucide-react";
 
 export default function SavedOrganizersTab({ user }) {
@@ -11,6 +12,7 @@ export default function SavedOrganizersTab({ user }) {
   const [organizers, setOrganizers] = useState([]);
   const [favoriteRecords, setFavoriteRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     loadData();
@@ -53,6 +55,25 @@ export default function SavedOrganizersTab({ user }) {
     setOrganizers((prev) => prev.filter((o) => o.id !== orgId));
   };
 
+  const filteredOrganizers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return organizers;
+    return organizers.filter((org) => {
+      const hay = [
+        org.name,
+        org.organization_name,
+        org.city,
+        org.state,
+        org.zip_code,
+        org.description,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [organizers, search]);
+
   if (loading) {
     return <LoadingState text="Loading favorite organizers..." />;
   }
@@ -74,16 +95,30 @@ export default function SavedOrganizersTab({ user }) {
       <p className="text-sm text-muted-foreground">
         Organizers you&apos;ve favorited so you can follow their activities more easily.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {organizers.map((org) => (
-          <OrganizerCard
-            key={org.id}
-            org={org}
-            isFavorite
-            onToggleFavorite={toggleFavorite}
-          />
-        ))}
-      </div>
+
+      <Input
+        placeholder="Search favorite organizers…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="rounded-xl h-9 text-sm sm:max-w-xs"
+      />
+
+      {filteredOrganizers.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-8">
+          No organizers match your search.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {filteredOrganizers.map((org) => (
+            <OrganizerCard
+              key={org.id}
+              org={org}
+              isFavorite
+              onToggleFavorite={toggleFavorite}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

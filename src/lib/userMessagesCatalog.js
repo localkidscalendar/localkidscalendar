@@ -1,0 +1,245 @@
+/**
+ * Catalog of automated in-app notices for Admin Previews
+ * and for consistent copy when creating live messages.
+ * Titles align with EMAIL_TEMPLATE_META labels when both channels exist.
+ */
+
+/** @typedef {{ key: string, title: string, subject: string, body: string, actionLabel?: string, actionHref?: string, channels: ('in_app'|'email')[], audience: string, when: string }} AutomatedNoticeDef */
+
+/** @type {AutomatedNoticeDef[]} */
+export const AUTOMATED_NOTICE_CATALOG = [
+  {
+    key: "activity_photo_approved_admin",
+    title: "Community - Activity Photo Approved (Manual Review)",
+    subject: "Your activity photo was approved",
+    body: "The photo you uploaded for \"Summer Soccer Camp\" has been manually reviewed and approved. It is now live on the listing.",
+    actionLabel: "View My Activity Posts",
+    actionHref: "/account?tab=posts",
+    channels: ["in_app"],
+    audience: "Activity poster",
+    when: "Admin approves an activity photo in Manual Review",
+  },
+  {
+    key: "activity_photo_declined_admin",
+    title: "Community - Activity Photo Declined (Manual Review)",
+    subject: "Your activity photo was declined",
+    body: "The photo you uploaded for \"Summer Soccer Camp\" was not approved.\n\nReason: The photo appeared blurry and did not clearly represent the activity.\n\nPlease edit your activity to upload a different photo. Your activity remains live in the meantime.",
+    actionLabel: "View My Activity Posts",
+    actionHref: "/account?tab=posts",
+    channels: ["in_app"],
+    audience: "Activity poster",
+    when: "Admin declines an activity photo in Manual Review",
+  },
+  {
+    key: "activity_removed_admin",
+    title: "Community - Activity Removed (Admin Reason)",
+    subject: "Your activity was removed",
+    body: "Your activity \"Summer Soccer Camp\" was removed by our Admin team.\n\nReason: The listed registration link was broken and could not be verified.\n\nYou can review this on My Activity Posts. If you believe this was a mistake, contact us.",
+    actionLabel: "View My Activity Posts",
+    actionHref: "/account?tab=posts",
+    channels: ["in_app"],
+    audience: "Activity poster",
+    when: "Admin removes a posted activity",
+  },
+  {
+    key: "activity_removed_flags",
+    title: "Community - Activity Removed (Community Flags)",
+    subject: "Your activity was removed",
+    body: "Your activity \"Summer Soccer Camp\" was automatically removed after being flagged by 3+ community members. You can review it under My Activity Posts.",
+    actionLabel: "View My Activity Posts",
+    actionHref: "/account?tab=posts",
+    channels: ["in_app"],
+    audience: "Activity poster",
+    when: "An activity reaches 3+ community flags and is auto-removed",
+  },
+  {
+    key: "comment_removed_flags",
+    title: "Community - Comment Removed (Community Flags)",
+    subject: "Your comment was removed",
+    body: "Your comment was automatically removed after being flagged by 3+ community members.",
+    actionLabel: "View Messages",
+    actionHref: "/account?tab=messages",
+    channels: ["in_app"],
+    audience: "Comment author",
+    when: "A comment reaches 3+ community flags and is auto-removed",
+  },
+  {
+    key: "saved_activity_removed",
+    title: "Community - Saved Activity Removed",
+    subject: "A saved activity was removed",
+    body: "An activity you saved (\"Summer Soccer Camp\") is no longer available on Local Kids Calendar.\n\nNote: Removed after community flagging.",
+    actionLabel: "View Saved Activities",
+    actionHref: "/account?tab=saved",
+    channels: ["in_app"],
+    audience: "Users who saved the activity",
+    when: "A saved activity is removed from the site",
+  },
+  {
+    key: "welcome_new_profile",
+    title: "Community - Welcome (New Profile)",
+    subject: "Welcome to Local Kids Calendar!",
+    body: "Welcome! We're glad you're here.\n\nLocal Kids Calendar helps families discover camps, classes, sports, and events nearby. Visit the About page for an overview of the site and tips to get started — whether you're browsing as a community member, posting as an organizer, or exploring how to support local kids activities.",
+    actionLabel: "About & Getting Started",
+    actionHref: "/about",
+    channels: ["in_app"],
+    audience: "New account holders",
+    when: "A new profile is created (signup)",
+  },
+  {
+    key: "ad_flagged_admin",
+    title: "Advertiser - Ad Creative Disabled (Admin)",
+    subject: "Your ad creative was disabled",
+    body: "Your Supporter ad creative has been disabled by our Admin team across zip 89448 and 89449.\n\nReason: The destination link redirected to an unrelated third-party promotion.\n\nWhat Next: Your subscription and billing remain active. Open Ad Manager and assign a different approved creative to each affected zip to restore those placements. Each zip goes live again as soon as you assign a compliant Ad Asset.",
+    actionLabel: "Open Ad Manager",
+    actionHref: "/ad-manager",
+    channels: ["in_app", "email"],
+    audience: "Advertiser (Supporter)",
+    when: "Admin disables an Ad Asset (Admin → Ads, or Flags → Manually Deactivate)",
+  },
+  {
+    key: "ad_removed_flagged",
+    title: "Advertiser - Ad Creative Disabled (Community Flags)",
+    subject: "Your ad creative was disabled",
+    body: "Your Supporter ad creative was disabled after community flagging across zip 89448 and 89449.\n\nReason: Ad creative flagged by 3+ community members and disabled across all zip placements.\n\nWhat Next: Your subscription and billing remain active. Open Ad Manager and assign a different approved creative to each affected zip to restore those placements. Each zip goes live again as soon as you assign a compliant Ad Asset.",
+    actionLabel: "Open Ad Manager",
+    actionHref: "/ad-manager",
+    channels: ["in_app", "email"],
+    audience: "Advertiser (Supporter)",
+    when: "An Ad Asset is disabled after 3+ community flags",
+  },
+  {
+    key: "ad_creative_approved_admin",
+    title: "Advertiser - Creative Asset Approved (Manual Review)",
+    subject: "Your ad creative was approved",
+    body: "Your Supporter ad creative \"Summer Camp Adventures\" has been manually reviewed and approved. It is now available to assign to zip placements in Ad Manager.",
+    actionLabel: "Open Ad Manager",
+    actionHref: "/ad-manager",
+    channels: ["in_app"],
+    audience: "Advertiser (Supporter)",
+    when: "Admin approves an Ad Library creative in Manual Review",
+  },
+  {
+    key: "ad_creative_declined_admin",
+    title: "Advertiser - Creative Asset Declined (Manual Review)",
+    subject: "Your ad creative was declined",
+    body: "Your Supporter ad creative \"Summer Camp Adventures\" was not approved in manual review and has been removed from your library.\n\nReason: The destination link did not match the advertised business.\n\nPlease upload a new creative in Ad Library if you still want to advertise.",
+    actionLabel: "Open Ad Manager",
+    actionHref: "/ad-manager",
+    channels: ["in_app"],
+    audience: "Advertiser (Supporter)",
+    when: "Admin declines an Ad Library creative in Manual Review",
+  },
+  {
+    key: "subscription_payment_failed",
+    title: "Advertiser - Subscription Payment Failed",
+    subject: "Payment past due — action required",
+    body: "Your Supporter ad renewal payment for zip 89448 failed.\n\nYour ad is temporarily hidden from public view, but your spot is still reserved for 7 days (until July 28, 2026).\n\nUpdate your payment method in Ad Manager before that date. If payment isn’t updated in time, your spot will be released and may be offered to the waitlist.",
+    actionLabel: "Open Ad Manager",
+    actionHref: "/ad-manager",
+    channels: ["in_app", "email"],
+    audience: "Advertiser (Supporter)",
+    when: "A renewal payment fails (7-day grace period starts)",
+  },
+  {
+    key: "subscription_renewed",
+    title: "Advertiser - Subscription Renewed",
+    subject: "Payment successful — ad renewed",
+    body: "Your Supporter ad renewal payment for zip 89449 was successful. Thank you for supporting local kids activities.",
+    actionLabel: "Open Ad Manager",
+    actionHref: "/ad-manager",
+    channels: ["in_app"],
+    audience: "Advertiser (Supporter)",
+    when: "A renewal payment succeeds",
+  },
+  {
+    key: "subscription_renewing_soon",
+    title: "Advertiser - Subscription Renewing Soon",
+    subject: "Your Supporter ad is renewing soon",
+    body: "Your Supporter ad for zip 89448 renews on July 30, 2026. No action is needed unless you want to update payment or set non-renew in Ad Manager.",
+    actionLabel: "Open Ad Manager",
+    actionHref: "/ad-manager",
+    channels: ["in_app"],
+    audience: "Advertiser (Supporter)",
+    when: "21 days before auto-renewal",
+  },
+  {
+    key: "plan_upgrade_confirmed",
+    title: "Advertiser - Plan Upgrade Confirmed (Monthly → Annual)",
+    subject: "Your Supporter plan is switching to annual",
+    body: "As requested, your Supporter ad for zip 89448 will switch from monthly to the annual plan at your upcoming renewal on July 30, 2026.\n\nYour new annual rate is locked from the published pricing in effect about 21 days before renewal. That locked rate will be charged at renewal, and your plan will renew annually going forward unless you set non-renew.",
+    actionLabel: "Open Ad Manager",
+    actionHref: "/ad-manager",
+    channels: ["in_app"],
+    audience: "Advertiser (Supporter)",
+    when: "Scheduled plan upgrade is locked in (~21 days before renewal)",
+  },
+  {
+    key: "plan_downgrade_confirmed",
+    title: "Advertiser - Plan Downgrade Confirmed (Annual → Monthly)",
+    subject: "Your Supporter plan is switching to monthly",
+    body: "As requested, your Supporter ad for zip 89449 will switch from annual to the monthly plan at your upcoming renewal on July 30, 2026.\n\nYour new monthly rate is locked from the published pricing in effect about 21 days before renewal. That locked rate will be charged at renewal, and your plan will renew monthly going forward unless you set non-renew.",
+    actionLabel: "Open Ad Manager",
+    actionHref: "/ad-manager",
+    channels: ["in_app"],
+    audience: "Advertiser (Supporter)",
+    when: "Scheduled plan downgrade is locked in (~21 days before renewal)",
+  },
+  {
+    key: "waitlist_spot_available",
+    title: "Advertiser - Spot Available",
+    subject: "A spot has opened up in your area",
+    body: "A Supporter ad spot opened in zip 89448. Complete checkout from Ad Manager → Waitlist within 24 hours to claim it.",
+    actionLabel: "Open Ad Manager",
+    actionHref: "/ad-manager",
+    channels: ["in_app", "email"],
+    audience: "Waitlisted advertiser",
+    when: "A zip code spot opens for someone on the waitlist",
+  },
+  {
+    key: "welcome_supporter",
+    title: "Advertiser - Welcome (Became a Supporter)",
+    subject: "Welcome as a Supporter!",
+    body: "Thank you for becoming a Supporter of Local Kids Calendar.\n\nYou can manage creatives, zip placements, and billing in Ad Manager. For practical guidance on getting the most from your presence here, read Tips for Supporters.",
+    actionLabel: "Tips For Supporters",
+    actionHref: "/tips-supporters",
+    channels: ["in_app"],
+    audience: "New Supporters (advertisers)",
+    when: "A user becomes a Supporter (self-serve or Admin grant)",
+  },
+];
+
+/** Channel chips: Email and/or Message (never “Both”). */
+export function channelsSentTags(channels = []) {
+  const tags = [];
+  const set = new Set(channels);
+  if (set.has("email")) tags.push("Email");
+  if (set.has("in_app")) tags.push("Message");
+  return tags;
+}
+
+/** Consistent second line for Previews lists. */
+export function deliverySummary({ audience, when }) {
+  const to = (audience || "").trim();
+  const w = (when || "").trim();
+  if (to && w) return `To: ${to} · When: ${w}`;
+  if (to) return `To: ${to}`;
+  if (w) return `When: ${w}`;
+  return "";
+}
+
+/** @deprecated Prefer channelsSentTags */
+export function channelsLabel(channels = []) {
+  return channelsSentTags(channels).join(" ");
+}
+
+export function buildNoticeFromCatalog(key, overrides = {}) {
+  const base = AUTOMATED_NOTICE_CATALOG.find((n) => n.key === key);
+  if (!base) return null;
+  return {
+    ...base,
+    subject: overrides.subject || base.subject,
+    body: overrides.body || base.body,
+    actionLabel: overrides.actionLabel ?? base.actionLabel,
+    actionHref: overrides.actionHref ?? base.actionHref,
+  };
+}

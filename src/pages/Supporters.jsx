@@ -2,6 +2,16 @@ import React, { useState, useEffect } from "react";
 import { useOutletContext, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Heart, Shield, Star, CheckCircle, ExternalLink, UserPlus } from "lucide-react";
 import SupporterAdCard, { SupporterAdPlaceholder } from "@/components/ads/SupporterAdCard";
 import BecomeASupporterModal from "@/components/ads/BecomeASupporterModal";
@@ -19,6 +29,7 @@ export default function Supporters() {
   const [loading, setLoading] = useState(true);
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
   const [showSupporterModal, setShowSupporterModal] = useState(false);
+  const [showAlreadySupporterPrompt, setShowAlreadySupporterPrompt] = useState(false);
   const [maxSlots, setMaxSlots] = useState(3);
 
   useEffect(() => {
@@ -157,18 +168,18 @@ export default function Supporters() {
           <h2 className="font-heading font-bold text-xl">Become a Supporter</h2>
         </div>
         <p className="text-muted-foreground text-sm max-w-xl mx-auto mb-6 leading-relaxed">
-          Ready to reach local families in your area? During beta, you can submit creatives and request zip placements for admin activation. Paid Stripe checkout returns after beta. Plans will start at <strong>${pricing.monthly_rate}/month per zip code</strong>, with a discounted annual option.
+          Ready to reach local families in your area? Supporter plans are available by zip code — choose the zip codes where you want to appear and start connecting with parents looking for exactly what you offer. Plans start at <strong>${pricing.monthly_rate}/month per zip code</strong>, with a discounted annual option available.
         </p>
         <div className="flex flex-col items-center gap-3 mb-4">
           <Button
             className="rounded-xl bg-peach-500 hover:bg-peach-400 text-white px-6"
             onClick={() => {
-              if (user?.is_advertiser) navigate("/ad-manager");
+              if (user?.is_advertiser) setShowAlreadySupporterPrompt(true);
               else setShowSupporterModal(true);
             }}
           >
             <Heart className="w-4 h-4 mr-2" />
-            {user?.is_advertiser ? "Open Ad Manager" : "Become a Supporter"}
+            Become a Supporter
           </Button>
           <Link
             to="/advertiser-terms"
@@ -178,6 +189,20 @@ export default function Supporters() {
             View Supporter Terms of Service
           </Link>
         </div>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6 text-left">
+          {[
+            { icon: "📍", title: "Zip Code Targeting", text: "Reach families exactly where they live. Choose the zip codes that matter most to your business." },
+            { icon: "🔄", title: "Flexible Plans", text: `Monthly ($${pricing.monthly_rate}/zip) or Annual plans with ${pricing.annual_discount_percent}% discount. Cancel anytime before renewal deadline.` },
+            { icon: "👨‍👩‍👧", title: "Trusted Audience", text: "Parents actively searching for kids' activities — one of the most engaged audiences for family-friendly businesses." },
+            { icon: "🎯", title: "Limited Spots Per Zip", text: "Each zip code has a limited number of Supporter spots (3 by default — some zip codes may include expanded capacity based on the market and activity." },
+          ].map((benefit, idx) => (
+            <div key={idx} className="bg-white/70 rounded-xl p-4">
+              <div className="text-2xl mb-2">{benefit.icon}</div>
+              <p className="font-semibold text-sm mb-1">{benefit.title}</p>
+              <p className="text-xs text-muted-foreground">{benefit.text}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <BecomeASupporterModal
@@ -185,6 +210,26 @@ export default function Supporters() {
         onClose={() => setShowSupporterModal(false)}
         user={user}
       />
+
+      <AlertDialog open={showAlreadySupporterPrompt} onOpenChange={setShowAlreadySupporterPrompt}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-heading">You're Already a Supporter</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your account already has Supporter access. Would you like to open Ad Manager?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-peach-500 hover:bg-peach-400"
+              onClick={() => navigate("/ad-manager")}
+            >
+              Open Ad Manager
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

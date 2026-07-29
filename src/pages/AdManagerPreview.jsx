@@ -487,7 +487,7 @@ function MockPageHeader({ hasAds }) {
       {/* Tabs bar */}
       <div className="flex gap-1 bg-muted rounded-xl p-1 w-fit">
         {[
-          { icon: List,   label: `My Ads (${hasAds ? MOCK_ADS.length : 0})` },
+          { icon: List,   label: `My Active Ads (${hasAds ? MOCK_ADS.length : 0})` },
           { icon: Images, label: "Ad Library" },
           { icon: Clock,  label: "Waitlist" },
         ].map(({ icon: Icon, label }, i) => (
@@ -497,7 +497,7 @@ function MockPageHeader({ hasAds }) {
         ))}
       </div>
 
-      {/* My Ads content */}
+      {/* My Active Ads content */}
       {!hasAds ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-border">
           <BarChart3 className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
@@ -523,20 +523,20 @@ export default function AdManagerPreview() {
         <p>This page is for visual testing only. All interactions are simulated. Delete this page when done reviewing.</p>
       </div>
 
-      {/* ── My Ads: Empty state ── */}
+      {/* ── My Active Ads: Empty state ── */}
       <div>
         <div className="text-xs font-mono bg-muted/60 text-muted-foreground rounded-lg px-3 py-1.5 mb-4 border border-dashed border-border inline-block">
-          🧪 Scenario: <strong>My Ads tab — No ads yet (empty state)</strong>
+          🧪 Scenario: <strong>My Active Ads tab — No ads yet (empty state)</strong>
         </div>
         <MockPageHeader hasAds={false} />
       </div>
 
       <hr className="border-border" />
 
-      {/* ── My Ads: Has ads ── */}
+      {/* ── My Active Ads: Has ads ── */}
       <div>
         <div className="text-xs font-mono bg-muted/60 text-muted-foreground rounded-lg px-3 py-1.5 mb-4 border border-dashed border-border inline-block">
-          🧪 Scenario: <strong>My Ads tab — With active ads (stats populated, "+ New Ad" in header)</strong>
+          🧪 Scenario: <strong>My Active Ads tab — With active ads (stats populated, "+ New Ad" in header)</strong>
         </div>
         <MockPageHeader hasAds={true} />
       </div>

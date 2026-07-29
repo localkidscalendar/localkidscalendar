@@ -11,11 +11,14 @@ import ZipRequiredModal from "@/components/shared/ZipRequiredModal";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import { pickDefaultFillerAds } from "@/lib/pickDefaultFillerAds";
 import { isActivityFree, normalizeCategoryList } from "@/lib/activityCategories";
+import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
 import { Calendar, MapPin, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import moment from "moment";
 
 const FILTER_SESSION_KEY = "home_filters_session";
+/** Set when the user manually changes zip/distance this browser session. */
+const LOCATION_MANUAL_KEY = "session_location_manual";
 
 // Shuffles an array (Fisher-Yates) with an offset for rotation
 function rotatedShuffle(arr, seed) {
@@ -111,7 +114,7 @@ function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, on
 }
 
 export default function Home() {
-  const { user, userLoading } = useOutletContext();
+  const { user, setUser, userLoading } = useOutletContext();
   const location = useLocation();
   const geo = useGeoLocation();
   const betaConfig = useBetaConfig(); // BETA MODE — remove with useBetaConfig.js
@@ -122,10 +125,12 @@ export default function Home() {
   const [authPrompt, setAuthPrompt] = useState(false);
   const [favoriteOrganizerIds, setFavoriteOrganizerIds] = useState(new Set());
   const [orgFilter, setOrgFilter] = useState(""); // set when coming from Organizer Directory
+  /** Fresh profile location from DB (avoids stale auth/session radius). */
+  const [profileLocation, setProfileLocation] = useState(null); // { zip, radius } | null while loading
   const [filters, setFilters] = useState(() => {
     const defaults = {
       search: "", category: "all", sortBy: "posted",
-      zipCode: "", radiusMiles: 15, ageMin: "", ageMax: "", priceMin: "", priceMax: "",
+      zipCode: "", radiusMiles: DEFAULT_RADIUS_MILES, ageMin: "", ageMax: "", priceMin: "", priceMax: "",
       freeOnly: false,
       dateFrom: moment().toDate(), dateTo: moment().add(120, "days").toDate(), savedOnly: false, favOrgsOnly: false
     };
@@ -146,7 +151,7 @@ export default function Home() {
       if (savedZip) {
         const savedRadius = sessionStorage.getItem("session_radius");
         defaults.zipCode = savedZip;
-        defaults.radiusMiles = savedRadius ? Number(savedRadius) : 15;
+        defaults.radiusMiles = savedRadius ? normalizeRadiusMiles(savedRadius) : DEFAULT_RADIUS_MILES;
       }
     } catch {}
     return defaults;
@@ -154,6 +159,7 @@ export default function Home() {
   const [expandFilters, setExpandFilters] = useState(false);
   const expandCheckedRef = useRef(false);
   const [sessionDefaultZip, setSessionDefaultZip] = useState(null); // zip "Clear" reverts to
+  const [sessionDefaultRadius, setSessionDefaultRadius] = useState(DEFAULT_RADIUS_MILES);
   const [locationInitialized, setLocationInitialized] = useState(() => {
     try {
       return !!sessionStorage.getItem("session_zip_current");
@@ -188,20 +194,88 @@ export default function Home() {
 
   const detectedZip = geo.zip;
 
-  // Sets the active zip/radius filter and persists it for the remainder of the session
-  const setCurrentZip = (zip, radius = 15) => {
-    setFilters((prev) => ({ ...prev, zipCode: zip, radiusMiles: radius }));
+  // Sets the active zip/radius filter and persists it for the remainder of the session.
+  // options.manual === true  → user override (kept until Clear / logout / login)
+  // options.manual === false → system/profile/geo apply (clears the manual flag)
+  const setCurrentZip = (zip, radius = DEFAULT_RADIUS_MILES, options = {}) => {
+    const nextRadius = normalizeRadiusMiles(radius);
+    setFilters((prev) => ({ ...prev, zipCode: zip, radiusMiles: nextRadius }));
     setLocationInitialized(true);
     try {
-      sessionStorage.setItem("session_zip_current", zip);
-      sessionStorage.setItem("session_radius", String(radius));
+      sessionStorage.setItem("session_zip_current", zip || "");
+      sessionStorage.setItem("session_radius", String(nextRadius));
+      if (options.manual === true) sessionStorage.setItem(LOCATION_MANUAL_KEY, "1");
+      if (options.manual === false) sessionStorage.removeItem(LOCATION_MANUAL_KEY);
     } catch {}
   };
 
-  // Determine the location filter for this session in a single pass (avoids multi-render races):
-  // - Signed-in users always use their profile zip — never geolocation, and never a leftover
-  //   session zip carried over from a different (or signed-out) identity.
-  // - Signed-out users restore an in-session selection if present, otherwise fall back to geolocation.
+  const handleFiltersChange = (next) => {
+    try {
+      const zipChanged = (next.zipCode || "") !== (filters.zipCode || "");
+      const radiusChanged =
+        normalizeRadiusMiles(next.radiusMiles) !== normalizeRadiusMiles(filters.radiusMiles);
+      if (zipChanged || radiusChanged) {
+        const profileZip = profileLocation?.zip ?? user?.zip_code ?? "";
+        const profileRadius = profileLocation?.userId === user?.id
+          ? profileLocation.radius
+          : normalizeRadiusMiles(user?.radius_miles);
+        const matchesProfile = Boolean(
+          user
+          && (next.zipCode || "") === profileZip
+          && normalizeRadiusMiles(next.radiusMiles) === profileRadius
+        );
+        if (matchesProfile) sessionStorage.removeItem(LOCATION_MANUAL_KEY);
+        else sessionStorage.setItem(LOCATION_MANUAL_KEY, "1");
+      }
+    } catch {}
+    setFilters(next);
+  };
+
+  // Load zip + radius from profiles so Home does not depend on a stale auth user object.
+  useEffect(() => {
+    if (userLoading) return;
+    if (!user?.id) {
+      setProfileLocation(null);
+      return;
+    }
+
+    const userId = user.id;
+    const fallbackZip = user.zip_code || "";
+    const fallbackRadius = normalizeRadiusMiles(user.radius_miles);
+    setProfileLocation(null);
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("zip_code, radius_miles")
+        .eq("id", userId)
+        .maybeSingle();
+      if (cancelled) return;
+
+      const zip = error ? fallbackZip : (data?.zip_code || "");
+      const radius = error ? fallbackRadius : normalizeRadiusMiles(data?.radius_miles);
+      setProfileLocation({ userId, zip, radius });
+
+      if (setUser) {
+        setUser((prev) => {
+          if (!prev || prev.id !== userId) return prev;
+          if (
+            (prev.zip_code || "") === zip
+            && normalizeRadiusMiles(prev.radius_miles) === radius
+          ) {
+            return prev;
+          }
+          return { ...prev, zip_code: zip, radius_miles: radius };
+        });
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user?.id, userLoading, setUser]);
+
+  // Determine the location filter for this session:
+  // - Signed-in: always use profile zip + profile distance unless the user manually overrode them.
+  // - Signed-out: geolocation first, then manual entry if geolocation isn't available.
   useEffect(() => {
     if (userLoading) return;
 
@@ -214,57 +288,91 @@ export default function Home() {
       if (identityChanged) {
         sessionStorage.removeItem("session_zip_current");
         sessionStorage.removeItem("session_radius");
+        sessionStorage.removeItem(LOCATION_MANUAL_KEY);
       }
 
-      if (locationInitialized && !identityChanged) return;
-
       if (user) {
-        setCurrentZip(user.zip_code || "");
+        // Wait until profile location has been fetched for this user.
+        if (!profileLocation || profileLocation.userId !== user.id) return;
+
+        const manual = !identityChanged && sessionStorage.getItem(LOCATION_MANUAL_KEY) === "1";
+        if (manual && locationInitialized) return;
+
+        const profileZip = profileLocation.zip || "";
+        const profileRadius = profileLocation.radius;
+        if (
+          !locationInitialized
+          || (filters.zipCode || "") !== profileZip
+          || normalizeRadiusMiles(filters.radiusMiles) !== profileRadius
+        ) {
+          setCurrentZip(profileZip, profileRadius, { manual: false });
+        }
         return;
       }
 
+      // Guest
       if (!identityChanged) {
         const savedCurrent = sessionStorage.getItem("session_zip_current");
         if (savedCurrent) {
           const savedRadius = sessionStorage.getItem("session_radius");
-          setFilters((prev) => ({ ...prev, zipCode: savedCurrent, radiusMiles: savedRadius ? Number(savedRadius) : 15 }));
+          setFilters((prev) => ({
+            ...prev,
+            zipCode: savedCurrent,
+            radiusMiles: savedRadius ? normalizeRadiusMiles(savedRadius) : DEFAULT_RADIUS_MILES,
+          }));
           setLocationInitialized(true);
           return;
         }
       }
 
       if (!geo.loading) {
-        setCurrentZip(detectedZip || "");
+        setCurrentZip(detectedZip || "", DEFAULT_RADIUS_MILES, { manual: false });
       }
     } catch {}
-  }, [user, userLoading, geo.loading, detectedZip, locationInitialized]);
+  }, [
+    user,
+    userLoading,
+    geo.loading,
+    detectedZip,
+    locationInitialized,
+    filters.zipCode,
+    filters.radiusMiles,
+    profileLocation,
+  ]);
 
-  // The "true" default (profile zip, else geolocation) that Clear always reverts to —
+  // The "true" default (profile zip/radius, else geolocation + 15 mi) that Clear always reverts to —
   // computed independently of any manual zip overrides so it's never polluted by them.
   useEffect(() => {
     if (userLoading) return;
-    if (user && user.zip_code) {
+    if (user && profileLocation?.userId === user.id) {
+      setSessionDefaultZip(profileLocation.zip || "");
+      setSessionDefaultRadius(profileLocation.radius);
+    } else if (user && user.zip_code) {
       setSessionDefaultZip(user.zip_code);
+      setSessionDefaultRadius(normalizeRadiusMiles(user.radius_miles));
     } else if (!geo.loading) {
       setSessionDefaultZip(detectedZip || "");
+      setSessionDefaultRadius(DEFAULT_RADIUS_MILES);
     }
-  }, [user, userLoading, geo.loading, detectedZip]);
+  }, [user, userLoading, geo.loading, detectedZip, profileLocation]);
 
   // Safety net: if we ever end up with no zip while signed in with a profile zip on file,
   // use it instead of blocking the user with the required-zip prompt.
   useEffect(() => {
-    if (!locationInitialized || filters.zipCode || userLoading) return;
-    if (user && user.zip_code) {
-      setCurrentZip(user.zip_code);
+    if (!user || !locationInitialized || filters.zipCode || userLoading) return;
+    if (profileLocation?.userId === user.id && profileLocation.zip) {
+      setCurrentZip(profileLocation.zip, profileLocation.radius, { manual: false });
+    } else if (user.zip_code) {
+      setCurrentZip(user.zip_code, normalizeRadiusMiles(user.radius_miles), { manual: false });
     }
-  }, [locationInitialized, filters.zipCode, userLoading, user]);
+  }, [locationInitialized, filters.zipCode, userLoading, user, profileLocation]);
 
   // Keep this session's current zip/radius selection persisted for the remainder of the session
   useEffect(() => {
     if (!locationInitialized) return;
     try {
       sessionStorage.setItem("session_zip_current", filters.zipCode || "");
-      sessionStorage.setItem("session_radius", String(filters.radiusMiles || 15));
+      sessionStorage.setItem("session_radius", String(normalizeRadiusMiles(filters.radiusMiles)));
     } catch {}
   }, [filters.zipCode, filters.radiusMiles, locationInitialized]);
 
@@ -567,7 +675,7 @@ export default function Home() {
   }, [events, filters, orgFilter, savedEventIds, favoriteOrganizerIds, filterCenter, zipCoordsMap, betaConfig]);
 
   if (locationInitialized && !filters.zipCode) {
-    return <ZipRequiredModal onSubmit={setCurrentZip} />;
+    return <ZipRequiredModal onSubmit={(zip, radius) => setCurrentZip(zip, radius, { manual: true })} />;
   }
 
   return (
@@ -593,23 +701,23 @@ export default function Home() {
               <span className="text-xs text-muted-foreground">Zip:</span>
               <input
               value={filters.zipCode || ""}
-              onChange={(e) => setCurrentZip(e.target.value.replace(/\D/g, "").slice(0, 5), filters.radiusMiles)}
+              onChange={(e) => setCurrentZip(e.target.value.replace(/\D/g, "").slice(0, 5), filters.radiusMiles, { manual: true })}
               maxLength={5}
               inputMode="numeric"
               className="w-14 text-sm font-medium text-foreground bg-transparent border-none outline-none" />
               <span className="text-xs text-muted-foreground">Distance:</span>
               <select
               value={filters.radiusMiles}
-              onChange={(e) => setCurrentZip(filters.zipCode, Number(e.target.value))}
+              onChange={(e) => setCurrentZip(filters.zipCode, Number(e.target.value), { manual: true })}
               className="text-sm font-medium text-foreground bg-transparent border-none outline-none cursor-pointer">
-                {[5, 10, 15, 25, 50, 100].map((d) =>
+                {[...RADIUS_OPTIONS].map((d) =>
               <option key={d} value={d}>{d} mi</option>
               )}
               </select>
             </div>
           }
             <button
-            onClick={() => setCurrentZip(sessionDefaultZip || "", 15)}
+            onClick={() => setCurrentZip(sessionDefaultZip || "", sessionDefaultRadius, { manual: false })}
             className="text-xs text-muted-foreground underline hover:text-foreground">
               Clear
             </button>
@@ -634,7 +742,7 @@ export default function Home() {
       )}
 
       {/* Filters */}
-      <EventFilters filters={filters} onFiltersChange={setFilters} detectedZip={detectedZip} user={user} defaultZip={sessionDefaultZip} expanded={expandFilters} onExpandedChange={setExpandFilters} />
+      <EventFilters filters={filters} onFiltersChange={handleFiltersChange} detectedZip={detectedZip} user={user} defaultZip={sessionDefaultZip} defaultRadius={sessionDefaultRadius} expanded={expandFilters} onExpandedChange={setExpandFilters} />
 
       {/* Results */}
       <div className="mt-6">
@@ -650,7 +758,29 @@ export default function Home() {
             </div>
             <h3 className="font-heading font-semibold text-lg mb-1">No Activities Found</h3>
             <p className="text-sm text-muted-foreground mb-4">Try adjusting your filters or check back soon.</p>
-            <Button variant="outline" className="rounded-xl" onClick={() => setFilters({ search: "", category: "all", sortBy: "posted", zipCode: "", radiusMiles: 15, ageMin: "", ageMax: "", priceMin: "", priceMax: "", freeOnly: false, dateFrom: moment().toDate(), dateTo: moment().add(120, "days").toDate(), savedOnly: false, favOrgsOnly: false })}>
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => {
+                try { sessionStorage.removeItem(LOCATION_MANUAL_KEY); } catch {}
+                setFilters({
+                  search: "",
+                  category: "all",
+                  sortBy: "posted",
+                  zipCode: sessionDefaultZip || "",
+                  radiusMiles: normalizeRadiusMiles(sessionDefaultRadius),
+                  ageMin: "",
+                  ageMax: "",
+                  priceMin: "",
+                  priceMax: "",
+                  freeOnly: false,
+                  dateFrom: moment().toDate(),
+                  dateTo: moment().add(120, "days").toDate(),
+                  savedOnly: false,
+                  favOrgsOnly: false,
+                });
+              }}
+            >
               Clear All Filters
             </Button>
           </div>

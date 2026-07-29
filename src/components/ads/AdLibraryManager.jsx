@@ -5,25 +5,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Loader2, Upload, CheckCircle, XCircle, Clock, AlertCircle, Trash2,
-  ExternalLink, Plus, ImageIcon, Pencil, HelpCircle,
+  ExternalLink, Plus, ImageIcon, HelpCircle,
 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import ImagePreviewModal from "@/components/ads/ImagePreviewModal";
 import { AD_IMAGE_REVIEW_GUIDELINES, SUPPORTER_AD_IMAGE_RECOMMENDED } from "@/lib/supporterContent";
 import { moderateAdContent } from "@/lib/moderateAdContent";
+import { deleteAdLibraryAsset } from "@/lib/quarantineAdLibrary";
 
 const MOD_CONFIG = {
   pending: { label: "Reviewing…", color: "bg-yellow-100 text-yellow-700", icon: Clock },
   approved: { label: "Approved", color: "bg-mint-100 text-mint-600", icon: CheckCircle },
   declined: { label: "Declined", color: "bg-red-100 text-red-600", icon: XCircle },
+  flagged: { label: "Disabled — Unavailable", color: "bg-peach-100 text-peach-600", icon: AlertCircle },
   manual_review: { label: "Manual Review Pending", color: "bg-blue-100 text-blue-700", icon: AlertCircle },
   manual_review_declined: { label: "Manual Review Decline", color: "bg-red-100 text-red-700", icon: XCircle },
 };
 
 const EMPTY_FORM = { ad_name: "", image_url: "", link_url: "" };
-const LIVE_AD_STATUSES = ["active", "pending_payment", "pending_review", "flagged", "past_due"];
 
-const assetKey = (a) => `${a.image_url}|${a.link_url}`;
+const toTitleCase = (str) =>
+  str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
 
 function normalizeUrl(raw) {
   const trimmed = (raw || "").trim();
@@ -34,13 +36,11 @@ function normalizeUrl(raw) {
 
 export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = false }) {
   const [assets, setAssets] = useState([]);
-  const [flaggedKeys, setFlaggedKeys] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [moderating, setModerating] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
-  const [editingId, setEditingId] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => { loadAssets(); }, [user?.id]);
@@ -49,22 +49,15 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
     if (!user?.id) return;
     setLoading(true);
     try {
-      const [{ data: items, error }, { data: flaggedAds }] = await Promise.all([
-        supabase
-          .from("ad_library")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(50),
-        supabase
-          .from("banner_ads")
-          .select("image_url, link_url")
-          .eq("user_id", user.id)
-          .eq("status", "flagged"),
-      ]);
+      const { data: items, error } = await supabase
+        .from("ad_library")
+        .select("*")
+        .eq("user_id", user.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
       if (error) throw error;
       setAssets(items || []);
-      setFlaggedKeys(new Set((flaggedAds || []).map(assetKey)));
     } catch {
       setAssets([]);
     }
@@ -96,7 +89,7 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
     } else if (result.status === "declined") {
       toast({
         title: "Asset not approved",
-        description: result.reason || "Please update the image or link and try again — or request a manual review.",
+        description: result.reason || "Please create a new asset with a different image or link — or request a manual review.",
         variant: "destructive",
       });
     } else {
@@ -145,32 +138,6 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
     setModerating(null);
   };
 
-  const handleResubmit = async (assetId) => {
-    if (!form.ad_name || !form.image_url || !form.link_url) return;
-    setModerating(assetId);
-    try {
-      const linkUrl = normalizeUrl(form.link_url);
-      const { error } = await supabase.from("ad_library").update({
-        ad_name: form.ad_name.trim(),
-        image_url: form.image_url,
-        link_url: linkUrl,
-        moderation_status: "pending",
-        moderation_notes: "",
-        moderation_date: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }).eq("id", assetId);
-      if (error) throw error;
-
-      await runAutomatedReview(assetId);
-      setEditingId(null);
-      setForm(EMPTY_FORM);
-      loadAssets();
-    } catch (err) {
-      toast({ title: "Failed to resubmit asset", description: err.message, variant: "destructive" });
-    }
-    setModerating(null);
-  };
-
   const handleRequestManual = async (asset) => {
     setModerating(asset.id);
     try {
@@ -181,7 +148,7 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
       if (error) throw error;
       toast({
         title: "Manual review requested",
-        description: "Your creative is in the Advertising Manual Review queue. It will stay pending in your library until an admin decides.",
+        description: "Your creative is in Advertising Manual Review. Check My Account → My Messages for the decision.",
       });
       loadAssets();
     } catch (err) {
@@ -191,40 +158,19 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
   };
 
   const handleDelete = async (asset) => {
-    const { data: liveAds } = await supabase
-      .from("banner_ads")
-      .select("id, status")
-      .eq("user_id", user.id)
-      .eq("image_url", asset.image_url)
-      .eq("link_url", asset.link_url);
-    const inUse = (liveAds || []).some((ad) => LIVE_AD_STATUSES.includes(ad.status));
-    if (inUse) {
-      toast({
-        title: "Can't delete this asset",
-        description: "It's currently being used in a live ad campaign. Remove or replace that campaign's creative first.",
-        variant: "destructive",
-      });
-      return;
-    }
     if (!window.confirm("Remove this asset from your library?")) return;
-    const { error } = await supabase.from("ad_library").delete().eq("id", asset.id);
+    const { data, error } = await deleteAdLibraryAsset(asset.id);
     if (error) {
       toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
       return;
     }
     setAssets((a) => a.filter((x) => x.id !== asset.id));
-    toast({ title: "Asset removed" });
-  };
-
-  const startEdit = (asset) => {
-    setEditingId(asset.id);
-    setForm({ ad_name: asset.ad_name, image_url: asset.image_url, link_url: asset.link_url });
-    setShowForm(false);
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setForm(EMPTY_FORM);
+    toast({
+      title: "Asset removed",
+      description: data?.mode === "soft"
+        ? "Removed from your library. Admin can still review it if it was previously flagged."
+        : undefined,
+    });
   };
 
   if (loading) {
@@ -242,11 +188,11 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
           <h3 className="font-heading font-semibold">Ad Library</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             {onSelectAsset
-              ? "Select an approved asset below. To add or manage assets, use the Ad Library tab."
-              : "Upload creatives for automated review. Approved assets can be used for zip placements. Community flagging catches anything that slips through."}
+              ? "Select an approved asset below. To add assets, use Add Asset or the Ad Library tab."
+              : "Upload creatives for automated review. Approved assets can be used for zip placements. Assets can’t be edited after upload — create a new one instead. Community flagging disables a creative across every zip using it."}
           </p>
         </div>
-        {(!onSelectAsset || allowAddNew) && !showForm && !editingId && (
+        {(!onSelectAsset || allowAddNew) && !showForm && (
           <Button size="sm" className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={() => setShowForm(true)}>
             <Plus className="w-3.5 h-3.5 mr-1" /> Add Asset
           </Button>
@@ -276,11 +222,10 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
             const isApproved = asset.moderation_status === "approved";
             const isDeclined = asset.moderation_status === "declined";
             const isManualDeclined = asset.moderation_status === "manual_review_declined";
-            const isAnyDeclined = isDeclined || isManualDeclined;
+            const isFlaggedAsset = asset.moderation_status === "flagged";
+            const isAnyDeclined = isDeclined || isManualDeclined || isFlaggedAsset;
             const isManualPending = asset.moderation_status === "manual_review";
-            const isEditing = editingId === asset.id;
-            const isFlaggedInUse = flaggedKeys.has(assetKey(asset));
-            const isSelectable = isApproved && !isFlaggedInUse;
+            const isSelectable = isApproved && !isFlaggedAsset;
 
             return (
               <div key={asset.id} className="rounded-2xl border bg-white overflow-hidden">
@@ -297,11 +242,6 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                       <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>
                         <Icon className="w-3 h-3" />{cfg.label}
                       </span>
-                      {isFlaggedInUse && (
-                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-peach-100 text-peach-600">
-                          <AlertCircle className="w-3 h-3" />Flagged — Unavailable
-                        </span>
-                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -320,11 +260,6 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                         <ExternalLink className="w-3.5 h-3.5" />
                       </Button>
                     </a>
-                    {!onSelectAsset && (isAnyDeclined || asset.moderation_status === "pending") && !isEditing && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600" title="Edit & resubmit" onClick={() => startEdit(asset)}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
                     {!onSelectAsset && (
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(asset)}>
                         <Trash2 className="w-3.5 h-3.5" />
@@ -333,37 +268,32 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                   </div>
                 </div>
 
-                {isFlaggedInUse && (
+                {isFlaggedAsset && (
                   <div className="px-3 pb-3">
                     <div className="bg-peach-50 border border-peach-100 rounded-xl p-3 text-xs text-peach-700">
-                      This creative is currently in use by a flagged ad and can't be reused until that ad is resolved.
+                      This creative was disabled and can’t be reused. Create a new approved asset and assign it to each affected zip in Ad Manager.
                     </div>
                   </div>
                 )}
 
-                {!onSelectAsset && asset.moderation_status === "pending" && !isEditing && (
+                {!onSelectAsset && asset.moderation_status === "pending" && (
                   <div className="px-3 pb-3">
                     <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-800 flex flex-wrap items-center gap-2 justify-between">
-                      <span>Automated review didn’t finish. Retry, or edit & resubmit.</span>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white"
-                          disabled={moderating === asset.id}
-                          onClick={async () => {
-                            setModerating(asset.id);
-                            await runAutomatedReview(asset.id);
-                            loadAssets();
-                            setModerating(null);
-                          }}
-                        >
-                          {moderating === asset.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
-                          Retry review
-                        </Button>
-                        <Button size="sm" variant="outline" className="rounded-xl h-7 text-xs" onClick={() => startEdit(asset)}>
-                          <Pencil className="w-3 h-3 mr-1" /> Edit
-                        </Button>
-                      </div>
+                      <span>Automated review didn’t finish. Retry, or delete and create a new asset.</span>
+                      <Button
+                        size="sm"
+                        className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white"
+                        disabled={moderating === asset.id}
+                        onClick={async () => {
+                          setModerating(asset.id);
+                          await runAutomatedReview(asset.id);
+                          loadAssets();
+                          setModerating(null);
+                        }}
+                      >
+                        {moderating === asset.id ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                        Retry review
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -371,23 +301,22 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                 {!onSelectAsset && isManualPending && (
                   <div className="px-3 pb-3">
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-                      Waiting for an admin manual review. You’ll be able to use this creative once it’s approved.
+                      Waiting for an admin manual review. Check <strong>My Account → My Messages</strong> for the decision — you’ll be able to use this creative once it’s approved.
                       {asset.moderation_notes ? <p className="mt-1 text-blue-600/80">Prior note: {asset.moderation_notes}</p> : null}
                     </div>
                   </div>
                 )}
 
-                {!onSelectAsset && asset.moderation_notes && isAnyDeclined && !isEditing && (
+                {!onSelectAsset && asset.moderation_notes && isAnyDeclined && !isFlaggedAsset && (
                   <div className="px-3 pb-3">
                     <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-xs text-red-700 leading-relaxed">
                       <p className="font-semibold mb-1">Decline reason:</p>
                       <p>{asset.moderation_notes}</p>
-                      <p className="mt-2 text-red-600/80">Update the asset and resubmit, or request a manual review if you believe this was declined in error.</p>
+                      <p className="mt-2 text-red-600/80">
+                        Assets can’t be edited after upload. Delete this one and create a new creative, or request a manual review if you believe this was declined in error.
+                      </p>
                       {isDeclined && (
                         <div className="flex gap-2 mt-3">
-                          <Button size="sm" variant="outline" className="rounded-xl h-7 text-xs border-red-200 hover:bg-red-100" onClick={() => startEdit(asset)}>
-                            <Pencil className="w-3 h-3 mr-1" /> Edit & Resubmit
-                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
@@ -403,22 +332,6 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
-
-                {isEditing && (
-                  <div className="px-3 pb-3">
-                    <AssetForm
-                      form={form}
-                      setForm={setForm}
-                      uploading={uploading}
-                      moderating={moderating === asset.id}
-                      onUpload={handleImageUpload}
-                      onSubmit={() => handleResubmit(asset.id)}
-                      onCancel={cancelEdit}
-                      submitLabel="Resubmit for Review"
-                      note="Update the fields that caused the decline, then resubmit for automated review."
-                    />
                   </div>
                 )}
               </div>
@@ -440,7 +353,7 @@ function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, o
       <div className="bg-white border border-border rounded-xl p-3 space-y-2">
         <p className="text-sm font-semibold text-foreground">Automated image & link review</p>
         <p className="text-xs text-muted-foreground">
-          After you submit, the site automatically checks your image and destination link. If it looks OK, your creative is approved right away. Community flagging catches anything that slips through. If it’s declined, update the asset or request a manual review.
+          After you submit, the site automatically checks your image and destination link. If it looks OK, your creative is approved right away. Community flagging catches anything that slips through. If it’s declined, create a new asset or request a manual review.
         </p>
         <ul className="space-y-1">
           {AD_IMAGE_REVIEW_GUIDELINES.map((item) => (
@@ -457,7 +370,7 @@ function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, o
 
       <div>
         <Label>Asset Name *</Label>
-        <Input className="mt-1" placeholder="Summer Camp Banner" value={form.ad_name} onChange={(e) => setForm((f) => ({ ...f, ad_name: e.target.value }))} />
+        <Input className="mt-1" placeholder="Summer Camp Banner" value={form.ad_name} onChange={(e) => setForm((f) => ({ ...f, ad_name: toTitleCase(e.target.value) }))} />
       </div>
       <div>
         <Label>Ad Image *</Label>

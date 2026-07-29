@@ -2,8 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logo.png?v=3" />
-    <link rel="apple-touch-icon" href="/logo.png?v=3" />
+    <!-- New /brand-icons/ paths intentionally break Safari's sticky favicon cache. -->
+    <link rel="icon" href="/brand-icons/favicon.ico?v=6" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand-icons/icon-32.png?v=6" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/brand-icons/icon-16.png?v=6" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/brand-icons/apple-touch-icon.png?v=6" />
+    <meta property="og:image" content="https://localkidscalendar.vercel.app/brand-icons/apple-touch-icon.png?v=6" />
+    <meta name="twitter:image" content="https://localkidscalendar.vercel.app/brand-icons/apple-touch-icon.png?v=6" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LocalKidsCalendar.com — Discover Kids Activities In Your Community</title>
     <meta name="description" content="Free, community-driven calendar of kids activities — camps, classes, events, teams, sports & more. Find local activities for your kids and never miss out." />

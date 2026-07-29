@@ -33,6 +33,11 @@ export default function AuthCallback() {
 
       if (cancelled) return;
 
+      if (profile?.role === "disabled") {
+        navigate("/account-disabled", { replace: true });
+        return;
+      }
+
       const needsProfile = !profile?.zip_code;
       if (needsProfile) {
         navigate("/account?setup=1", { replace: true });

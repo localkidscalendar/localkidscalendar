@@ -8,9 +8,11 @@ import CategoryBadge from "@/components/shared/CategoryBadge";
 import ContactProtected from "@/components/shared/ContactProtected";
 import ShareModal from "@/components/shared/ShareModal";
 import HelpTip from "@/components/shared/HelpTip";
-import { CalendarDays, MapPin, Users, Clock, Globe, DollarSign, Share2, Heart, Flag, ArrowLeft, MessageSquare, Bookmark, CalendarPlus, AlertCircle, Send, Loader2, Star, X, Edit, Copy, ShieldCheck, CheckCircle2, Trash2, RotateCcw } from "lucide-react";
+import { CalendarDays, MapPin, Users, Clock, Globe, DollarSign, Share2, Heart, Flag, MessageSquare, Bookmark, CalendarPlus, AlertCircle, Send, Loader2, Star, X, Edit, Copy, ShieldCheck, CheckCircle2, Trash2, RotateCcw } from "lucide-react";
 import moment from "moment";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
+import HistoryBackLink from "@/components/shared/HistoryBackLink";
+import FlagReportForm from "@/components/shared/FlagReportForm";
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -29,8 +31,6 @@ export default function EventDetail() {
   const [posterOrganizer, setPosterOrganizer] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [authPrompt, setAuthPrompt] = useState(null); // string message or null
-  const [otherReasonText, setOtherReasonText] = useState("");
-  const [selectedFlagReason, setSelectedFlagReason] = useState(null);
   const [flaggingCommentId, setFlaggingCommentId] = useState(null);
 
   useEffect(() => {
@@ -209,19 +209,14 @@ export default function EventDetail() {
     setSubmittingComment(false);
   };
 
-  const handleFlagEvent = async () => {
+  const handleFlagEvent = async ({ reason, details }) => {
     if (!user) return setAuthPrompt("Sign in to report this event.");
-    if (!selectedFlagReason) return;
-    if (selectedFlagReason === "other" && !otherReasonText.trim()) {
-      toast({ title: "Please provide a reason", variant: "destructive" });
-      return;
-    }
     try {
       const { data, error } = await supabase.rpc("submit_flag", {
         p_target_type: "event",
         p_target_id: id,
-        p_reason: selectedFlagReason,
-        p_details: selectedFlagReason === "other" ? otherReasonText.trim() : null,
+        p_reason: reason,
+        p_details: details,
       });
       if (error) throw error;
       toast({
@@ -242,23 +237,16 @@ export default function EventDetail() {
       });
     }
     setFlagOpen(false);
-    setSelectedFlagReason(null);
-    setOtherReasonText("");
   };
 
-  const handleFlagComment = async (commentId) => {
+  const handleFlagComment = async (commentId, { reason, details }) => {
     if (!user) return setAuthPrompt("Sign in to report a comment.");
-    if (!selectedFlagReason) return;
-    if (selectedFlagReason === "other" && !otherReasonText.trim()) {
-      toast({ title: "Please provide a reason", variant: "destructive" });
-      return;
-    }
     try {
       const { data, error } = await supabase.rpc("submit_flag", {
         p_target_type: "comment",
         p_target_id: commentId,
-        p_reason: selectedFlagReason,
-        p_details: selectedFlagReason === "other" ? otherReasonText.trim() : null,
+        p_reason: reason,
+        p_details: details,
       });
       if (error) throw error;
       toast({
@@ -275,8 +263,6 @@ export default function EventDetail() {
       });
     }
     setFlaggingCommentId(null);
-    setSelectedFlagReason(null);
-    setOtherReasonText("");
   };
 
   const handleMarkFull = async () => {
@@ -342,10 +328,8 @@ export default function EventDetail() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-      {/* Back to activities */}
-      <Button variant="ghost" className="mb-4 rounded-xl text-sm" asChild>
-        <Link to="/"><ArrowLeft className="w-4 h-4 mr-1" /> Back to Activities</Link>
-      </Button>
+      {/* Back — only when visitor came from another in-app page */}
+      <HistoryBackLink variant="button" />
 
       <div className="bg-white rounded-2xl border border-border overflow-hidden">
         {/* Image */}
@@ -356,27 +340,17 @@ export default function EventDetail() {
         )}
 
         <div className="p-6">
-          {/* Header */}
-          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                {(Array.isArray(event.category) ? event.category : event.category ? [event.category] : []).map((c) => <CategoryBadge key={c} category={c} />)}
-                {event.registration_full && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-peach-50 text-peach-500">
-                    <AlertCircle className="w-3 h-3" /> Registration Full
-                  </span>
-                )}
-                {event.posted_by_role === "organizer" && (
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-mint-50 text-mint-500">Official</span>
-                )}
-              </div>
-              <h1 className="font-heading font-bold text-2xl sm:text-3xl">{event.title}</h1>
-            </div>
-
-            {/* Sticky actions */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="rounded-xl gap-1.5" onClick={addToCalendar}>
-                <CalendarPlus className="w-4 h-4" /> Add to Calendar
+          {/* Header: actions above categories on mobile (right-aligned); side-by-side on desktop */}
+          <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-wrap items-center justify-end gap-2 order-1 sm:order-2 shrink-0">
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-xl"
+                onClick={addToCalendar}
+                title="Add to Calendar"
+              >
+                <CalendarPlus className="w-4 h-4" />
               </Button>
               <Button variant="outline" size="icon" className="rounded-xl" onClick={handleSave}>
                 <Bookmark className={`w-4 h-4 ${saved ? "fill-mint-500 text-mint-500" : ""}`} />
@@ -396,56 +370,35 @@ export default function EventDetail() {
               </Button>
               )}
             </div>
+
+            <div className="min-w-0 flex-1 order-2 sm:order-1">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                {(Array.isArray(event.category) ? event.category : event.category ? [event.category] : []).map((c) => (
+                  <CategoryBadge key={c} category={c} />
+                ))}
+                {event.registration_full && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-peach-50 text-peach-500 whitespace-nowrap shrink-0">
+                    <AlertCircle className="w-3 h-3" /> Registration Full
+                  </span>
+                )}
+                {event.posted_by_role === "organizer" && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-mint-50 text-mint-500 whitespace-nowrap shrink-0">
+                    Official
+                  </span>
+                )}
+              </div>
+              <h1 className="font-heading font-bold text-2xl sm:text-3xl">{event.title}</h1>
+            </div>
           </div>
 
-          {/* Flag dropdown */}
+          {/* Flag form */}
           {flagOpen && !isOwner && (
-            <div className="bg-peach-50 rounded-xl p-4 mb-4 animate-settle">
-              <p className="text-sm font-medium mb-2">Why are you flagging this event?</p>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {["inaccurate", "inappropriate", "spam", "other"].map((r) => (
-                  <Button 
-                    key={r} 
-                    variant={selectedFlagReason === r ? "default" : "outline"} 
-                    size="sm" 
-                    className="rounded-xl text-xs capitalize" 
-                    onClick={() => setSelectedFlagReason(r)}
-                  >
-                    {r}
-                  </Button>
-                ))}
-              </div>
-              {selectedFlagReason === "other" && (
-                <div className="mb-3">
-                  <textarea 
-                    placeholder="Please describe the issue..." 
-                    value={otherReasonText} 
-                    onChange={(e) => setOtherReasonText(e.target.value)}
-                    className="w-full rounded-lg border border-peach-200 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-peach-500"
-                    rows={2}
-                  />
-                </div>
-              )}
-              {selectedFlagReason && (
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    className="rounded-xl text-xs"
-                    onClick={() => handleFlagEvent(selectedFlagReason)}
-                    disabled={selectedFlagReason === "other" && !otherReasonText.trim()}
-                  >
-                    Submit Report
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="rounded-xl text-xs"
-                    onClick={() => { setSelectedFlagReason(null); setOtherReasonText(""); }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
+            <div className="mb-4">
+              <FlagReportForm
+                targetLabel="activity"
+                onSubmit={handleFlagEvent}
+                onCancel={() => setFlagOpen(false)}
+              />
             </div>
           )}
 
@@ -640,52 +593,13 @@ export default function EventDetail() {
                     <p className="text-sm">{c.content}</p>
                   </div>
                   {flaggingCommentId === c.id && user?.id !== c.created_by_id && (
-                    <div className="bg-peach-50 rounded-xl p-3 mt-2 animate-settle text-xs">
-                      <p className="font-medium mb-2">Why are you flagging this comment?</p>
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {["inaccurate", "inappropriate", "spam", "other"].map((r) => (
-                          <Button 
-                            key={r} 
-                            variant={selectedFlagReason === r ? "default" : "outline"} 
-                            size="sm" 
-                            className="rounded-lg text-xs capitalize h-7" 
-                            onClick={() => setSelectedFlagReason(r)}
-                          >
-                            {r}
-                          </Button>
-                        ))}
-                      </div>
-                      {selectedFlagReason === "other" && (
-                        <div className="mb-2">
-                          <textarea 
-                            placeholder="Please describe the issue..." 
-                            value={otherReasonText} 
-                            onChange={(e) => setOtherReasonText(e.target.value)}
-                            className="w-full rounded-lg border border-peach-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-peach-500"
-                            rows={2}
-                          />
-                        </div>
-                      )}
-                      {selectedFlagReason && (
-                        <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
-                            className="rounded-lg text-xs h-7"
-                            onClick={() => handleFlagComment(c.id)}
-                            disabled={selectedFlagReason === "other" && !otherReasonText.trim()}
-                          >
-                            Submit
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="rounded-lg text-xs h-7"
-                            onClick={() => { setFlaggingCommentId(null); setSelectedFlagReason(null); setOtherReasonText(""); }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      )}
+                    <div className="mt-2">
+                      <FlagReportForm
+                        targetLabel="comment"
+                        compact
+                        onSubmit={(payload) => handleFlagComment(c.id, payload)}
+                        onCancel={() => setFlaggingCommentId(null)}
+                      />
                     </div>
                   )}
                 </div>

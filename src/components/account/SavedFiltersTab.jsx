@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2 } from "lucide-react";
+import { Loader2, UserCog } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ACTIVITY_CATEGORIES } from "@/lib/activityCategories";
+import HelpTip from "@/components/shared/HelpTip";
 
 export default function SavedFiltersTab({ user }) {
   const { toast } = useToast();
@@ -96,9 +97,25 @@ export default function SavedFiltersTab({ user }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Save your usual Home page filters. On Home, use the filters shortcut to apply them.
-      </p>
+      <div className="space-y-3 text-sm text-muted-foreground">
+        <p>
+          Customize your Activity filters on the home page. Complete the information below and save.
+        </p>
+        <p>
+          Select only what you want. Entering Keywords will show all Activities that include any of those keywords in the title,
+          description, organizer name, city, and special keywords entered by the contributor. Sort By selects your sort order
+          preference. Selecting a Category, Age, and Price will further filter and only show results that match EVERY option you
+          set (each extra filter you turn on can shrink the result).
+        </p>
+        <p>
+          Once your preferences are made and saved, click the My Filters button
+          <span className="mx-1 inline-flex h-5 w-5 align-middle items-center justify-center rounded-md border border-input bg-background">
+            <UserCog className="h-3 w-3" />
+          </span>
+          in the home page search filter options and your preferences will set the filters (so you don&apos;t have to manually
+          change them every time you visit!).
+        </p>
+      </div>
 
       <div className="space-y-4 max-w-lg">
         <div>
@@ -134,22 +151,6 @@ export default function SavedFiltersTab({ user }) {
               <SelectItem value="registration">Registration Date</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
-          <div>
-            <p className="text-sm font-medium">Free</p>
-            <p className="text-xs text-muted-foreground">Only show free activities. Disables Price Min / Max.</p>
-          </div>
-          <Switch
-            checked={form.free_only}
-            onCheckedChange={(v) => setForm((p) => ({
-              ...p,
-              free_only: v,
-              price_min: v ? "" : p.price_min,
-              price_max: v ? "" : p.price_max,
-            }))}
-          />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -195,9 +196,25 @@ export default function SavedFiltersTab({ user }) {
           </div>
         </div>
 
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+          <div className="flex items-center">
+            <p className="text-sm font-medium">Free</p>
+            <HelpTip text="Only show free Activities. Disables Price Min / Max." />
+          </div>
+          <Switch
+            checked={form.free_only}
+            onCheckedChange={(v) => setForm((p) => ({
+              ...p,
+              free_only: v,
+              price_min: v ? "" : p.price_min,
+              price_max: v ? "" : p.price_max,
+            }))}
+          />
+        </div>
+
         <Button className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={handleSave} disabled={saving}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-          Save Filters
+          Save My Filters
         </Button>
       </div>
     </div>

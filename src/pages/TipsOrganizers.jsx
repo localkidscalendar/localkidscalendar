@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Building2, Share2, Star, Zap, Bell, Globe, Users, TrendingUp, Sparkles } from "lucide-react";
+import { Building2, Share2, Star, Zap, Bell, Globe, Users, TrendingUp, Sparkles } from "lucide-react";
+import HistoryBackLink from "@/components/shared/HistoryBackLink";
 
 const tips = [
   {
@@ -53,9 +54,7 @@ const tips = [
 export default function TipsOrganizers() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
-      <Link to="/about" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-mint-500 mb-8 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Back to About
-      </Link>
+      <HistoryBackLink className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-mint-500 mb-8 transition-colors" />
 
       <div className="mb-10">
         <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-peach-100 text-peach-500 mb-3">Organizers</span>

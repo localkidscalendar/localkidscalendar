@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
-import { Mail, Eye, Send, Loader2 } from "lucide-react";
+import { Eye, Send, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EMAIL_TEMPLATE_META, SAMPLE_DATA, buildEmail } from "@/lib/emailTemplates";
+import { deliverySummary } from "@/lib/userMessagesCatalog";
 import { sendEmail } from "@/lib/sendEmail";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -70,17 +71,7 @@ export default function SiteEmailsTester() {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-border p-6">
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-9 h-9 rounded-xl bg-mint-100 flex items-center justify-center">
-          <Mail className="w-4 h-4 text-mint-500" />
-        </div>
-        <div>
-          <h2 className="font-heading font-semibold text-base">Site Emails</h2>
-          <p className="text-xs text-muted-foreground">Preview system-generated emails with realistic sample data.</p>
-        </div>
-      </div>
-
+    <div>
       <div className="space-y-4">
         <div>
           <label className="text-sm font-medium block mb-1">Email Type *</label>
@@ -155,7 +146,9 @@ export default function SiteEmailsTester() {
               }`}
             >
               <p className="font-medium text-sm">{template.label}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{template.desc}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {deliverySummary({ audience: template.audience, when: template.when })}
+              </p>
             </button>
           ))}
         </div>

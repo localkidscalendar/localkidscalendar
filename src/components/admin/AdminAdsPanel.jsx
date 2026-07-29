@@ -2,12 +2,17 @@ import React, { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, X, Clock, ExternalLink, Trash2, Image, HelpCircle, Flag, RotateCcw } from "lucide-react";
+import { Check, X, Clock, ExternalLink, Image, HelpCircle, Ban, RotateCcw } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import moment from "moment";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
-import { buildEmail } from "@/lib/emailTemplates";
-import { sendEmail } from "@/lib/sendEmail";
+import {
+  disableAdAssetFromBanner,
+  reactivateAdAssetFromBanner,
+  sendAdAssetDisabledEmail,
+  markAdAssetDisableNotified,
+} from "@/lib/quarantineAdLibrary";
+import { notifyAdCreativeDisabledAdmin } from "@/lib/userMessages";
 
 const STATUS_CONFIG = {
   active:          { label: "Active",          color: "bg-mint-50 text-mint-500" },
@@ -19,26 +24,6 @@ const STATUS_CONFIG = {
   flagged:         { label: "Flagged",         color: "bg-peach-50 text-peach-500" },
 };
 
-async function sendAdStatusEmail(ad, templateKey, reason) {
-  try {
-    if (!ad?.user_id) return;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("email")
-      .eq("id", ad.user_id)
-      .maybeSingle();
-    if (!profile?.email) return;
-    const { subject, html } = buildEmail(templateKey, {
-      business_name: ad.business_name || "Supporter",
-      zip_code: ad.zip_code || "",
-      reason: reason || "",
-    });
-    await sendEmail({ to: profile.email, subject, html });
-  } catch (err) {
-    console.error("Failed to send ad status email", err);
-  }
-}
-
 export default function AdminAdsPanel({ ads, onRefresh, toast }) {
   const [rejectionNotes, setRejectionNotes] = useState({});
 
@@ -48,6 +33,22 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
   const [adsSearch, setAdsSearch] = useState("");
 
   const handleApprove = async (ad) => {
+    // Flagged ads: Admin restore re-approves the Ad Asset and all related zip placements.
+    if (ad.status === "flagged") {
+      const { data, error } = await reactivateAdAssetFromBanner(ad.id);
+      if (error) {
+        toast?.({ title: "Failed to restore ad creative", description: error.message, variant: "destructive" });
+        return;
+      }
+      const zips = data?.zip_codes || [];
+      toast?.({
+        title: `"${ad.business_name}" restored`,
+        description: zips.length > 1 ? `Reactivated ${zips.length} zip placements.` : undefined,
+      });
+      onRefresh?.();
+      return;
+    }
+
     const { error } = await supabase.from("banner_ads").update({
       status: "active",
       moderation_status: "approved",
@@ -74,50 +75,51 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
       toast?.({ title: "Failed to reject ad", variant: "destructive" });
       return;
     }
+    // Reject is zip-placement only — does not disable the Ad Asset.
     toast?.({ title: `"${ad.business_name}" rejected.` });
     onRefresh?.();
   };
 
-  const handlePause = async (ad) => {
-    const notes = window.prompt("Provide an explanation for deactivating this ad. This will be shown to the Supporter and emailed to them:");
+  /** Disable the Ad Asset across every zip placement using it. */
+  const handleDisableCreative = async (ad) => {
+    const notes = window.prompt(
+      "Provide an explanation for disabling this ad creative. It will be removed from every zip placement using this asset. Billing stays active; the Supporter must assign a different approved creative:"
+    );
     if (notes === null) return;
     if (!notes.trim()) {
-      toast?.({ title: "An explanation is required to deactivate this ad.", variant: "destructive" });
+      toast?.({ title: "An explanation is required to disable this ad creative.", variant: "destructive" });
       return;
     }
-    const { error } = await supabase.from("banner_ads").update({
-      status: "cancelled",
-      replacement_required: true,
-      moderation_notes: notes.trim(),
-      updated_at: new Date().toISOString(),
-    }).eq("id", ad.id);
+    const reason = notes.trim();
+    const { data, error } = await disableAdAssetFromBanner(ad.id, reason);
     if (error) {
-      toast?.({ title: "Failed to deactivate ad", variant: "destructive" });
+      toast?.({ title: "Failed to disable ad creative", description: error.message, variant: "destructive" });
       return;
     }
-    await sendAdStatusEmail(ad, "ad_deactivated_admin", notes.trim());
-    toast?.({ title: "Ad paused and removed from feed", description: "Supporter was emailed." });
-    onRefresh?.();
-  };
-
-  const handleFlag = async (ad) => {
-    const notes = window.prompt("Provide an explanation for flagging this ad. This will be shown to the Supporter and emailed to them:");
-    if (notes === null) return;
-    if (!notes.trim()) {
-      toast?.({ title: "An explanation is required to flag this ad.", variant: "destructive" });
-      return;
+    const zipCodes = data?.zip_codes || [ad.zip_code].filter(Boolean);
+    const already = data?.already_disabled;
+    if (!already) {
+      await sendAdAssetDisabledEmail({
+        userId: data?.user_id || ad.user_id,
+        businessName: data?.business_name || ad.business_name,
+        zipCodes,
+        reason,
+        templateKey: "ad_flagged_admin",
+      });
+      await notifyAdCreativeDisabledAdmin({
+        userId: data?.user_id || ad.user_id,
+        businessName: data?.business_name || ad.business_name,
+        zipCodes,
+        reason,
+      });
+      await markAdAssetDisableNotified(data?.asset_ids || []);
     }
-    const { error } = await supabase.from("banner_ads").update({
-      status: "flagged",
-      moderation_notes: notes.trim(),
-      updated_at: new Date().toISOString(),
-    }).eq("id", ad.id);
-    if (error) {
-      toast?.({ title: "Failed to flag ad", variant: "destructive" });
-      return;
-    }
-    await sendAdStatusEmail(ad, "ad_flagged_admin", notes.trim());
-    toast?.({ title: "Ad flagged for review", description: "Supporter was emailed." });
+    toast?.({
+      title: "Ad creative disabled",
+      description: zipCodes.length > 1
+        ? `Disabled across ${zipCodes.length} zip placements. Supporter was notified.`
+        : "Supporter was notified (email + My Messages).",
+    });
     onRefresh?.();
   };
 
@@ -304,14 +306,15 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
                           </>
                         )}
                         {a.status === "active" && (
-                          <>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handleFlag(a)} title="Flag">
-                              <Flag className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => handlePause(a)} title="Removes ad from public feed. Advertiser's subscription stays active; they can submit a replacement.">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleDisableCreative(a)}
+                            title="Disable this ad creative across every zip placement using it. Billing stays active."
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                          </Button>
                         )}
                         {a.status === "rejected" && (
                           <Button variant="ghost" size="sm" className="h-7 text-xs text-mint-500" onClick={() => handleApprove(a)}>Re-approve</Button>

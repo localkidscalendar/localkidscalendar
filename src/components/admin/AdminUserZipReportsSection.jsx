@@ -19,7 +19,7 @@ export default function AdminUserZipReportsSection() {
     try {
       const [usersRes, eventsRes, adsRes, waitlistRes] = await Promise.all([
         supabase.from("profiles").select("id, role, zip_code").limit(500),
-        supabase.from("events").select("zip_code, posted_by_role, contact_email, org_name").eq("status", "active").limit(500),
+        supabase.from("events").select("created_by_id, posted_by_role").limit(1000),
         supabase.from("banner_ads").select("zip_code").eq("status", "active").limit(500),
         supabase.from("ad_waitlist").select("zip_code").eq("status", "waiting").limit(500),
       ]);
@@ -38,16 +38,28 @@ export default function AdminUserZipReportsSection() {
       });
       setUserRows(Object.entries(userZipMap).map(([zip, set]) => ({ zip, count: set.size })));
 
-      // Active organizers by zip (from active Events posted by organizers, deduped)
+      // Registered organizers by profile zip, plus post counts for those organizers
       const orgZipMap = {};
-      events.forEach((e) => {
-        if (e.posted_by_role !== "organizer" || !e.zip_code) return;
-        const key = e.contact_email || e.org_name;
-        if (!key) return;
-        if (!orgZipMap[e.zip_code]) orgZipMap[e.zip_code] = new Set();
-        orgZipMap[e.zip_code].add(key);
+      const organizerZipById = {};
+      users.forEach((u) => {
+        if (u.role !== "organizer" || !u.zip_code) return;
+        if (!orgZipMap[u.zip_code]) orgZipMap[u.zip_code] = new Set();
+        orgZipMap[u.zip_code].add(u.id);
+        organizerZipById[u.id] = u.zip_code;
       });
-      setOrganizerRows(Object.entries(orgZipMap).map(([zip, set]) => ({ zip, count: set.size })));
+      const orgPostsByZip = {};
+      events.forEach((e) => {
+        const zip = e.created_by_id && organizerZipById[e.created_by_id];
+        if (!zip) return;
+        orgPostsByZip[zip] = (orgPostsByZip[zip] || 0) + 1;
+      });
+      setOrganizerRows(
+        Object.entries(orgZipMap).map(([zip, set]) => ({
+          zip,
+          count: set.size,
+          posts: orgPostsByZip[zip] || 0,
+        }))
+      );
 
       // Supporters (advertisers + waitlisted) by zip
       const supporterZipMap = {};
@@ -102,12 +114,18 @@ export default function AdminUserZipReportsSection() {
           <ZipCodeRankingCard
             title="Top 10 Organizer Zip Codes"
             rows={organizerRows}
-            columns={[{ key: "count", label: "Organizers" }]}
+            columns={[
+              { key: "count", label: "Organizers" },
+              { key: "posts", label: "Posts" },
+            ]}
           />
           <ZipCodeSearchCard
             title="Search Organizers by Zip Code"
             rows={organizerRows}
-            columns={[{ key: "count", label: "Organizers" }]}
+            columns={[
+              { key: "count", label: "Organizers" },
+              { key: "posts", label: "Posts" },
+            ]}
           />
         </div>
       </div>

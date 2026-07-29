@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 import HelpTip from "@/components/shared/HelpTip";
 import { Upload, Save, AlertTriangle, Loader2, KeyRound } from "lucide-react";
+import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
 
 function namesFromMetadata(meta = {}) {
   const full = (meta.full_name || meta.name || "").trim();
@@ -35,7 +36,7 @@ export default function ProfileTab({ user, setUser }) {
   const isRoleLocked = !isAdmin && !needsSetup && (user?.role === "organizer" || user?.role === "community_member");
 
   const [form, setForm] = useState({
-    first_name: "", last_name: "", zip_code: "", role: "community_member",
+    first_name: "", last_name: "", zip_code: "", radius_miles: DEFAULT_RADIUS_MILES, role: "community_member",
     org_name: "", org_description: "", org_logo: "", org_website: "", org_email: "",
   });
 
@@ -86,6 +87,7 @@ export default function ProfileTab({ user, setUser }) {
           first_name: user.first_name || metaNames.first || "",
           last_name: user.last_name || metaNames.last || "",
           zip_code: user.zip_code || "",
+          radius_miles: normalizeRadiusMiles(user.radius_miles),
           role: displayRole,
           ...orgFields,
         });
@@ -96,7 +98,7 @@ export default function ProfileTab({ user, setUser }) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.role, user?.first_name, user?.last_name, user?.zip_code, user?.org_name, isAdmin]);
+  }, [user?.id, user?.role, user?.first_name, user?.last_name, user?.zip_code, user?.radius_miles, user?.org_name, isAdmin]);
 
   const updateField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -163,6 +165,7 @@ export default function ProfileTab({ user, setUser }) {
         first_name: isOrganizer ? "" : form.first_name.trim(),
         last_name: isOrganizer ? "" : form.last_name.trim(),
         zip_code: form.zip_code.trim(),
+        radius_miles: normalizeRadiusMiles(form.radius_miles),
         role: nextRole,
         updated_at: new Date().toISOString(),
       });
@@ -203,6 +206,7 @@ export default function ProfileTab({ user, setUser }) {
         first_name: isOrganizer ? "" : form.first_name.trim(),
         last_name: isOrganizer ? "" : form.last_name.trim(),
         zip_code: form.zip_code.trim(),
+        radius_miles: normalizeRadiusMiles(form.radius_miles),
         role: nextRole,
         full_name: fullName || user.email,
         org_name: isOrganizer ? form.org_name.trim() : user.org_name,
@@ -222,7 +226,7 @@ export default function ProfileTab({ user, setUser }) {
     <div className="space-y-6">
       {needsSetup && (
         <div className="rounded-xl border border-mint-200 bg-mint-50 px-4 py-3 text-sm text-mint-800">
-          Finish setting up your account: choose your account type, confirm your name, and add your 5-digit zip code, then save.
+          Finish setting up your account: choose your account type, confirm your name, add your 5-digit zip code and search distance, then save.
         </div>
       )}
       <div className="space-y-4">
@@ -285,6 +289,19 @@ export default function ProfileTab({ user, setUser }) {
               inputMode="numeric"
               placeholder="5 digits"
             />
+          </div>
+          <div>
+            <Label className="text-sm">Distance *</Label>
+            <select
+              value={normalizeRadiusMiles(form.radius_miles)}
+              onChange={(e) => updateField("radius_miles", Number(e.target.value))}
+              className="w-full mt-1 h-10 rounded-xl text-sm border border-input bg-transparent px-3 py-2 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {RADIUS_OPTIONS.map((d) => (
+                <option key={d} value={d}>{d} miles</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">Used as your Home page default when you sign in.</p>
           </div>
         </div>
       </div>

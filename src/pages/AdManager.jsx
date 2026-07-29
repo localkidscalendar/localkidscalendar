@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, CheckCircle, Images, List, Shield, ChevronDown, ChevronUp,
   MapPin, AlertTriangle, Timer, Plus, Eye, MousePointerClick, BarChart3,
-  PauseCircle, RefreshCw, Clock, DollarSign, Tag,
+  RefreshCw, Clock, DollarSign, Tag,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
+import AdminPanelShell from "@/components/admin/AdminPanelShell";
+import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
 import ActiveAdCard from "@/components/ads/ActiveAdCard";
 import InactiveAdCard from "@/components/ads/InactiveAdCard";
@@ -19,6 +21,19 @@ import CurrentAdRates from "@/components/ads/CurrentAdRates";
 import { createAdCheckout } from "@/lib/adBilling";
 import { SUPPORTER_RULES, TOS_INTRO, TOS_SECTIONS, TOS_FOOTER } from "@/lib/supporterContent";
 import { countOpenAdSlots, SLOT_HOLDING_STATUSES } from "@/lib/waitlistQueue";
+
+const ADS_STATUS_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+const chipClass = (active) =>
+  `text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+    active
+      ? "border-mint-300 bg-mint-50 text-mint-700"
+      : "border-border bg-white hover:bg-mint-50 hover:border-mint-200 hover:text-mint-700 text-muted-foreground"
+  }`;
 
 const RESERVATION_MINUTES = 10;
 
@@ -410,7 +425,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Your ad will show to families whose zip code — either their profile zip or a zip they've manually entered — exactly matches this one. There is no surrounding mile radius; only this exact zip code is targeted.
+              Your ad will show to families whose zip code — either their profile zip or a zip they've manually entered — exactly matches the zip code that your ad is placed for (there is no surrounding mile radius; only this exact zip code is targeted). You may want to consider advertising in multiple zip codes if the Activity-area that you want to show support for includes users from a variety of surrounding zip codes.
             </p>
           </div>
 
@@ -676,6 +691,9 @@ export default function AdManager() {
   const [refreshing, setRefreshing] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [waitlistPrefill, setWaitlistPrefill] = useState(null);
+  const [adsSearch, setAdsSearch] = useState("");
+  const [adsStatusFilter, setAdsStatusFilter] = useState("all");
+  const [adsPage, setAdsPage] = useState(1);
   const [activeTab, setActiveTab] = useState(() => {
     const tab = searchParams.get("tab");
     return ["ads", "library", "waitlist", "rules", "rates"].includes(tab) ? tab : "ads";
@@ -749,6 +767,41 @@ export default function AdManager() {
     });
   };
 
+  const activeAds = useMemo(() => ads.filter((a) => a.status === "active"), [ads]);
+  const inactiveAds = useMemo(() => ads.filter((a) => a.status !== "active"), [ads]);
+  const impressions = ads.reduce((sum, a) => sum + Number(a.impressions || 0), 0);
+  const clicks = ads.reduce((sum, a) => sum + Number(a.clicks || 0), 0);
+  const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(1) : "0.0";
+
+  const filteredAds = useMemo(() => {
+    let list = [...ads];
+    if (adsStatusFilter === "active") list = list.filter((a) => a.status === "active");
+    if (adsStatusFilter === "inactive") list = list.filter((a) => a.status !== "active");
+    const q = adsSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter((a) => {
+        const hay = [
+          a.zip_code,
+          a.business_name,
+          a.status,
+          a.plan_type,
+          a.link_url,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    return list;
+  }, [ads, adsSearch, adsStatusFilter]);
+
+  useEffect(() => {
+    setAdsPage(1);
+  }, [adsSearch, adsStatusFilter]);
+
+  const paginatedAds = filteredAds.slice((adsPage - 1) * PAGE_SIZE, adsPage * PAGE_SIZE);
+
   if (userLoading) {
     return (
       <div className="flex justify-center py-20">
@@ -782,14 +835,6 @@ export default function AdManager() {
       </div>
     );
   }
-
-  const activeAds = ads.filter((a) => a.status === "active");
-  const inactiveAds = ads
-    .filter((a) => a.status !== "active")
-    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-  const impressions = ads.reduce((sum, a) => sum + Number(a.impressions || 0), 0);
-  const clicks = ads.reduce((sum, a) => sum + Number(a.clicks || 0), 0);
-  const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(1) : "0.0";
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -866,7 +911,7 @@ export default function AdManager() {
           }}>
             <TabsList className="rounded-xl mb-4 flex-wrap h-auto">
               <TabsTrigger value="ads" className="rounded-lg flex items-center gap-1.5">
-                <List className="w-3.5 h-3.5" />My Ads ({ads.length})
+                <List className="w-3.5 h-3.5" />My Active Ads ({activeAds.length})
               </TabsTrigger>
               <TabsTrigger value="library" className="rounded-lg flex items-center gap-1.5">
                 <Images className="w-3.5 h-3.5" />Ad Library
@@ -882,7 +927,7 @@ export default function AdManager() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="ads" className="space-y-8">
+            <TabsContent value="ads" className="space-y-4">
               {loading ? (
                 <div className="flex justify-center py-10">
                   <Loader2 className="w-5 h-5 animate-spin text-mint-500" />
@@ -903,44 +948,69 @@ export default function AdManager() {
                 </div>
               ) : (
                 <>
-                  <div>
-                    <AdminSectionHeader title="My Active Ads" icon={CheckCircle} />
-                    <div className="bg-white rounded-2xl border border-border p-5">
-                      {activeAds.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No active ads.</p>
-                      ) : (
-                        <div className="space-y-4">
-                          {activeAds.map((ad) => (
-                            <ActiveAdCard
-                              key={ad.id}
-                              ad={ad}
-                              user={user}
-                              onRefresh={() => loadAds({ silent: true })}
-                            />
+                  <AdminSectionHeader title="My Active Ads" icon={CheckCircle} />
+                  <AdminPanelShell>
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Input
+                          placeholder="Search by zip, name, status…"
+                          value={adsSearch}
+                          onChange={(e) => setAdsSearch(e.target.value)}
+                          className="rounded-lg h-8 text-sm sm:max-w-xs"
+                        />
+                        <div className="flex flex-wrap gap-1.5">
+                          {ADS_STATUS_FILTERS.map((f) => (
+                            <button
+                              key={f.value}
+                              type="button"
+                              onClick={() => setAdsStatusFilter(f.value)}
+                              className={chipClass(adsStatusFilter === f.value)}
+                            >
+                              {f.label}
+                              {f.value === "all"
+                                ? ` (${ads.length})`
+                                : f.value === "active"
+                                  ? ` (${activeAds.length})`
+                                  : ` (${inactiveAds.length})`}
+                            </button>
                           ))}
+                        </div>
+                      </div>
+
+                      {filteredAds.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-10">
+                          {adsSearch.trim()
+                            ? "No ads match your search."
+                            : adsStatusFilter === "active"
+                              ? "No active ads."
+                              : adsStatusFilter === "inactive"
+                                ? "No inactive ads."
+                                : "No ads yet."}
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {paginatedAds.map((ad) =>
+                            ad.status === "active" ? (
+                              <ActiveAdCard
+                                key={ad.id}
+                                ad={ad}
+                                user={user}
+                                onRefresh={() => loadAds({ silent: true })}
+                              />
+                            ) : (
+                              <InactiveAdCard
+                                key={ad.id}
+                                ad={ad}
+                                user={user}
+                                onRefresh={() => loadAds({ silent: true })}
+                              />
+                            )
+                          )}
+                          <Paginator total={filteredAds.length} page={adsPage} onPage={setAdsPage} />
                         </div>
                       )}
                     </div>
-                  </div>
-                  <div>
-                    <AdminSectionHeader title="My Inactive Ads" icon={PauseCircle} />
-                    <div className="bg-white rounded-2xl border border-border p-5">
-                      {inactiveAds.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No inactive ads.</p>
-                      ) : (
-                        <div className="space-y-4">
-                          {inactiveAds.map((ad) => (
-                            <InactiveAdCard
-                              key={ad.id}
-                              ad={ad}
-                              user={user}
-                              onRefresh={() => loadAds({ silent: true })}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  </AdminPanelShell>
                 </>
               )}
             </TabsContent>

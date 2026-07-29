@@ -80,16 +80,18 @@ export default function AdminBetaPanel({ toast }) {
     setSaving(false);
   };
 
+  const sortZips = (zips) => [...(zips || [])].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+
   const addZip = () => {
     const zip = newZip.trim();
     if (zip.length !== 5) return;
     if ((config.zip_codes || []).includes(zip)) { setNewZip(""); return; }
-    save({ zip_codes: [...(config.zip_codes || []), zip] });
+    save({ zip_codes: sortZips([...(config.zip_codes || []), zip]) });
     setNewZip("");
   };
 
   const removeZip = (zip) => {
-    save({ zip_codes: (config.zip_codes || []).filter((z) => z !== zip) });
+    save({ zip_codes: sortZips((config.zip_codes || []).filter((z) => z !== zip)) });
   };
 
   const generateCode = () => {
@@ -182,7 +184,7 @@ export default function AdminBetaPanel({ toast }) {
             <p className="text-sm text-muted-foreground">No zip codes added — beta mode has no restriction until you add at least one.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {config.zip_codes.map((z) => (
+              {sortZips(config.zip_codes).map((z) => (
                 <span key={z} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-mint-50 text-mint-600 text-sm font-medium">
                   {z}
                   <button type="button" onClick={() => removeZip(z)} className="hover:text-mint-800">

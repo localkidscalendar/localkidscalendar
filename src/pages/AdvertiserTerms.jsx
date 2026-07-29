@@ -1,16 +1,14 @@
 import React from "react";
-import { Shield, ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Shield } from "lucide-react";
 import { TOS_INTRO, TOS_SECTIONS, TOS_FOOTER, TOS_EFFECTIVE_DATE } from "@/lib/supporterContent";
+import HistoryBackLink from "@/components/shared/HistoryBackLink";
 
 const EFFECTIVE_DATE = TOS_EFFECTIVE_DATE;
 
 export default function AdvertiserTerms() {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-      <Link to="/supporters" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Back to Supporters
-      </Link>
+      <HistoryBackLink className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors" />
 
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-peach-100 flex items-center justify-center">

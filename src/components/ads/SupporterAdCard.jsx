@@ -1,11 +1,10 @@
 import React, { useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { ExternalLink, Heart, Flag } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
-
-const FLAG_REASONS = ["inaccurate", "inappropriate", "spam", "other"];
+import FlagReportForm from "@/components/shared/FlagReportForm";
+import { useToast } from "@/components/ui/use-toast";
+import { notifyAdAssetDisabled } from "@/lib/quarantineAdLibrary";
 
 export function SupporterAdPlaceholder() {
   // Image area + footer match paid SupporterAdCard (h-48 + black bar ≈ default filler h-56).
@@ -33,8 +32,6 @@ export default function SupporterAdCard({ ad, user }) {
   const clickedRef = useRef(false);
   const { toast } = useToast();
   const [flagOpen, setFlagOpen] = useState(false);
-  const [selectedReason, setSelectedReason] = useState(null);
-  const [otherText, setOtherText] = useState("");
   const [authPrompt, setAuthPrompt] = useState(false);
 
   const trackClick = async () => {
@@ -62,40 +59,32 @@ export default function SupporterAdCard({ ad, user }) {
     setFlagOpen((prev) => !prev);
   };
 
-  const handleSubmitFlag = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!selectedReason) return;
-    if (selectedReason === "other" && !otherText.trim()) {
-      toast({ title: "Please provide a reason" });
-      return;
-    }
+  const handleSubmitFlag = async ({ reason, details }) => {
     if ((ad.flagged_by || []).includes(user.id)) {
       toast({ title: "You already flagged this ad" });
       setFlagOpen(false);
-      setSelectedReason(null);
-      setOtherText("");
       return;
     }
     try {
       const { data, error } = await supabase.rpc("submit_flag", {
         p_target_type: "ad",
         p_target_id: ad.id,
-        p_reason: selectedReason,
-        p_details: selectedReason === "other" ? otherText.trim() : null,
+        p_reason: reason,
+        p_details: details,
       });
       if (error) throw error;
       toast({
         title: data?.archived
-          ? "Ad flagged for review"
+          ? "Ad creative flagged for review"
           : "Ad flagged. Thank you for helping keep our community safe.",
       });
+      if (data?.archived && data?.needs_notify !== false) {
+        void notifyAdAssetDisabled(ad.id);
+      }
     } catch (err) {
       toast({ title: "Could not submit report", description: err.message, variant: "destructive" });
     }
     setFlagOpen(false);
-    setSelectedReason(null);
-    setOtherText("");
   };
 
   return (
@@ -148,51 +137,13 @@ export default function SupporterAdCard({ ad, user }) {
       </div>
 
       {flagOpen && (
-        <div className="bg-peach-50 p-3 animate-settle" onClick={(e) => e.stopPropagation()}>
-          <p className="text-xs font-medium mb-2">Why are you flagging this ad?</p>
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {FLAG_REASONS.map((r) => (
-              <Button
-                key={r}
-                type="button"
-                variant={selectedReason === r ? "default" : "outline"}
-                size="sm"
-                className="rounded-lg text-xs capitalize h-6 px-2"
-                onClick={() => setSelectedReason(r)}
-              >
-                {r}
-              </Button>
-            ))}
-          </div>
-          {selectedReason === "other" && (
-            <textarea
-              placeholder="Please describe the issue..."
-              value={otherText}
-              onChange={(e) => setOtherText(e.target.value)}
-              className="w-full rounded-lg border border-peach-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-peach-500 mb-2"
-              rows={2}
-            />
-          )}
-          {selectedReason && (
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="rounded-lg text-xs h-6"
-                onClick={handleSubmitFlag}
-                disabled={selectedReason === "other" && !otherText.trim()}
-              >
-                Submit
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-lg text-xs h-6"
-                onClick={() => { setFlagOpen(false); setSelectedReason(null); setOtherText(""); }}
-              >
-                Cancel
-              </Button>
-            </div>
-          )}
+        <div onClick={(e) => e.stopPropagation()}>
+          <FlagReportForm
+            targetLabel="ad"
+            compact
+            onSubmit={handleSubmitFlag}
+            onCancel={() => setFlagOpen(false)}
+          />
         </div>
       )}
 

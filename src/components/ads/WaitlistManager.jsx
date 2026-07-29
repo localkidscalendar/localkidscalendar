@@ -20,7 +20,7 @@ const STATUS_CONFIG = {
 
 const ACTIVE_STATUSES = ["waiting", "offered"];
 const PAST_STATUSES = ["expired", "declined", "cancelled"];
-// "accepted" is intentionally omitted — claimed zips belong under My Ads, not Waitlist.
+// "accepted" is intentionally omitted — claimed zips belong under My Active Ads, not Waitlist.
 
 async function zipHasOpenSlot(zip) {
   const slotInfo = await countOpenAdSlots(supabase, zip);
@@ -68,6 +68,7 @@ export default function WaitlistManager({ user, onClaimSpot }) {
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
+  const [showRules, setShowRules] = useState(false);
 
   useEffect(() => {
     if (user) loadEntries();
@@ -144,9 +145,48 @@ export default function WaitlistManager({ user, onClaimSpot }) {
       <div>
         <h3 className="font-heading font-semibold">Waitlisted Zip Codes</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Join from <strong>New Ad</strong> when a zip is full. When a spot is offered, claim it here. Claimed zips move to <strong>My Ads</strong>.
+          Join from <strong>New Ad</strong> when a zip is full. When a spot is offered, claim it here. Claimed zips move to <strong>My Active Ads</strong>.{" "}
+          {!showRules ? (
+            <button
+              type="button"
+              className="text-mint-600 hover:text-mint-700 font-medium underline underline-offset-2"
+              onClick={() => setShowRules(true)}
+            >
+              More …
+            </button>
+          ) : null}
         </p>
       </div>
+
+      {showRules ? (
+        <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm space-y-3">
+          <p className="font-semibold text-foreground text-xs uppercase tracking-wide">How the waitlist works</p>
+          <ul className="space-y-2 text-xs text-muted-foreground leading-relaxed list-disc pl-4">
+            <li>
+              <strong className="text-foreground">Join when a zip is full.</strong> From Submit a New Ad, if that zip has no open Supporter spots, you can join its waitlist. You keep a queue position for that zip.
+            </li>
+            <li>
+              <strong className="text-foreground">Offers go in order.</strong> When a spot opens, the next person in line for that zip gets an offer (email + My Messages), and that offer temporarily reserves the spot.
+            </li>
+            <li>
+              <strong className="text-foreground">You have 24 hours to claim.</strong> Complete checkout from this Waitlist tab before the offer expires. If you miss the deadline, the offer expires and the spot is offered to the next person in line.
+            </li>
+            <li>
+              <strong className="text-foreground">Three offers maximum.</strong> Each missed or expired offer counts as one attempt. After 3 offers without claiming, your waitlist entry for that zip is cancelled and you must rejoin if you still want a spot.
+            </li>
+            <li>
+              <strong className="text-foreground">You can leave anytime.</strong> Use Leave on a waiting or offered entry to remove yourself. Leaving an active offer frees the spot for the next person.
+            </li>
+          </ul>
+          <button
+            type="button"
+            className="text-xs text-mint-600 hover:text-mint-700 font-medium underline underline-offset-2"
+            onClick={() => setShowRules(false)}
+          >
+            Show less
+          </button>
+        </div>
+      ) : null}
 
       {activeEntries.length === 0 && (
         <p className="text-sm text-muted-foreground py-4 text-center">
@@ -210,7 +250,10 @@ export default function WaitlistManager({ user, onClaimSpot }) {
                           </p>
                         )}
                         <p className="mt-0.5">
-                          Offer attempt: {(Number(entry.offer_count) || 0) + 1}/3 — after 3 missed offers your entry is cancelled
+                          Offer attempt: {(Number(entry.offer_count) || 0) + 1}/3 — after 3 missed offers your waitlist entry for this zip is cancelled
+                        </p>
+                        <p className="mt-0.5 text-mint-600/90">
+                          Claim within 24 hours (before the expiry time above) or this spot moves to the next person in line.
                         </p>
                       </div>
                     )}

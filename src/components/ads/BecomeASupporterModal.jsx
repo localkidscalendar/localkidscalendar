@@ -6,6 +6,7 @@ import { Heart, LogIn, UserPlus, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
+import { notifyBecameSupporter } from "@/lib/userMessages";
 
 export default function BecomeASupporterModal({ open, onClose, user }) {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ export default function BecomeASupporterModal({ open, onClose, user }) {
         }).eq("id", user.id);
         if (error) throw error;
         setUser((prev) => (prev ? { ...prev, is_advertiser: true } : prev));
+        await notifyBecameSupporter(user.id);
       }
       onClose();
       navigate("/ad-manager");
@@ -49,8 +51,7 @@ export default function BecomeASupporterModal({ open, onClose, user }) {
 
         <div className="space-y-4 pt-1">
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Becoming a Supporter adds Ad Manager to your account menu so you can upload creatives and publish zip placements.
-            During beta, billing is waived and approved creatives can go live after you publish.
+            Becoming a Supporter adds Ad Manager to your account menu so you can upload creatives, choose zip codes, and publish placements that reach local families.
           </p>
           <div className="flex flex-col gap-2">
             {!user ? (
@@ -69,7 +70,7 @@ export default function BecomeASupporterModal({ open, onClose, user }) {
                 onClick={becomeSupporter}
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Heart className="w-4 h-4 mr-2" />}
-                {user.is_advertiser ? "Open Ad Manager" : "Become a Supporter"}
+                Become a Supporter
               </Button>
             )}
             <Button variant="ghost" className="rounded-xl" onClick={onClose}>Close</Button>

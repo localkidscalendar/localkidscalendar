@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/lib/supabaseClient";
 import { ACTIVITY_CATEGORIES } from "@/lib/activityCategories";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
 
 const SORT_OPTIONS = [
   { value: "posted", label: "Sort By Date Posted" },
@@ -19,10 +20,40 @@ const SORT_OPTIONS = [
   { value: "registration", label: "Sort By Registration Date" },
 ];
 
-export default function EventFilters({ filters, onFiltersChange, detectedZip, user, defaultZip, expanded, onExpandedChange }) {
+const snapshotMyFilters = (values) => ({
+  search: values.search || "",
+  category: values.category || "all",
+  sortBy: values.sortBy || "posted",
+  zipCode: values.zipCode || "",
+  radiusMiles: Number(values.radiusMiles) || 15,
+  ageMin: values.ageMin || "",
+  ageMax: values.ageMax || "",
+  priceMin: values.priceMin || "",
+  priceMax: values.priceMax || "",
+  freeOnly: Boolean(values.freeOnly),
+});
+
+const myFiltersMatch = (a, b) => (
+  a
+  && b
+  && a.search === b.search
+  && a.category === b.category
+  && a.sortBy === b.sortBy
+  && a.zipCode === b.zipCode
+  && Number(a.radiusMiles) === Number(b.radiusMiles)
+  && a.ageMin === b.ageMin
+  && a.ageMax === b.ageMax
+  && a.priceMin === b.priceMin
+  && a.priceMax === b.priceMax
+  && Boolean(a.freeOnly) === Boolean(b.freeOnly)
+);
+
+export default function EventFilters({ filters, onFiltersChange, detectedZip, user, defaultZip, defaultRadius, expanded, onExpandedChange }) {
   const [localSearch, setLocalSearch] = useState(filters.search || "");
   const [authPrompt, setAuthPrompt] = useState(false);
   const [loadingSavedFilters, setLoadingSavedFilters] = useState(false);
+  const [savedFiltersApplied, setSavedFiltersApplied] = useState(false);
+  const [appliedSnapshot, setAppliedSnapshot] = useState(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const { toast } = useToast();
 
@@ -33,8 +64,23 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
     return () => clearTimeout(timer);
   }, [localSearch]);
 
+  // If My Filters is applied but the user changes any of those fields, turn the button off
+  useEffect(() => {
+    if (!appliedSnapshot || !savedFiltersApplied) return;
+    const current = snapshotMyFilters({ ...filters, search: localSearch });
+    if (!myFiltersMatch(appliedSnapshot, current)) {
+      setSavedFiltersApplied(false);
+      setAppliedSnapshot(null);
+    }
+  }, [filters, localSearch, appliedSnapshot, savedFiltersApplied]);
+
   const updateFilter = (key, value) => {
     onFiltersChange({ ...filters, [key]: value });
+  };
+
+  const clearMyFiltersApplied = () => {
+    setSavedFiltersApplied(false);
+    setAppliedSnapshot(null);
   };
 
   const clearFilters = () => {
@@ -45,7 +91,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
       category: "all",
       sortBy: "posted",
       zipCode: defaultZip || "",
-      radiusMiles: 15,
+      radiusMiles: normalizeRadiusMiles(defaultRadius, DEFAULT_RADIUS_MILES),
       ageMin: "",
       ageMax: "",
       priceMin: "",
@@ -55,6 +101,29 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
       dateTo: moment().add(120, "days").toDate(),
       savedOnly: false,
       favOrgsOnly: false,
+    });
+    clearMyFiltersApplied();
+  };
+
+  const toggleSavedOnly = () => {
+    if (!user) { setAuthPrompt(true); return; }
+    const next = !filters.savedOnly;
+    clearMyFiltersApplied();
+    onFiltersChange({
+      ...filters,
+      savedOnly: next,
+      favOrgsOnly: next ? false : filters.favOrgsOnly,
+    });
+  };
+
+  const toggleFavOrgsOnly = () => {
+    if (!user) { setAuthPrompt(true); return; }
+    const next = !filters.favOrgsOnly;
+    clearMyFiltersApplied();
+    onFiltersChange({
+      ...filters,
+      favOrgsOnly: next,
+      savedOnly: next ? false : filters.savedOnly,
     });
   };
 
@@ -75,9 +144,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
         });
       } else {
         const freeOnly = Boolean(data.free_only);
-        setLocalSearch(data.search || "");
-        onFiltersChange({
-          ...filters,
+        const next = {
           search: data.search || "",
           category: data.category || "all",
           sortBy: data.sort_by || "posted",
@@ -88,7 +155,14 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
           priceMin: freeOnly ? "" : (data.price_min != null ? String(data.price_min) : ""),
           priceMax: freeOnly ? "" : (data.price_max != null ? String(data.price_max) : ""),
           freeOnly,
-        });
+          savedOnly: false,
+          favOrgsOnly: false,
+        };
+        setLocalSearch(next.search);
+        onFiltersChange({ ...filters, ...next });
+        const snap = snapshotMyFilters(next);
+        setAppliedSnapshot(snap);
+        setSavedFiltersApplied(true);
         toast({ title: "Saved Filters Applied" });
       }
     } catch (err) {
@@ -175,8 +249,8 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
           variant={filters.savedOnly ? "secondary" : "outline"}
           size="icon"
           className={`rounded-xl shrink-0 ${filters.savedOnly ? "text-mint-500 border-mint-200 bg-mint-50 hover:bg-mint-100" : ""} ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-          onClick={() => user ? updateFilter("savedOnly", !filters.savedOnly) : setAuthPrompt(true)}
-          title={user ? "Filter to only show your saved activities. Manage them in My Account → My Saved Activities." : "Filter to only show your saved activities. Requires a registered, signed-in account."}
+          onClick={toggleSavedOnly}
+          title="Filter to only show your Saved Activities. Manage them in My Account → Saved Activities."
         >
           <Bookmark className={`w-4 h-4 ${filters.savedOnly ? "fill-mint-500 text-mint-500" : ""}`} />
         </Button>
@@ -184,20 +258,20 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
           variant={filters.favOrgsOnly ? "secondary" : "outline"}
           size="icon"
           className={`rounded-xl shrink-0 ${filters.favOrgsOnly ? "text-red-500 border-red-200 bg-red-50 hover:bg-red-100" : ""} ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-          onClick={() => user ? updateFilter("favOrgsOnly", !filters.favOrgsOnly) : setAuthPrompt(true)}
-          title={user ? "Filter to only show activities from your favorite organizers. Manage them in My Account → My Fav Organizers." : "Filter to only show activities from your favorite organizers. Requires a registered, signed-in account."}
+          onClick={toggleFavOrgsOnly}
+          title="Filter to only show your favorite Organizers. Manage them in My Account → Fav Organizers."
         >
           <Heart className={`w-4 h-4 ${filters.favOrgsOnly ? "fill-red-500 text-red-500" : ""}`} />
         </Button>
         <Button
-          variant="outline"
+          variant={savedFiltersApplied ? "secondary" : "outline"}
           size="icon"
-          className={`rounded-xl shrink-0 ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+          className={`rounded-xl shrink-0 ${savedFiltersApplied ? "text-mint-500 border-mint-200 bg-mint-50 hover:bg-mint-100" : ""} ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
           onClick={loadSavedFilters}
           disabled={loadingSavedFilters}
-          title={user ? "Apply the filter preferences you saved. Manage them in My Account → My Filters." : "Apply the filter preferences you saved. Requires a registered, signed-in account."}
+          title="Apply the filter preferences you saved. Manage them in My Account → My Filters."
         >
-          <UserCog className="w-4 h-4" />
+          <UserCog className={`w-4 h-4 ${savedFiltersApplied ? "text-mint-500" : ""}`} />
         </Button>
         <AuthPromptModal open={authPrompt} onOpenChange={setAuthPrompt} message="Sign in to filter activities by your saved events, favorite organizers, and saved filter preferences." />
         <div className="flex items-center gap-0.5 ml-auto">
@@ -235,7 +309,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
                 value={filters.radiusMiles || 15}
                 onChange={(e) => updateFilter("radiusMiles", Number(e.target.value))}
                 className="rounded-xl text-sm border border-input bg-transparent px-3 py-1 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                {[5, 10, 15, 25, 50, 100].map((d) => (
+                {RADIUS_OPTIONS.map((d) => (
                   <option key={d} value={d}>{d} mi</option>
                 ))}
               </select>
@@ -297,27 +371,43 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
       )}
 
       {helpOpen && (
-        <div className="pt-3 border-t border-border animate-settle space-y-3 text-sm text-muted-foreground">
+        <div className="pt-3 border-t border-border animate-settle space-y-3 text-xs text-muted-foreground">
           <div>
             <p className="font-medium text-foreground text-xs mb-1">How Filters Combine</p>
             <p>
-              Most filters work together: an activity must match every option you set (Category and Age and Zip, and so on).
-              Search is the exception — if you type more than one word, an activity matches when any of those words appears.
+              Most filters work together … an Activity must match EVERY option you set (category and age and zip, and so on).
+              Search is the exception — if you type more than one word, an Activity matches when any of those words are included
+              in the Activity (title, description, keywords, organizer name, and city).
             </p>
           </div>
           <div>
             <p className="font-medium text-foreground text-xs mb-1">Fewer Results With More Filters</p>
             <p>
-              Each extra filter you turn on can shrink the list a lot. If results look empty, clear a filter or two and try again.
+              Each extra filter you turn on can shrink the result. If results look empty, clear a filter or two and try again.
             </p>
           </div>
           <div>
-            <p className="font-medium text-foreground text-xs mb-1">What We Match From Each Activity</p>
-            <p>
-              Filters use details from the activity post: category, start/end dates, location and zip, age range, cost (or Free),
-              plus title, description, keywords, organizer name, and city for Search. Saved Activities and Favorite Organizers
-              use your account lists.
-            </p>
+            <p className="font-medium text-foreground text-xs mb-1">Special Filters</p>
+            <div className="space-y-2">
+              <div className="flex items-start gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-input bg-background">
+                  <Bookmark className="h-3 w-3" />
+                </span>
+                <p><span className="font-medium text-foreground">Saved Activities:</span> Filter to only show your Saved Activities. Manage them in My Account → Saved Activities.</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-input bg-background">
+                  <Heart className="h-3 w-3" />
+                </span>
+                <p><span className="font-medium text-foreground">Fav Organizers:</span> Filter to only show your favorite Organizers. Manage them in My Account → Fav Organizers.</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-input bg-background">
+                  <UserCog className="h-3 w-3" />
+                </span>
+                <p><span className="font-medium text-foreground">My Filters:</span> Apply the filter preferences you saved. Manage them in My Account → My Filters.</p>
+              </div>
+            </div>
           </div>
           <div>
             <p className="font-medium text-foreground text-xs mb-1">Saved For This Visit</p>

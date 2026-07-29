@@ -1,34 +1,133 @@
+import { toTitleCaseLabel } from "@/lib/titleCase";
+
 const APP_URL = "https://localkidscalendar.vercel.app";
 
+/** Site brand tokens mirrored for HTML emails (inline CSS only). */
+const EMAIL_BRAND = {
+  mint: "#2D7A3E",
+  mintDark: "#1F5C2E",
+  mintSoft: "#E0F7F2",
+  mintMid: "#C9E8D8",
+  peach: "#B36D25",
+  peachSoft: "#FCEBDD",
+  ink: "#1a2332",
+  muted: "#5c6570",
+  border: "#e5e7eb",
+  pageBg: "#f4f5f8",
+  white: "#ffffff",
+  danger: "#DC2626",
+  dangerSoft: "#FEE2E2",
+  warn: "#B36D25",
+  warnSoft: "#FCEBDD",
+};
+
+const EMAIL_FONT =
+  "'Nunito', 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+const EMAIL_HEADING_FONT =
+  "'Quicksand', 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif";
+
+function emailCta(href, label) {
+  const text = toTitleCaseLabel(label);
+  return `<p style="margin:24px 0 8px;"><a href="${href}" style="display:inline-block;background:${EMAIL_BRAND.mint};color:#ffffff;padding:12px 18px;border-radius:12px;text-decoration:none;font-size:14px;font-weight:700;font-family:${EMAIL_HEADING_FONT};">${text}</a></p>`;
+}
+
+function emailCallout(html, tone = "mint") {
+  const map = {
+    mint: { bg: EMAIL_BRAND.mintSoft, border: EMAIL_BRAND.mint },
+    peach: { bg: EMAIL_BRAND.peachSoft, border: EMAIL_BRAND.peach },
+    danger: { bg: EMAIL_BRAND.dangerSoft, border: EMAIL_BRAND.danger },
+    warn: { bg: EMAIL_BRAND.warnSoft, border: EMAIL_BRAND.warn },
+    muted: { bg: "#f3f4f6", border: EMAIL_BRAND.border },
+  };
+  const t = map[tone] || map.mint;
+  return `<div style="background:${t.bg};padding:14px 16px;border-radius:12px;margin:20px 0;border-left:4px solid ${t.border};">${html}</div>`;
+}
+
+function wrapBrandedEmail(bodyHtml, { eyebrow = null } = {}) {
+  if (/<!DOCTYPE html>/i.test(bodyHtml)) return bodyHtml;
+  const logoUrl = `${APP_URL}/logo.png`;
+  const eyebrowHtml = eyebrow
+    ? `<p style="margin:8px 0 0;color:${EMAIL_BRAND.mintMid};font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;font-family:${EMAIL_HEADING_FONT};">${eyebrow}</p>`
+    : "";
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Quicksand:wght@600;700&display=swap" rel="stylesheet" />
+</head>
+<body style="margin:0;padding:0;background:${EMAIL_BRAND.pageBg};">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:${EMAIL_BRAND.pageBg};padding:32px 16px;font-family:${EMAIL_FONT};color:${EMAIL_BRAND.ink};">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:1px solid ${EMAIL_BRAND.border};background:${EMAIL_BRAND.white};">
+        <tr>
+          <td style="background:${EMAIL_BRAND.mint};padding:24px 24px 22px;text-align:center;">
+            <img src="${logoUrl}" alt="Local Kids Calendar" height="52" style="height:52px;width:auto;display:block;margin:0 auto 10px;border:0;" />
+            <p style="margin:0;font-family:${EMAIL_HEADING_FONT};font-size:20px;font-weight:700;letter-spacing:-0.3px;line-height:1.2;">
+              <span style="color:#ffffff;">LocalKids</span><span style="color:${EMAIL_BRAND.mintMid};">Calendar</span>
+            </p>
+            ${eyebrowHtml}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 24px;font-size:15px;line-height:1.65;color:${EMAIL_BRAND.ink};font-family:${EMAIL_FONT};">
+            ${bodyHtml}
+          </td>
+        </tr>
+        <tr>
+          <td style="background:${EMAIL_BRAND.mintSoft};padding:18px 24px;text-align:center;border-top:1px solid ${EMAIL_BRAND.border};">
+            <p style="margin:0;font-size:12px;color:${EMAIL_BRAND.muted};line-height:1.5;font-family:${EMAIL_FONT};">
+              Community-powered kids' activities near you.<br />
+              <a href="${APP_URL}" style="color:${EMAIL_BRAND.mint};font-weight:700;text-decoration:none;">Visit LocalKidsCalendar</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 export const EMAIL_TEMPLATE_META = [
-  { value: "ad_removed_flagged", label: "Advertiser - Ad Removed (Flagged)", desc: "Sent when ad is removed due to community flags" },
-  { value: "ad_flagged_admin", label: "Advertiser - Ad Flagged (Admin Reason)", desc: "Sent when Admin flags an ad with an explanation" },
-  { value: "ad_deactivated_admin", label: "Advertiser - Ad Deactivated (Admin Reason)", desc: "Sent when Admin deactivates an ad with an explanation" },
-  { value: "activity_removed_admin", label: "Community - Activity Removed (Admin Reason)", desc: "Sent when Admin removes a posted activity with an explanation" },
-  { value: "activity_photo_approved_admin", label: "Community - Activity Photo Approved (Manual Review)", desc: "Sent when Admin manually approves an activity photo" },
-  { value: "activity_photo_declined_admin", label: "Community - Activity Photo Declined (Manual Review)", desc: "Sent when Admin manually declines an activity photo with an explanation" },
-  { value: "subscription_payment_failed", label: "Advertiser - Subscription Payment Failed", desc: "Sent when renewal payment fails" },
-  { value: "subscription_renewed", label: "Advertiser - Subscription Renewed", desc: "Sent after successful renewal payment" },
-  { value: "subscription_renewing_soon", label: "Advertiser - Subscription Renewing Soon", desc: "Sent 21 days before auto-renewal" },
-  { value: "waitlist_spot_available", label: "Advertiser - Spot Available", desc: "Sent when a zip code spot opens up" },
-  { value: "activity_digest", label: "Notification - Activity Digest (Weekly)", desc: "Curated weekly event digest for community members" },
+  {
+    value: "activity_digest",
+    label: "Notification - Activity Digest (Weekly)",
+    audience: "Users with weekly digest notifications enabled",
+    when: "Every Monday · includes Supporter ads for the recipient’s notification/profile zip (with default filler ads if slots are empty)",
+  },
+  {
+    value: "ad_flagged_admin",
+    label: "Advertiser - Ad Creative Disabled (Admin)",
+    audience: "Advertiser (Supporter)",
+    when: "Admin disables an Ad Asset across all zip placements using it (Admin → Ads, or Flags → Manually Deactivate)",
+  },
+  {
+    value: "ad_removed_flagged",
+    label: "Advertiser - Ad Creative Disabled (Community Flags)",
+    audience: "Advertiser (Supporter)",
+    when: "An Ad Asset is disabled after 3+ community flags",
+  },
+  {
+    value: "subscription_payment_failed",
+    label: "Advertiser - Subscription Payment Failed",
+    audience: "Advertiser (Supporter)",
+    when: "A renewal payment fails (7-day grace period starts)",
+  },
+  {
+    value: "waitlist_spot_available",
+    label: "Advertiser - Spot Available",
+    audience: "Waitlisted advertiser",
+    when: "A zip code spot opens for someone on the waitlist",
+  },
 ];
 
 export const SAMPLE_DATA = {
-  subscription_renewing_soon: {
-    business_name: "Mountain Kids Soccer Club",
-    renewal_date: "July 30, 2026",
-    zip_code: "89448",
-    plan_type: "Annual",
-    rate: "1260",
-  },
-  subscription_renewed: {
-    business_name: "Happy Tots Daycare",
-    amount: "150",
-    zip_code: "89449",
-  },
   subscription_payment_failed: {
     business_name: "Summer Camp Adventures",
+    zip_code: "89448",
+    grace_deadline: "July 28, 2026",
+    grace_days: "7",
   },
   waitlist_spot_available: {
     business_name: "Little Stars Learning Center",
@@ -40,31 +139,15 @@ export const SAMPLE_DATA = {
   },
   ad_removed_flagged: {
     business_name: "Kids Activity Zone",
-    reason: "Ad content flagged by 3+ community members for policy review",
+    zip_code: "89448, 89449, and 89451",
+    zip_codes: ["89448", "89449", "89451"],
+    reason: "Ad creative flagged by 3+ community members and disabled across all zip placements.",
   },
   ad_flagged_admin: {
     business_name: "Kids Activity Zone",
-    zip_code: "89448",
+    zip_code: "89448 and 89449",
+    zip_codes: ["89448", "89449"],
     reason: "The destination link redirected to an unrelated third-party promotion.",
-  },
-  ad_deactivated_admin: {
-    business_name: "Little Explorers Gym",
-    zip_code: "89449",
-    reason: "The ad image did not meet our resolution and quality guidelines.",
-  },
-  activity_removed_admin: {
-    contributor_name: "Jamie Rodriguez",
-    activity_title: "Summer Soccer Camp",
-    reason: "The listed registration link was broken and could not be verified.",
-  },
-  activity_photo_approved_admin: {
-    contributor_name: "Jamie Rodriguez",
-    activity_title: "Summer Soccer Camp",
-  },
-  activity_photo_declined_admin: {
-    contributor_name: "Jamie Rodriguez",
-    activity_title: "Summer Soccer Camp",
-    reason: "The photo appeared blurry and did not clearly represent the activity.",
   },
   activity_digest: {
     ads: [
@@ -94,16 +177,10 @@ export const SAMPLE_DATA = {
 };
 
 const SUBJECTS = {
-  subscription_renewing_soon: "Your Supporter Ad is Renewing Soon",
-  subscription_renewed: "Payment Successful — Ad Renewed",
   subscription_payment_failed: "Payment Past Due — Action Required",
   waitlist_spot_available: (data) => `A Spot Has Opened Up in ${data.zip_code || "your area"}!`,
-  ad_removed_flagged: "Ad Removal Notice",
-  ad_flagged_admin: "Your ad was flagged",
-  ad_deactivated_admin: "Your ad was deactivated",
-  activity_removed_admin: "Your activity was removed",
-  activity_photo_approved_admin: "Your activity photo was approved",
-  activity_photo_declined_admin: "Your activity photo was declined",
+  ad_removed_flagged: "Your ad creative was disabled",
+  ad_flagged_admin: "Your ad creative was disabled",
   activity_digest: "Your Weekly Activity Digest",
 };
 
@@ -140,46 +217,25 @@ function buildHtml(templateKey, data) {
   const accountUrl = `${APP_URL}/account`;
   const adManagerUrl = `${APP_URL}/ad-manager`;
   const waitlistUrl = `${APP_URL}/ad-manager?tab=waitlist`;
+  const h2 = (text) =>
+    `<h2 style="margin:0 0 14px;font-family:${EMAIL_HEADING_FONT};font-size:20px;font-weight:700;color:${EMAIL_BRAND.mint};line-height:1.3;">${text}</h2>`;
+  const p = (text) => `<p style="margin:0 0 12px;">${text}</p>`;
 
   const templates = {
-    subscription_renewing_soon: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
-          <h2 style="color: #2D7A3E;">Your Supporter Ad is Renewing Soon</h2>
-          <p>Hi ${data.business_name || "Supporter"},</p>
-          <p>This is a friendly reminder that your Supporter advertising plan is scheduled to renew on <strong>${data.renewal_date || "MM/DD/YYYY"}</strong>.</p>
-          <div style="background: #f0f0f0; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p><strong>Plan Details:</strong></p>
-            <ul>
-              <li>Zip Code: ${data.zip_code || "89448"}</li>
-              <li>Plan Type: ${data.plan_type || "Monthly"}</li>
-              <li>Renewal Rate: $${data.rate || "150"}</li>
-            </ul>
-          </div>
-          <p>Your ad will continue running seamlessly.</p>
-        </div>
-      `,
-    subscription_renewed: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
-          <h2 style="color: #2D7A3E;">Payment Successful - Ad Renewed!</h2>
-          <p>Hi ${data.business_name || "Supporter"},</p>
-          <p>Great news! Your Supporter advertising plan has been successfully renewed.</p>
-          <div style="background: #f0f0f0; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p><strong>Payment Confirmation:</strong></p>
-            <ul>
-              <li>Amount Charged: $${data.amount || "150"}</li>
-              <li>Zip Code: ${data.zip_code || "89448"}</li>
-            </ul>
-          </div>
-        </div>
-      `,
     subscription_payment_failed: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
-          <h2 style="color: #D97706;">Payment Past Due - Action Required</h2>
-          <p>Hi ${data.business_name || "Supporter"},</p>
-          <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #D97706;">
-            <p><strong>Action needed:</strong> Update your payment method to restore your ad.</p>
-          </div>
-        </div>
+        ${h2("Payment Past Due — Action Required")}
+        ${p(`Hi ${data.business_name || "Supporter"},`)}
+        ${p(`Your Supporter ad renewal payment for zip code <strong>${data.zip_code || "your area"}</strong> failed.`)}
+        ${emailCallout(`
+            <p style="margin:0 0 8px;"><strong>What this means</strong></p>
+            <ul style="margin:0;padding-left:18px;">
+              <li>Your ad is temporarily hidden from public view</li>
+              <li>Your zip spot is still reserved for <strong>${data.grace_days || "7"} days</strong> (until <strong>${data.grace_deadline || "the grace deadline"}</strong>)</li>
+              <li>If payment isn’t updated by then, your spot will be released and may be offered to the waitlist</li>
+            </ul>
+          `, "peach")}
+        ${p("Update your payment method in Ad Manager before the deadline to restore your ad.")}
+        ${emailCta(adManagerUrl, "Open Ad Manager")}
       `,
     waitlist_spot_available: (() => {
       const zip = data.zip_code || "89448";
@@ -190,152 +246,104 @@ function buildHtml(templateKey, data) {
           ? `You have ${attemptsLeft} offer attempt${attemptsLeft !== 1 ? "s" : ""} remaining before your waitlist entry is cancelled.`
           : "This is your final offer — if not claimed, your waitlist entry will be cancelled.";
       return `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
-          <h2 style="color: #2D7A3E;">A Spot Has Opened Up in ${zip}!</h2>
-          <p>Hi ${data.business_name || "Supporter"},</p>
-          <p>Great news! A Supporter advertising spot has opened up in zip code <strong>${zip}</strong>.</p>
-          <p>You have <strong>24 hours</strong> to claim it. Here's what to do:</p>
-          <ol>
-            <li>Log in to your account at Local Kids Calendar</li>
-            <li>Go to <strong>Ad Manager</strong></li>
-            <li>Open the <strong>Waitlist</strong> tab</li>
-            <li>Find zip <strong>${zip}</strong> and click <strong>Subscribe Now</strong></li>
-            <li>Complete checkout to lock in your spot</li>
-          </ol>
-          <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #D97706;">
-            <p style="margin:0;"><strong>Offer expires:</strong> ${data.expiry_date || "MM/DD/YYYY"} Pacific Time</p>
-          </div>
-          <p><a href="${waitlistUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to Ad Manager → Waitlist</a></p>
-          <p style="margin-top:20px;">⚠️ If you don't complete the process within 24 hours, your spot will be offered to the next person and you'll be moved to the back of the line. ${attemptsNote}</p>
-          <p>Thank you for supporting the local kids community!</p>
-          <p>— The Local Kids Calendar Team</p>
-        </div>
+        ${h2(`A Spot Has Opened Up In ${zip}!`)}
+        ${p(`Hi ${data.business_name || "Supporter"},`)}
+        ${p(`Great news! A Supporter advertising spot has opened up in zip code <strong>${zip}</strong>.`)}
+        ${p("You have <strong>24 hours</strong> to claim it. Here's what to do:")}
+        <ol style="margin:0 0 12px;padding-left:18px;">
+          <li>Log in to your account at Local Kids Calendar</li>
+          <li>Go to <strong>Ad Manager</strong></li>
+          <li>Open the <strong>Waitlist</strong> tab</li>
+          <li>Find zip <strong>${zip}</strong> and click <strong>Subscribe Now</strong></li>
+          <li>Complete checkout to lock in your spot</li>
+        </ol>
+        ${emailCallout(`<p style="margin:0;"><strong>Offer Expires:</strong> ${data.expiry_date || "MM/DD/YYYY"} Pacific Time</p>`, "peach")}
+        ${emailCta(waitlistUrl, "Go To Ad Manager Waitlist")}
+        ${p(`If you don't complete the process within 24 hours, your spot will be offered to the next person and you'll be moved to the back of the line. ${attemptsNote}`)}
+        ${p("Thank you for supporting the local kids community!")}
+        ${p("— The Local Kids Calendar Team")}
       `;
     })(),
     ad_removed_flagged: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
-          <h2 style="color: #DC2626;">Ad Removal Notice</h2>
-          <p>Hi ${data.business_name || "Supporter"},</p>
-          <p>Your Supporter ad has been removed from LocalKidsCalendar due to community flagging or policy concerns.</p>
-          <div style="background: #fee; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #DC2626;">
-            <p><strong>Reason:</strong> ${data.reason || "Content flagged by community members"}</p>
-          </div>
-          <p><strong>What happens next:</strong></p>
-          <ul>
-            <li>Your subscription remains active</li>
-            <li>You can submit a replacement ad that meets our community standards</li>
-            <li>Replacement ads undergo manual review before going live</li>
-          </ul>
-        </div>
+        ${h2("Your Ad Creative Was Disabled")}
+        ${p(`Hi ${data.business_name || "Supporter"},`)}
+        ${p(`Your Supporter ad creative was flagged by the community and has been disabled across ${(data.zip_codes || []).length > 1 ? "these zip placements" : `zip code <strong>${data.zip_code || "your area"}</strong>`}.`)}
+        ${(data.zip_codes || []).length > 1 ? `<ul style="margin:0 0 12px;padding-left:18px;">${(data.zip_codes || []).map((z) => `<li>Zip <strong>${z}</strong></li>`).join("")}</ul>` : ""}
+        ${emailCallout(`<p style="margin:0;"><strong>Reason:</strong> ${data.reason || "Content flagged by 3+ community members"}</p>`, "danger")}
+        ${p("<strong>What Next:</strong> Your subscription and billing remain active. Open Ad Manager and assign a different approved creative to each affected zip to restore those placements. Each zip goes live again as soon as you assign a compliant Ad Asset.")}
+        ${emailCta(adManagerUrl, "Open Ad Manager")}
       `,
     ad_flagged_admin: `
-        <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;padding:20px;">
-          <h2 style="margin:0 0 12px;">Your ad was flagged</h2>
-          <p>Hi ${data.business_name || "Supporter"},</p>
-          <p>Your Supporter ad for zip code <strong>${data.zip_code || "89448"}</strong> has been flagged by our Admin team.</p>
-          <p><strong>Reason:</strong> ${data.reason || "Policy concern identified during review"}</p>
-          <p>Your subscription remains active. Please visit your Ad Manager to submit a corrected ad creative and restore your ad.</p>
-          <p><a href="${adManagerUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to Ad Manager</a></p>
-        </div>
-      `,
-    ad_deactivated_admin: `
-        <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;padding:20px;">
-          <h2 style="margin:0 0 12px;">Your ad was deactivated</h2>
-          <p>Hi ${data.business_name || "Supporter"},</p>
-          <p>Your Supporter ad for zip code <strong>${data.zip_code || "89448"}</strong> has been deactivated by our Admin team.</p>
-          <p><strong>Reason:</strong> ${data.reason || "Policy concern identified during review"}</p>
-          <p>Your subscription remains active. Please visit your Ad Manager to submit a corrected ad creative and restore your ad.</p>
-          <p><a href="${adManagerUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to Ad Manager</a></p>
-        </div>
-      `,
-    activity_removed_admin: `
-        <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;padding:20px;">
-          <h2 style="margin:0 0 12px;">Your activity was removed</h2>
-          <p>Hi ${data.contributor_name || "there"},</p>
-          <p>Your posted activity "<strong>${data.activity_title || "Summer Soccer Camp"}</strong>" has been removed from LocalKidsCalendar by our Admin team.</p>
-          <p><strong>Reason:</strong> ${data.reason || "Policy concern identified during review"}</p>
-          <p>You can view this note on your Account page under My Posts. If you believe this was a mistake, please contact us.</p>
-          <p><a href="${accountUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to My Account</a></p>
-        </div>
-      `,
-    activity_photo_approved_admin: `
-        <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;padding:20px;">
-          <h2 style="margin:0 0 12px;">Your activity photo was approved</h2>
-          <p>Hi ${data.contributor_name || "there"},</p>
-          <p>The photo you uploaded for your activity "<strong>${data.activity_title || "Summer Soccer Camp"}</strong>" has been manually reviewed by our Admin team and approved.</p>
-          <p>Your photo is now live on the listing.</p>
-          <p><a href="${accountUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to My Account</a></p>
-        </div>
-      `,
-    activity_photo_declined_admin: `
-        <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;padding:20px;">
-          <h2 style="margin:0 0 12px;">Your activity photo was declined</h2>
-          <p>Hi ${data.contributor_name || "there"},</p>
-          <p>The photo you uploaded for your activity "<strong>${data.activity_title || "Summer Soccer Camp"}</strong>" has been manually reviewed by our Admin team and was not approved.</p>
-          <p><strong>Reason:</strong> ${data.reason || "Did not meet our community guidelines."}</p>
-          <p>Please edit your activity to upload a different photo. Your activity remains live in the meantime.</p>
-          <p><a href="${accountUrl}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;">Go to My Account</a></p>
-        </div>
+        ${h2("Your Ad Creative Was Disabled")}
+        ${p(`Hi ${data.business_name || "Supporter"},`)}
+        ${p(`Your Supporter ad creative has been disabled by our Admin team${(data.zip_codes || []).length > 1 || (data.zip_code || "").includes(",") ? " across these zip placements" : ` for zip code <strong>${data.zip_code || "your area"}</strong>`}.`)}
+        ${(data.zip_codes || []).length > 1 ? `<ul style="margin:0 0 12px;padding-left:18px;">${(data.zip_codes || []).map((z) => `<li>Zip <strong>${z}</strong></li>`).join("")}</ul>` : (data.zip_code || "").includes(",") ? `<p style="margin:0 0 12px;"><strong>Affected Zips:</strong> ${data.zip_code}</p>` : ""}
+        ${emailCallout(`<p style="margin:0;"><strong>Reason:</strong> ${data.reason || "Policy concern identified during review"}</p>`, "danger")}
+        ${p("<strong>What Next:</strong> Your subscription and billing remain active. Open Ad Manager and assign a different approved creative to each affected zip to restore those placements. Each zip goes live again as soon as you assign a compliant Ad Asset.")}
+        ${emailCta(adManagerUrl, "Open Ad Manager")}
       `,
     activity_digest: `
         <!DOCTYPE html>
         <html>
-        <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
-        <body style="margin:0;padding:0;background:#f8f9fa;font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#374151;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;padding:32px 16px;">
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Quicksand:wght@600;700&display=swap" rel="stylesheet" />
+        </head>
+        <body style="margin:0;padding:0;background:${EMAIL_BRAND.pageBg};font-family:${EMAIL_FONT};color:${EMAIL_BRAND.ink};">
+          <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:${EMAIL_BRAND.pageBg};padding:32px 16px;">
             <tr><td align="center">
-              <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;box-shadow:0 4px 6px rgba(0,0,0,0.07);">
-                <tr><td style="background:#2D7A3E;padding:32px 24px;text-align:center;">
-                  <h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px;">LocalKidsCalendar</h1>
-                  <p style="margin:8px 0 0;color:#C9E8D8;font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">Weekly Activity Digest</p>
+              <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:1px solid ${EMAIL_BRAND.border};">
+                <tr><td style="background:${EMAIL_BRAND.mint};padding:24px 24px 22px;text-align:center;">
+                  <img src="${APP_URL}/logo.png" alt="Local Kids Calendar" height="52" style="height:52px;width:auto;display:block;margin:0 auto 10px;border:0;" />
+                  <p style="margin:0;font-family:${EMAIL_HEADING_FONT};font-size:20px;font-weight:700;letter-spacing:-0.3px;">
+                    <span style="color:#fff;">LocalKids</span><span style="color:${EMAIL_BRAND.mintMid};">Calendar</span>
+                  </p>
+                  <p style="margin:8px 0 0;color:${EMAIL_BRAND.mintMid};font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;">Weekly Activity Digest</p>
                 </td></tr>
-                <tr><td style="background:#fff;padding:24px 24px;border-bottom:1px solid #e5e7eb;">
-                  <p style="margin:0 0 4px;font-size:16px;font-weight:600;color:#1a2332;">Hi ${data.user_name || "there"}! 👋</p>
-                  <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">We found 3 new activities matching your interests. Check them out:</p>
+                <tr><td style="background:${EMAIL_BRAND.white};padding:24px;border-bottom:1px solid ${EMAIL_BRAND.border};">
+                  <p style="margin:0 0 4px;font-size:16px;font-weight:700;font-family:${EMAIL_HEADING_FONT};color:${EMAIL_BRAND.ink};">Hi ${data.user_name || "there"}!</p>
+                  <p style="margin:0;font-size:14px;color:${EMAIL_BRAND.muted};line-height:1.5;">We found 3 new activities matching your interests. Check them out:</p>
                 </td></tr>
-                <tr><td style="background:#fff;padding:20px 24px;">
-                  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;">
+                <tr><td style="background:${EMAIL_BRAND.white};padding:20px 24px;">
+                  <div style="background:${EMAIL_BRAND.white};border:1px solid ${EMAIL_BRAND.border};border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;">
                     <img src="https://images.unsplash.com/photo-1566415074467-988b740b76d4?w=400" alt="${data.event1_title || "Activity"}" style="width:100%;max-height:160px;object-fit:cover;display:block;" />
                     <div style="padding:16px;">
-                      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
-                        <span style="display:inline-block;background:#E0F7F2;color:#2D7A3E;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;">Camps</span>
-                      </div>
-                      <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#1a2332;line-height:1.4;">${data.event1_title || "Summer Soccer Camp"}</h3>
-                      <p style="margin:0 0 8px;font-size:12px;color:#6b7280;">by <strong style="color:#1a2332;">${data.event1_org || "Mountain Kids Soccer Club"}</strong></p>
+                      <span style="display:inline-block;background:${EMAIL_BRAND.mintSoft};color:${EMAIL_BRAND.mint};font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;margin-bottom:8px;">Camps</span>
+                      <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;font-family:${EMAIL_HEADING_FONT};color:${EMAIL_BRAND.ink};line-height:1.4;">${data.event1_title || "Summer Soccer Camp"}</h3>
+                      <p style="margin:0 0 8px;font-size:12px;color:${EMAIL_BRAND.muted};">by <strong style="color:${EMAIL_BRAND.ink};">${data.event1_org || "Mountain Kids Soccer Club"}</strong></p>
                       <div style="margin-bottom:12px;border-top:1px solid #f0f0f0;padding-top:8px;">
-                        <div style="margin:0 0 6px;font-size:12px;color:#6b7280;">📅 ${data.event1_date || "July 15, 2026"}</div>
-                        <div style="margin:0 0 6px;font-size:12px;color:#6b7280;">📍 ${data.event1_location || "Las Vegas, NV"}</div>
-                        <div style="margin:0 0 6px;font-size:12px;color:#6b7280;">👥 ${data.event1_ages || "Ages 5–12"}</div>
-                        <div style="font-size:12px;color:#6b7280;">💰 ${data.event1_cost || "$75"}</div>
+                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event1_date || "July 15, 2026"}</div>
+                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event1_location || "Las Vegas, NV"}</div>
+                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event1_ages || "Ages 5–12"}</div>
+                        <div style="font-size:12px;color:${EMAIL_BRAND.muted};">${data.event1_cost || "$75"}</div>
                       </div>
-                      <a href="${APP_URL}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:12px;font-weight:600;border:none;cursor:pointer;">View Details</a>
+                      <a href="${APP_URL}" style="display:inline-block;background:${EMAIL_BRAND.mint};color:#fff;padding:8px 14px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:700;font-family:${EMAIL_HEADING_FONT};">View Details</a>
                     </div>
                   </div>
-                  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;">
+                  <div style="background:${EMAIL_BRAND.white};border:1px solid ${EMAIL_BRAND.border};border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;">
                     <img src="https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400" alt="${data.event2_title || "Activity"}" style="width:100%;max-height:160px;object-fit:cover;display:block;" />
                     <div style="padding:16px;">
-                      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
-                        <span style="display:inline-block;background:#E0F7F2;color:#2D7A3E;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;">Classes & Lessons</span>
-                      </div>
-                      <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#1a2332;line-height:1.4;">${data.event2_title || "Art & Crafts Workshop"}</h3>
-                      <p style="margin:0 0 8px;font-size:12px;color:#6b7280;">by <strong style="color:#1a2332;">${data.event2_org || "Little Stars Learning Center"}</strong></p>
+                      <span style="display:inline-block;background:${EMAIL_BRAND.mintSoft};color:${EMAIL_BRAND.mint};font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;margin-bottom:8px;">Classes &amp; Lessons</span>
+                      <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;font-family:${EMAIL_HEADING_FONT};color:${EMAIL_BRAND.ink};line-height:1.4;">${data.event2_title || "Art & Crafts Workshop"}</h3>
+                      <p style="margin:0 0 8px;font-size:12px;color:${EMAIL_BRAND.muted};">by <strong style="color:${EMAIL_BRAND.ink};">${data.event2_org || "Little Stars Learning Center"}</strong></p>
                       <div style="margin-bottom:12px;border-top:1px solid #f0f0f0;padding-top:8px;">
-                        <div style="margin:0 0 6px;font-size:12px;color:#6b7280;">📅 ${data.event2_date || "July 18, 2026"}</div>
-                        <div style="margin:0 0 6px;font-size:12px;color:#6b7280;">📍 ${data.event2_location || "Henderson, NV"}</div>
-                        <div style="margin:0 0 6px;font-size:12px;color:#6b7280;">👥 ${data.event2_ages || "Ages 6–10"}</div>
-                        <div style="font-size:12px;color:#6b7280;">💰 ${data.event2_cost || "$25"}</div>
+                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event2_date || "July 18, 2026"}</div>
+                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event2_location || "Henderson, NV"}</div>
+                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event2_ages || "Ages 6–10"}</div>
+                        <div style="font-size:12px;color:${EMAIL_BRAND.muted};">${data.event2_cost || "$25"}</div>
                       </div>
-                      <a href="${APP_URL}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:12px;font-weight:600;border:none;cursor:pointer;">View Details</a>
+                      <a href="${APP_URL}" style="display:inline-block;background:${EMAIL_BRAND.mint};color:#fff;padding:8px 14px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:700;font-family:${EMAIL_HEADING_FONT};">View Details</a>
                     </div>
                   </div>
                   ${adsHtml}
                 </td></tr>
-                <tr><td style="background:#f9fafb;padding:20px 24px;border-top:1px solid #e5e7eb;text-align:center;">
-                  <p style="margin:0 0 12px;font-size:12px;color:#6b7280;">Want to tweak your interests?</p>
-                  <a href="${accountUrl}" style="display:inline-block;background:#fff;border:1px solid #d1d5db;color:#2D7A3E;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:12px;font-weight:600;">Manage Preferences</a>
+                <tr><td style="background:${EMAIL_BRAND.mintSoft};padding:20px 24px;border-top:1px solid ${EMAIL_BRAND.border};text-align:center;">
+                  <p style="margin:0 0 12px;font-size:12px;color:${EMAIL_BRAND.muted};">Want to tweak your interests?</p>
+                  <a href="${accountUrl}" style="display:inline-block;background:${EMAIL_BRAND.white};border:1px solid ${EMAIL_BRAND.mintMid};color:${EMAIL_BRAND.mint};padding:8px 16px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:700;font-family:${EMAIL_HEADING_FONT};">Manage Preferences</a>
                 </td></tr>
-                <tr><td style="background:#fff;padding:16px 24px;text-align:center;border-top:1px solid #e5e7eb;">
-                  <p style="margin:0;font-size:11px;color:#9ca3af;">© 2024 LocalKidsCalendar · Community-powered kids' activities</p>
+                <tr><td style="background:${EMAIL_BRAND.white};padding:16px 24px;text-align:center;border-top:1px solid ${EMAIL_BRAND.border};">
+                  <p style="margin:0;font-size:11px;color:${EMAIL_BRAND.muted};">Community-powered kids' activities near you</p>
                 </td></tr>
               </table>
             </td></tr>
@@ -354,10 +362,11 @@ function buildHtml(templateKey, data) {
  * @returns {{ subject: string, html: string }}
  */
 export function buildEmail(templateKey, data = {}) {
-  const html = buildHtml(templateKey, data);
-  if (!html) {
+  const raw = buildHtml(templateKey, data);
+  if (!raw) {
     throw new Error(`Unknown email template: ${templateKey}`);
   }
+  const html = wrapBrandedEmail(raw);
   const subjectEntry = SUBJECTS[templateKey];
   const subject = typeof subjectEntry === "function" ? subjectEntry(data) : subjectEntry || "Local Kids Calendar";
   return { subject, html };

@@ -8,6 +8,7 @@ import { Plus, ChevronDown, ChevronUp, Pencil, Trash2, HelpCircle, Loader2 } fro
 import EmptyState from "@/components/shared/EmptyState";
 import LoadingState from "@/components/shared/LoadingState";
 import moment from "moment";
+import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
 
 const emptyForm = {
   code: "",
@@ -29,6 +30,7 @@ export default function DiscountCodesPanel({ toast }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [expandedUsers, setExpandedUsers] = useState(null);
+  const [codesPage, setCodesPage] = useState(1);
 
   useEffect(() => { load(); }, []);
 
@@ -271,7 +273,7 @@ export default function DiscountCodesPanel({ toast }) {
         />
       ) : (
         <div className="space-y-3">
-          {codes.map((dc) => {
+          {codes.slice((codesPage - 1) * PAGE_SIZE, codesPage * PAGE_SIZE).map((dc) => {
             const isExpanded = expandedUsers === dc.id;
             const usedRecords = Array.isArray(dc.used_by_records) ? dc.used_by_records : [];
             const isExpiredByDate = dc.expires_date && moment(dc.expires_date).isBefore(moment(), "day");
@@ -380,6 +382,7 @@ export default function DiscountCodesPanel({ toast }) {
               </div>
             );
           })}
+          <Paginator total={codes.length} page={codesPage} onPage={setCodesPage} />
         </div>
       )}
     </div>

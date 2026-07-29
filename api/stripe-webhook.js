@@ -1,11 +1,14 @@
 import Stripe from "stripe";
 import { getEnv, createAdminClient, planDates } from "./_lib/stripeHelpers.js";
 import { runProcessWaitlist } from "./_lib/processWaitlistCore.js";
+import {
+  GRACE_PERIOD_DAYS,
+  notifyPaymentFailed,
+  notifySubscriptionRenewed,
+} from "./_lib/adBillingNotices.js";
 
 // Stripe requires the raw request body to verify the webhook signature.
 export const config = { api: { bodyParser: false } };
-
-const GRACE_PERIOD_DAYS = 7;
 
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -124,14 +127,23 @@ async function handlePaymentFailed(admin, invoice) {
   const subId = subscriptionIdOf(invoice.subscription);
   if (!subId) return;
 
-  const { data: ads } = await admin.from("banner_ads").select("id, status").eq("stripe_subscription_id", subId);
+  const { data: ads } = await admin
+    .from("banner_ads")
+    .select("*")
+    .eq("stripe_subscription_id", subId);
   for (const ad of ads || []) {
     if (ad.status === "active") {
+      const gracePeriodStart = new Date().toISOString();
       await admin
         .from("banner_ads")
-        .update({ status: "past_due", grace_period_start: new Date().toISOString() })
+        .update({ status: "past_due", grace_period_start: gracePeriodStart })
         .eq("id", ad.id);
       console.log(`stripe-webhook: ad ${ad.id} moved to past_due (grace period ${GRACE_PERIOD_DAYS}d)`);
+      try {
+        await notifyPaymentFailed(admin, { ...ad, status: "past_due", grace_period_start: gracePeriodStart });
+      } catch (err) {
+        console.error(`stripe-webhook: failed to notify payment failed for ad ${ad.id}:`, err.message);
+      }
     }
   }
 }
@@ -143,15 +155,17 @@ async function handlePaymentSucceeded(admin, invoice) {
   const { data: ads } = await admin.from("banner_ads").select("*").eq("stripe_subscription_id", subId);
   for (const ad of ads || []) {
     const updates = {};
+    const wasPastDue = ad.status === "past_due";
+    const isRenewal = invoice.billing_reason === "subscription_cycle";
 
-    if (invoice.billing_reason === "subscription_cycle") {
+    if (isRenewal) {
       const { start, end } = planDates(ad.plan_type);
       updates.plan_start_date = start;
       updates.plan_end_date = end;
       updates.next_renewal_date = end;
     }
 
-    if (ad.status === "past_due") {
+    if (wasPastDue) {
       updates.status = "active";
       updates.grace_period_start = null;
     }
@@ -159,6 +173,14 @@ async function handlePaymentSucceeded(admin, invoice) {
     if (Object.keys(updates).length > 0) {
       await admin.from("banner_ads").update(updates).eq("id", ad.id);
       console.log(`stripe-webhook: ad ${ad.id} updated after payment success`, updates);
+    }
+
+    if (isRenewal || wasPastDue) {
+      try {
+        await notifySubscriptionRenewed(admin, { ...ad, ...updates });
+      } catch (err) {
+        console.error(`stripe-webhook: failed to notify renewal for ad ${ad.id}:`, err.message);
+      }
     }
   }
 }

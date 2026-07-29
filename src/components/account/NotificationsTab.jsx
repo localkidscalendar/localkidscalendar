@@ -21,6 +21,7 @@ export default function NotificationsTab({ user }) {
     age_min: "",
     age_max: "",
   });
+  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -104,8 +105,22 @@ export default function NotificationsTab({ user }) {
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
-        Choose receive weekly activity digests emailed to you every Monday morning, based on new activities from your favorite organizers and/or other new activities that match your preferences.
+        Choose receive weekly activity digests emailed to you every Monday morning, based on new activities from your favorite organizers and/or other new activities that match your preferences.{" "}
+        <button
+          type="button"
+          onClick={() => setShowMore((v) => !v)}
+          className="text-mint-600 hover:text-mint-700 font-medium underline-offset-2 hover:underline"
+        >
+          {showMore ? "Less" : "More…"}
+        </button>
       </p>
+      {showMore && (
+        <div className="text-xs text-muted-foreground rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-1.5">
+          <p>We only email you when there are matching activities that week — never an empty “nothing new” note.</p>
+          <p>Weekly digests may turn Off automatically if your account is inactive for a long time, is disabled, or if an email bounce/spam complaint is reported. You can turn Weekly back on here anytime after you return.</p>
+          <p>Each digest also includes an unsubscribe link (no login required).</p>
+        </div>
+      )}
 
       <div className="space-y-5 max-w-lg">
         <div>

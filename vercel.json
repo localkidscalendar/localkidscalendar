@@ -8,11 +8,23 @@
     {
       "path": "/api/cron-send-notification-emails",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron-renewal-reminders",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron-grace-period-cleanup",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/cron-process-ad-plan-changes",
+      "schedule": "30 16 * * *"
     }
   ],
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/((?!api/|brand-icons/|favicon\\.ico|favicon-.*\\.png|apple-touch-icon\\.png|logo\\.png).*)",
       "destination": "/index.html"
     }
   ]
