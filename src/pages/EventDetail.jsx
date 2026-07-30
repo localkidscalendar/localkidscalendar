@@ -13,6 +13,7 @@ import moment from "moment";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import HistoryBackLink from "@/components/shared/HistoryBackLink";
 import FlagReportForm from "@/components/shared/FlagReportForm";
+import { alreadyFlaggedMessage, userHasFlaggedTarget } from "@/lib/flagReports";
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -230,10 +231,11 @@ export default function EventDetail() {
         loadEvent();
       }
     } catch (err) {
+      const already = /already flagged/i.test(err.message || "");
       toast({
-        title: "Could not submit report",
-        description: err.message,
-        variant: "destructive",
+        title: already ? alreadyFlaggedMessage("activity") : "Could not submit report",
+        description: already ? undefined : err.message,
+        variant: already ? "default" : "destructive",
       });
     }
     setFlagOpen(false);
@@ -256,13 +258,56 @@ export default function EventDetail() {
       });
       loadComments();
     } catch (err) {
+      const already = /already flagged/i.test(err.message || "");
       toast({
-        title: "Could not submit report",
-        description: err.message,
-        variant: "destructive",
+        title: already ? alreadyFlaggedMessage("comment") : "Could not submit report",
+        description: already ? undefined : err.message,
+        variant: already ? "default" : "destructive",
       });
     }
     setFlaggingCommentId(null);
+  };
+
+  const openActivityFlagForm = async () => {
+    if (!user) {
+      setAuthPrompt("Sign in to report this activity if it's inaccurate, inappropriate, or spam.");
+      return;
+    }
+    if (flagOpen) {
+      setFlagOpen(false);
+      return;
+    }
+    try {
+      if (await userHasFlaggedTarget("event", id, user.id)) {
+        toast({ title: alreadyFlaggedMessage("activity") });
+        return;
+      }
+    } catch (err) {
+      toast({ title: "Could not check flag status", description: err.message, variant: "destructive" });
+      return;
+    }
+    setFlagOpen(true);
+  };
+
+  const openCommentFlagForm = async (commentId) => {
+    if (!user) {
+      setAuthPrompt("Sign in to report this comment if it's inaccurate, inappropriate, or spam.");
+      return;
+    }
+    if (flaggingCommentId === commentId) {
+      setFlaggingCommentId(null);
+      return;
+    }
+    try {
+      if (await userHasFlaggedTarget("comment", commentId, user.id)) {
+        toast({ title: alreadyFlaggedMessage("comment") });
+        return;
+      }
+    } catch (err) {
+      toast({ title: "Could not check flag status", description: err.message, variant: "destructive" });
+      return;
+    }
+    setFlaggingCommentId(commentId);
   };
 
   const handleMarkFull = async () => {
@@ -363,7 +408,7 @@ export default function EventDetail() {
                 variant="ghost"
                 size="icon"
                 className={`rounded-xl text-muted-foreground hover:text-destructive ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-                onClick={() => user ? setFlagOpen(!flagOpen) : setAuthPrompt("Sign in to report this activity if it's inaccurate, inappropriate, or spam.")}
+                onClick={openActivityFlagForm}
                 title={user ? "Report this activity if it's inaccurate, inappropriate, or spam." : "Report this activity if it's inaccurate, inappropriate, or spam. Requires a registered, signed-in account."}
               >
                 <Flag className="w-4 h-4" />
@@ -582,7 +627,7 @@ export default function EventDetail() {
                           variant="ghost"
                           size="icon"
                           className={`h-6 w-6 text-muted-foreground hover:text-destructive ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-                          onClick={() => user ? setFlaggingCommentId(c.id) : setAuthPrompt("Sign in to report this comment if it's inaccurate, inappropriate, or spam.")}
+                          onClick={() => openCommentFlagForm(c.id)}
                           title={user ? "Report this comment if it's inaccurate, inappropriate, or spam." : "Report this comment if it's inaccurate, inappropriate, or spam. Requires a registered, signed-in account."}
                         >
                           <Flag className="w-3 h-3" />

@@ -5,6 +5,7 @@ import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import FlagReportForm from "@/components/shared/FlagReportForm";
 import { useToast } from "@/components/ui/use-toast";
 import { notifyAdAssetDisabled } from "@/lib/quarantineAdLibrary";
+import { alreadyFlaggedMessage, userHasFlaggedTarget } from "@/lib/flagReports";
 
 export function SupporterAdPlaceholder() {
   // Image area + footer match paid SupporterAdCard (h-48 + black bar ≈ default filler h-56).
@@ -52,19 +53,27 @@ export default function SupporterAdCard({ ad, user }) {
     window.open(ad.link_url, "_blank", "noopener,noreferrer");
   };
 
-  const handleFlagButtonClick = (e) => {
+  const handleFlagButtonClick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (!user) { setAuthPrompt(true); return; }
-    setFlagOpen((prev) => !prev);
-  };
-
-  const handleSubmitFlag = async ({ reason, details }) => {
-    if ((ad.flagged_by || []).includes(user.id)) {
-      toast({ title: "You already flagged this ad" });
+    if (flagOpen) {
       setFlagOpen(false);
       return;
     }
+    try {
+      if (await userHasFlaggedTarget("ad", ad.id, user.id)) {
+        toast({ title: alreadyFlaggedMessage("ad") });
+        return;
+      }
+    } catch (err) {
+      toast({ title: "Could not check flag status", description: err.message, variant: "destructive" });
+      return;
+    }
+    setFlagOpen(true);
+  };
+
+  const handleSubmitFlag = async ({ reason, details }) => {
     try {
       const { data, error } = await supabase.rpc("submit_flag", {
         p_target_type: "ad",
@@ -82,7 +91,12 @@ export default function SupporterAdCard({ ad, user }) {
         void notifyAdAssetDisabled(ad.id);
       }
     } catch (err) {
-      toast({ title: "Could not submit report", description: err.message, variant: "destructive" });
+      const already = /already flagged/i.test(err.message || "");
+      toast({
+        title: already ? alreadyFlaggedMessage("ad") : "Could not submit report",
+        description: already ? undefined : err.message,
+        variant: already ? "default" : "destructive",
+      });
     }
     setFlagOpen(false);
   };
