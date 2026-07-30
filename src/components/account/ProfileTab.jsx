@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import HelpTip from "@/components/shared/HelpTip";
-import { Upload, Save, AlertTriangle, Loader2, KeyRound } from "lucide-react";
+import { Upload, Save, Loader2, KeyRound } from "lucide-react";
 import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
 import { processImageForUpload } from "@/lib/imageProcess";
-import useBetaConfig from "@/lib/useBetaConfig"; // BETA MODE
+import { toStrictTitleCase, formatActivityTitle } from "@/lib/titleCase";
+import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig"; // BETA MODE
 
 function namesFromMetadata(meta = {}) {
   const full = (meta.full_name || meta.name || "").trim();
@@ -24,8 +23,22 @@ function namesFromMetadata(meta = {}) {
   return { first, last };
 }
 
+function BetaZipOutsideNote({ betaConfig, zipCode }) {
+  const zips = Array.isArray(betaConfig?.zip_codes) ? betaConfig.zip_codes : [];
+  const zip = String(zipCode || "").trim();
+  if (!betaConfig?.enabled || zips.length === 0 || zip.length !== 5) return null;
+  if (isZipAllowed(zip, betaConfig)) return null;
+  const list = [...zips].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ");
+  return (
+    <p className="sm:col-span-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+      We are currently in limited areas (beta). Your zip isn’t in our beta test markets
+      {" "}(<span className="font-semibold">{list}</span>).
+      On Home you’ll need to adjust the zip filter to a beta area to see activities.
+    </p>
+  );
+}
+
 export default function ProfileTab({ user, setUser }) {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const betaConfig = useBetaConfig(); // BETA MODE
   const [saving, setSaving] = useState(false);
@@ -34,9 +47,11 @@ export default function ProfileTab({ user, setUser }) {
   const [organizerRecord, setOrganizerRecord] = useState(null);
 
   const isAdmin = user?.role === "admin" || user?.is_owner;
-  // Google (and other) signups land with a default role but no zip — treat as incomplete setup
-  const needsSetup = !isAdmin && !user?.zip_code;
-  const isRoleLocked = !isAdmin && !needsSetup && (user?.role === "organizer" || user?.role === "community_member");
+  const displayRole = isAdmin
+    ? "admin"
+    : (user.role === "user" || user.role === "community_member")
+      ? "community_member"
+      : (user.role || "community_member");
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", zip_code: "", radius_miles: DEFAULT_RADIUS_MILES, role: "community_member",
@@ -45,11 +60,6 @@ export default function ProfileTab({ user, setUser }) {
 
   useEffect(() => {
     let cancelled = false;
-    const displayRole = isAdmin
-      ? "community_member"
-      : (user.role === "user" || user.role === "community_member")
-        ? "community_member"
-        : (user.role || "community_member");
 
     const hydrate = async () => {
       let orgFields = {
@@ -91,7 +101,7 @@ export default function ProfileTab({ user, setUser }) {
           last_name: user.last_name || metaNames.last || "",
           zip_code: user.zip_code || "",
           radius_miles: normalizeRadiusMiles(user.radius_miles),
-          role: displayRole,
+          role: displayRole === "admin" ? "community_member" : displayRole,
           ...orgFields,
         });
       }
@@ -101,7 +111,7 @@ export default function ProfileTab({ user, setUser }) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.role, user?.first_name, user?.last_name, user?.zip_code, user?.radius_miles, user?.org_name, isAdmin]);
+  }, [user?.id, user?.role, user?.first_name, user?.last_name, user?.zip_code, user?.radius_miles, user?.org_name, isAdmin, displayRole]);
 
   const updateField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -143,14 +153,18 @@ export default function ProfileTab({ user, setUser }) {
     setSaving(true);
     try {
       const isOrganizer = !isAdmin && form.role === "organizer";
+      const nextFirst = isOrganizer ? "" : toStrictTitleCase(form.first_name.trim());
+      const nextLast = isOrganizer ? "" : toStrictTitleCase(form.last_name.trim());
+      const nextOrgName = isOrganizer ? formatActivityTitle(form.org_name.trim()) : "";
+
       if (isOrganizer) {
-        if (!form.org_name || !form.org_website || !form.org_email || !form.org_description) {
+        if (!nextOrgName || !form.org_website || !form.org_email || !form.org_description) {
           toast({ title: "Please fill in all required organization fields", variant: "destructive" });
           setSaving(false);
           return;
         }
       } else if (!isAdmin) {
-        if (!form.first_name?.trim() || !form.last_name?.trim()) {
+        if (!nextFirst || !nextLast) {
           toast({ title: "Please enter your first and last name", variant: "destructive" });
           setSaving(false);
           return;
@@ -162,28 +176,23 @@ export default function ProfileTab({ user, setUser }) {
         return;
       }
 
-      const nextRole = isAdmin ? user.role : form.role;
-      // Only send role during first-time setup (or for admins). Post-setup role
-      // changes are blocked by a DB trigger; omitting avoids a false failure.
+      // Role is locked after signup — never send role on Profile saves for non-admins.
       const profilePayload = {
         id: user.id,
         email: user.email,
-        first_name: isOrganizer ? "" : form.first_name.trim(),
-        last_name: isOrganizer ? "" : form.last_name.trim(),
+        first_name: nextFirst,
+        last_name: nextLast,
         zip_code: form.zip_code.trim(),
         radius_miles: normalizeRadiusMiles(form.radius_miles),
         updated_at: new Date().toISOString(),
       };
-      if (needsSetup || isAdmin) {
-        profilePayload.role = nextRole;
-      }
       const { error: profileError } = await supabase.from("profiles").upsert(profilePayload);
       if (profileError) throw profileError;
 
       if (isOrganizer) {
         const orgData = {
           user_id: user.id,
-          org_name: form.org_name.trim(),
+          org_name: nextOrgName,
           org_description: form.org_description.trim(),
           org_logo: form.org_logo || null,
           org_website: form.org_website.trim(),
@@ -208,23 +217,19 @@ export default function ProfileTab({ user, setUser }) {
       }
 
       const fullName = isOrganizer
-        ? form.org_name
-        : `${form.first_name} ${form.last_name}`.trim();
+        ? nextOrgName
+        : `${nextFirst} ${nextLast}`.trim();
       setUser({
         ...user,
-        first_name: isOrganizer ? "" : form.first_name.trim(),
-        last_name: isOrganizer ? "" : form.last_name.trim(),
+        first_name: nextFirst,
+        last_name: nextLast,
         zip_code: form.zip_code.trim(),
         radius_miles: normalizeRadiusMiles(form.radius_miles),
-        role: nextRole,
         full_name: fullName || user.email,
-        org_name: isOrganizer ? form.org_name.trim() : user.org_name,
+        org_name: isOrganizer ? nextOrgName : user.org_name,
       });
 
-      toast({ title: needsSetup ? "Welcome! Your account is ready." : "Account updated!" });
-      if (needsSetup) {
-        navigate("/", { replace: true });
-      }
+      toast({ title: "Account updated!" });
     } catch (err) {
       toast({ title: "Failed to save", description: err?.message || String(err), variant: "destructive" });
     }
@@ -233,11 +238,6 @@ export default function ProfileTab({ user, setUser }) {
 
   return (
     <div className="space-y-6">
-      {needsSetup && (
-        <div className="rounded-xl border border-mint-200 bg-mint-50 px-4 py-3 text-sm text-mint-800">
-          Finish setting up your account: choose your account type, confirm your name, add your 5-digit zip code and search distance, then save.
-        </div>
-      )}
       <div className="space-y-4">
         <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Profile</h3>
         <div>
@@ -247,26 +247,12 @@ export default function ProfileTab({ user, setUser }) {
           </Label>
           {isAdmin ? (
             <p className="mt-1 text-sm font-medium text-mint-600">Admin</p>
-          ) : isRoleLocked ? (
+          ) : (
             <div className="mt-1">
               <p className="text-sm font-medium text-foreground capitalize">
                 {form.role === "community_member" ? "Community Member" : "Organizer"}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5">Account type cannot be changed after saving.</p>
-            </div>
-          ) : (
-            <div className="mt-1 space-y-2">
-              <Select value={form.role} onValueChange={(v) => updateField("role", v)}>
-                <SelectTrigger className="rounded-xl max-w-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="community_member">Community Member</SelectItem>
-                  <SelectItem value="organizer">Organizer</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 max-w-sm">
-                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                <span>Your account type cannot be changed after you save. An email address can only be associated with one type.</span>
-              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">Account type cannot be changed after registration.</p>
             </div>
           )}
         </div>
@@ -274,17 +260,29 @@ export default function ProfileTab({ user, setUser }) {
           {form.role === "organizer" ? (
             <div className="sm:col-span-2">
               <Label className="text-sm">Organization Name *</Label>
-              <Input value={form.org_name} onChange={(e) => updateField("org_name", e.target.value)} className="rounded-xl mt-1" />
+              <Input
+                value={form.org_name}
+                onChange={(e) => updateField("org_name", formatActivityTitle(e.target.value))}
+                className="rounded-xl mt-1"
+              />
             </div>
           ) : (
             <>
               <div>
                 <Label className="text-sm">First Name *</Label>
-                <Input value={form.first_name} onChange={(e) => updateField("first_name", e.target.value)} className="rounded-xl mt-1" />
+                <Input
+                  value={form.first_name}
+                  onChange={(e) => updateField("first_name", toStrictTitleCase(e.target.value))}
+                  className="rounded-xl mt-1"
+                />
               </div>
               <div>
                 <Label className="text-sm">Last Name *</Label>
-                <Input value={form.last_name} onChange={(e) => updateField("last_name", e.target.value)} className="rounded-xl mt-1" />
+                <Input
+                  value={form.last_name}
+                  onChange={(e) => updateField("last_name", toStrictTitleCase(e.target.value))}
+                  className="rounded-xl mt-1"
+                />
               </div>
             </>
           )}
@@ -312,15 +310,7 @@ export default function ProfileTab({ user, setUser }) {
             </select>
             <p className="text-xs text-muted-foreground mt-1">Used as your Home page default when you sign in.</p>
           </div>
-          {betaConfig.enabled && Array.isArray(betaConfig.zip_codes) && betaConfig.zip_codes.length > 0 && (
-            <p className="sm:col-span-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-              During beta, Home only lists activities for:{" "}
-              <span className="font-semibold">
-                {[...betaConfig.zip_codes].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ")}
-              </span>
-              . If your zip is outside that list, Home will explain and activities stay empty until you pick a beta area for browsing (session only).
-            </p>
-          )}
+          <BetaZipOutsideNote betaConfig={betaConfig} zipCode={form.zip_code} />
         </div>
       </div>
 
@@ -363,21 +353,19 @@ export default function ProfileTab({ user, setUser }) {
 
       <Button className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={handleSave} disabled={saving}>
         {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-        {needsSetup ? "Save And Continue" : "Save Changes"}
+        Save Changes
       </Button>
 
-      {!needsSetup && (
-        <div className="space-y-3 pt-2">
-          <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Security</h3>
-          <div>
-            <p className="text-sm font-medium mb-2">Password</p>
-            <Button type="button" className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={handleResetPassword} disabled={sendingReset}>
-              {sendingReset ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <KeyRound className="w-4 h-4 mr-2" />}
-              Email Password Reset
-            </Button>
-          </div>
+      <div className="space-y-3 pt-2">
+        <h3 className="font-heading font-semibold text-sm text-muted-foreground border-b border-border pb-2">Security</h3>
+        <div>
+          <p className="text-sm font-medium mb-2">Password</p>
+          <Button type="button" className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={handleResetPassword} disabled={sendingReset}>
+            {sendingReset ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <KeyRound className="w-4 h-4 mr-2" />}
+            Email Password Reset
+          </Button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

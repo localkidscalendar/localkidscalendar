@@ -1,35 +1,55 @@
 import React, { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import GoogleIcon from "@/components/GoogleIcon";
 import { Mail, Lock, Loader2, Users, Building2, MapPin, CheckCircle, AlertTriangle } from "lucide-react";
-import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
-import useBetaConfig from "@/lib/useBetaConfig"; // BETA MODE
+import { DEFAULT_RADIUS_MILES, normalizeRadiusMiles } from "@/lib/locationDefaults";
+import { toStrictTitleCase, formatActivityTitle } from "@/lib/titleCase";
+import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig"; // BETA MODE
+import { useAuth } from "@/lib/AuthContext";
+import { isProfileComplete } from "@/lib/authRoles";
 
-function BetaZipSignupNote({ betaConfig }) {
+function BetaZipOutsideNote({ betaConfig, zipCode }) {
   const zips = Array.isArray(betaConfig?.zip_codes) ? betaConfig.zip_codes : [];
-  if (!betaConfig?.enabled || zips.length === 0) return null;
+  const zip = String(zipCode || "").trim();
+  if (!betaConfig?.enabled || zips.length === 0 || zip.length !== 5) return null;
+  if (isZipAllowed(zip, betaConfig)) return null;
+  const list = [...zips].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ");
   return (
     <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed col-span-2">
-      We are currently in limited areas (beta). For your profile, use your real home zip. But understand that during beta, you will only see activities for zip codes in our beta test markets. If your zip is outside that list, you can still join but you will have to adjust the zip code filters on the homepage to match with activities.
+      We are currently in limited areas (beta). Your zip isn’t in our beta test markets
+      {" "}(<span className="font-semibold">{list}</span>).
+      You can still join, but you’ll need to adjust the zip code filters on the homepage to see activities.
     </p>
   );
 }
 
+function namesFromMetadata(meta = {}) {
+  const full = (meta.full_name || meta.name || "").trim();
+  const first = (meta.first_name || meta.given_name || (full ? full.split(/\s+/)[0] : "") || "").trim();
+  const last = (
+    meta.last_name
+    || meta.family_name
+    || (full.includes(" ") ? full.split(/\s+/).slice(1).join(" ") : "")
+    || ""
+  ).trim();
+  return { first, last };
+}
+
 // Step indicator
-function StepBar({ step }) {
-  const steps = ["Account", "Profile", "Verify"];
+function StepBar({ step, completeOnly }) {
+  const steps = completeOnly ? ["Profile"] : ["Account", "Profile", "Verify"];
+  const displayStep = completeOnly ? 1 : step;
   return (
     <div className="flex items-center justify-center gap-0 mb-8">
       {steps.map((label, i) => {
         const idx = i + 1;
-        const done = step > idx;
-        const active = step === idx;
+        const done = displayStep > idx;
+        const active = displayStep === idx;
         return (
           <React.Fragment key={label}>
             <div className="flex flex-col items-center">
@@ -40,7 +60,7 @@ function StepBar({ step }) {
               <span className={`text-xs mt-1 font-medium ${active ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
             </div>
             {i < steps.length - 1 && (
-              <div className={`h-0.5 w-12 mb-5 mx-1 transition-colors ${step > idx ? "bg-mint-500" : "bg-border"}`} />
+              <div className={`h-0.5 w-12 mb-5 mx-1 transition-colors ${displayStep > idx ? "bg-mint-500" : "bg-border"}`} />
             )}
           </React.Fragment>
         );
@@ -51,10 +71,15 @@ function StepBar({ step }) {
 
 export default function Register() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { user, setUser, isLoadingAuth, authChecked, logout, checkUserAuth } = useAuth();
   const betaConfig = useBetaConfig(); // BETA MODE
-  const [step, setStep] = useState(1);
+  const completingOAuth = searchParams.get("complete") === "1";
+
+  const [step, setStep] = useState(completingOAuth ? 2 : 1);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(!completingOAuth);
 
   // Step 1 — credentials
   const [email, setEmail] = useState("");
@@ -67,13 +92,10 @@ export default function Register() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [zipCode, setZipCode] = useState("");
-  const [radiusMiles, setRadiusMiles] = useState(DEFAULT_RADIUS_MILES);
   const [orgName, setOrgName] = useState("");
   const [orgDescription, setOrgDescription] = useState("");
   const [orgWebsite, setOrgWebsite] = useState("");
   const [orgEmail, setOrgEmail] = useState("");
-
-  // Step 3 — email confirmation
 
   // Bot protection: honeypot field must stay empty, and a human can't reach step 2 in under 3 seconds
   const [hpField, setHpField] = useState("");
@@ -91,6 +113,41 @@ export default function Register() {
       setOrgEmail(invitedEmail);
     }
   }, [searchParams]);
+
+  // Route signed-in users: finished → home; unfinished → profile step
+  useEffect(() => {
+    if (!authChecked || isLoadingAuth) return;
+
+    if (user && isProfileComplete(user)) {
+      navigate("/", { replace: true });
+      return;
+    }
+
+    if (user && !isProfileComplete(user)) {
+      setStep(2);
+      setReady(true);
+      (async () => {
+        setEmail(user.email || "");
+        setOrgEmail((prev) => prev || user.email || "");
+        try {
+          const { data: authData } = await supabase.auth.getUser();
+          const meta = authData?.user?.user_metadata || {};
+          const names = namesFromMetadata(meta);
+          if (names.first) setFirstName((prev) => prev || toStrictTitleCase(names.first));
+          if (names.last) setLastName((prev) => prev || toStrictTitleCase(names.last));
+          if (meta.org_name) setOrgName((prev) => prev || formatActivityTitle(meta.org_name));
+        } catch {}
+      })();
+      return;
+    }
+
+    // Not signed in but hit ?complete=1 — send to login / normal register
+    if (completingOAuth && !user) {
+      navigate("/register", { replace: true });
+      setStep(1);
+    }
+    setReady(true);
+  }, [authChecked, isLoadingAuth, user, completingOAuth, navigate]);
 
   const handleGoogle = async () => {
     setError("");
@@ -116,7 +173,51 @@ export default function Register() {
     setStep(2);
   };
 
-  // Step 2 submit — registers with Supabase and sends confirmation email
+  const finalizeProfile = async (authUser) => {
+    const isOrganizer = role === "organizer";
+    const nextFirst = isOrganizer ? "" : toStrictTitleCase(firstName.trim());
+    const nextLast = isOrganizer ? "" : toStrictTitleCase(lastName.trim());
+    const nextOrgName = isOrganizer ? formatActivityTitle(orgName.trim()) : null;
+
+    const { error: profileError } = await supabase.from("profiles").upsert({
+      id: authUser.id,
+      email: authUser.email,
+      role,
+      first_name: nextFirst,
+      last_name: nextLast,
+      zip_code: zipCode.trim(),
+      radius_miles: normalizeRadiusMiles(DEFAULT_RADIUS_MILES),
+      updated_at: new Date().toISOString(),
+    });
+    if (profileError) throw profileError;
+
+    if (isOrganizer) {
+      const { error: orgError } = await supabase.from("organizers").upsert({
+        user_id: authUser.id,
+        org_name: nextOrgName,
+        org_description: orgDescription.trim(),
+        org_website: orgWebsite.trim(),
+        org_email: orgEmail.trim(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id" });
+      if (orgError) throw orgError;
+    }
+
+    return {
+      ...user,
+      id: authUser.id,
+      email: authUser.email,
+      role,
+      first_name: nextFirst,
+      last_name: nextLast,
+      zip_code: zipCode.trim(),
+      radius_miles: normalizeRadiusMiles(DEFAULT_RADIUS_MILES),
+      full_name: isOrganizer ? nextOrgName : `${nextFirst} ${nextLast}`.trim() || authUser.email,
+      org_name: isOrganizer ? nextOrgName : "",
+    };
+  };
+
+  // Step 2 submit — email signup OR finish OAuth/incomplete profile
   const handleStep2 = async (e) => {
     e.preventDefault();
     setError("");
@@ -128,12 +229,30 @@ export default function Register() {
     } else {
       if (!firstName || !lastName) return setError("Please enter your first and last name.");
     }
-    if (!zipCode) return setError("Please enter your zip code.");
-    if (hpField || Date.now() - formLoadTime < 3000) {
+    if (!zipCode || !/^\d{5}$/.test(zipCode.trim())) {
+      return setError("Please enter a valid 5-digit zip code.");
+    }
+
+    const finishingExisting = Boolean(user && !isProfileComplete(user));
+    if (finishingExisting && !agreedToRules) {
+      return setError("You must agree to the Community Rules to continue.");
+    }
+    if (!finishingExisting && (hpField || Date.now() - formLoadTime < 3000)) {
       return setError("Something went wrong. Please try again.");
     }
+
     setLoading(true);
     try {
+      if (finishingExisting) {
+        const nextUser = await finalizeProfile(
+          (await supabase.auth.getUser()).data.user || { id: user.id, email: user.email }
+        );
+        setUser(nextUser);
+        await checkUserAuth();
+        window.location.href = "/";
+        return;
+      }
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -141,14 +260,14 @@ export default function Register() {
           emailRedirectTo: `${window.location.origin}/login`,
           data: {
             role,
-            first_name: isOrganizer ? "" : firstName,
-            last_name: isOrganizer ? "" : lastName,
-            zip_code: zipCode,
-            radius_miles: normalizeRadiusMiles(radiusMiles),
-            org_name: isOrganizer ? orgName : null,
-            org_description: isOrganizer ? orgDescription : null,
-            org_website: isOrganizer ? orgWebsite : null,
-            org_email: isOrganizer ? orgEmail : null,
+            first_name: isOrganizer ? "" : toStrictTitleCase(firstName.trim()),
+            last_name: isOrganizer ? "" : toStrictTitleCase(lastName.trim()),
+            zip_code: zipCode.trim(),
+            radius_miles: normalizeRadiusMiles(DEFAULT_RADIUS_MILES),
+            org_name: isOrganizer ? formatActivityTitle(orgName.trim()) : null,
+            org_description: isOrganizer ? orgDescription.trim() : null,
+            org_website: isOrganizer ? orgWebsite.trim() : null,
+            org_email: isOrganizer ? orgEmail.trim() : null,
           },
         },
       });
@@ -168,32 +287,6 @@ export default function Register() {
     setLoading(false);
   };
 
-  const finalizeProfile = async (authUser) => {
-    const isOrganizer = role === "organizer";
-    const { error: profileError } = await supabase.from("profiles").upsert({
-      id: authUser.id,
-      email: authUser.email,
-      role,
-      first_name: isOrganizer ? "" : firstName,
-      last_name: isOrganizer ? "" : lastName,
-      zip_code: zipCode,
-      radius_miles: normalizeRadiusMiles(radiusMiles),
-      updated_at: new Date().toISOString(),
-    });
-    if (profileError) throw profileError;
-
-    if (isOrganizer) {
-      const { error: orgError } = await supabase.from("organizers").insert({
-        user_id: authUser.id,
-        org_name: orgName,
-        org_description: orgDescription,
-        org_website: orgWebsite,
-        org_email: orgEmail,
-      });
-      if (orgError) throw orgError;
-    }
-  };
-
   const handleResend = async () => {
     setError("");
     try {
@@ -207,10 +300,20 @@ export default function Register() {
     }
   };
 
-  // Kept for older UI path; confirmation is now email-link based.
   const handleVerify = async () => {
     window.location.href = "/login";
   };
+
+  const finishingExisting = Boolean(user && !isProfileComplete(user));
+  const showCompleteFlow = finishingExisting || (completingOAuth && step === 2);
+
+  if (!ready || isLoadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-6 h-6 animate-spin text-mint-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10">
@@ -218,17 +321,23 @@ export default function Register() {
 
         {/* Branded header */}
         <div className="text-center mb-8">
-          <Link to="/" className="inline-block mb-4">
+          <Link to={showCompleteFlow ? "#" : "/"} className="inline-block mb-4" onClick={(e) => showCompleteFlow && e.preventDefault()}>
             <span className="font-display font-bold text-2xl text-primary">
               🌿 LocalKids<span className="text-mint-500">Calendar</span>
             </span>
           </Link>
-          <h1 className="font-heading font-bold text-2xl text-foreground">Create your account</h1>
-          <p className="text-muted-foreground text-sm mt-1">Join our community of parents and activity organizers</p>
+          <h1 className="font-heading font-bold text-2xl text-foreground">
+            {showCompleteFlow ? "Finish your profile" : "Create your account"}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {showCompleteFlow
+              ? "Choose your account type and add your details to continue"
+              : "Join our community of parents and activity organizers"}
+          </p>
         </div>
 
         <div className="bg-card rounded-2xl border border-border shadow-sm p-6 sm:p-8">
-          <StepBar step={step} />
+          <StepBar step={step} completeOnly={showCompleteFlow} />
 
           {error && (
             <div className="mb-5 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-start gap-2">
@@ -238,9 +347,8 @@ export default function Register() {
           )}
 
           {/* ── Step 1: Account Details ── */}
-          {step === 1 && (
+          {step === 1 && !showCompleteFlow && (
             <form onSubmit={handleStep1} className="space-y-4">
-              {/* Honeypot field - hidden from real users, bots often fill every field */}
               <div className="absolute left-[-9999px]" aria-hidden="true">
                 <Label htmlFor="hp_website">Website</Label>
                 <input
@@ -318,7 +426,12 @@ export default function Register() {
           {/* ── Step 2: Profile Setup ── */}
           {step === 2 && (
             <form onSubmit={handleStep2} className="space-y-5">
-              {/* Account type */}
+              {showCompleteFlow && (
+                <p className="text-sm text-muted-foreground -mt-1">
+                  Signed in as <span className="font-medium text-foreground">{email || user?.email}</span>
+                </p>
+              )}
+
               <div className="space-y-2">
                 <Label className="font-heading font-semibold text-sm">I am joining as a…</Label>
                 <div className="grid grid-cols-2 gap-3">
@@ -343,43 +456,54 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* Community Member fields */}
               {role === "community_member" && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="font-heading font-semibold text-sm">First Name *</Label>
-                    <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="rounded-xl" placeholder="Jane" required />
+                    <Input
+                      value={firstName}
+                      onChange={(e) => setFirstName(toStrictTitleCase(e.target.value))}
+                      className="rounded-xl"
+                      placeholder="Jane"
+                      required
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label className="font-heading font-semibold text-sm">Last Name *</Label>
-                    <Input value={lastName} onChange={(e) => setLastName(e.target.value)} className="rounded-xl" placeholder="Smith" required />
+                    <Input
+                      value={lastName}
+                      onChange={(e) => setLastName(toStrictTitleCase(e.target.value))}
+                      className="rounded-xl"
+                      placeholder="Smith"
+                      required
+                    />
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1 col-span-2 sm:col-span-1">
                     <Label className="font-heading font-semibold text-sm flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Zip Code *</Label>
-                    <Input value={zipCode} onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))} className="rounded-xl" placeholder="90210" maxLength={5} required />
+                    <Input
+                      value={zipCode}
+                      onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                      className="rounded-xl"
+                      placeholder="90210"
+                      maxLength={5}
+                      required
+                    />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="font-heading font-semibold text-sm">Distance *</Label>
-                    <select
-                      value={radiusMiles}
-                      onChange={(e) => setRadiusMiles(Number(e.target.value))}
-                      className="w-full h-10 rounded-xl text-sm border border-input bg-transparent px-3 py-2 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      {RADIUS_OPTIONS.map((d) => (
-                        <option key={d} value={d}>{d} miles</option>
-                      ))}
-                    </select>
-                  </div>
-                  <BetaZipSignupNote betaConfig={betaConfig} />
+                  <BetaZipOutsideNote betaConfig={betaConfig} zipCode={zipCode} />
                 </div>
               )}
 
-              {/* Organizer fields */}
               {role === "organizer" && (
                 <div className="space-y-3">
                   <div className="space-y-1">
                     <Label className="font-heading font-semibold text-sm">Organization Name *</Label>
-                    <Input value={orgName} onChange={(e) => setOrgName(e.target.value)} className="rounded-xl" placeholder="Happy Kids Soccer League" required />
+                    <Input
+                      value={orgName}
+                      onChange={(e) => setOrgName(formatActivityTitle(e.target.value))}
+                      className="rounded-xl"
+                      placeholder="Happy Kids Soccer League"
+                      required
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label className="font-heading font-semibold text-sm">Description *</Label>
@@ -394,33 +518,68 @@ export default function Register() {
                       <Label className="font-heading font-semibold text-sm">Org Email *</Label>
                       <Input type="email" value={orgEmail} onChange={(e) => setOrgEmail(e.target.value)} className="rounded-xl" placeholder="info@example.com" required />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 col-span-2 sm:col-span-1">
                       <Label className="font-heading font-semibold text-sm flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Zip Code *</Label>
-                      <Input value={zipCode} onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))} className="rounded-xl" placeholder="90210" maxLength={5} required />
+                      <Input
+                        value={zipCode}
+                        onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                        className="rounded-xl"
+                        placeholder="90210"
+                        maxLength={5}
+                        required
+                      />
                     </div>
-                    <div className="space-y-1">
-                      <Label className="font-heading font-semibold text-sm">Distance *</Label>
-                      <select
-                        value={radiusMiles}
-                        onChange={(e) => setRadiusMiles(Number(e.target.value))}
-                        className="w-full h-10 rounded-xl text-sm border border-input bg-transparent px-3 py-2 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      >
-                        {RADIUS_OPTIONS.map((d) => (
-                          <option key={d} value={d}>{d} miles</option>
-                        ))}
-                      </select>
-                    </div>
-                    <BetaZipSignupNote betaConfig={betaConfig} />
+                    <BetaZipOutsideNote betaConfig={betaConfig} zipCode={zipCode} />
                   </div>
                 </div>
               )}
 
+              {showCompleteFlow && (
+                <>
+                  <div className="rounded-xl border border-mint-200 bg-mint-50 p-3 text-sm text-mint-700">
+                    Before joining, please{" "}
+                    <Link to="/about#community-rules" target="_blank" className="font-semibold underline underline-offset-2 hover:text-mint-600">
+                      review our Community Rules (Terms of Service and Privacy)
+                    </Link>
+                    .
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Checkbox id="rules-complete" checked={agreedToRules} onCheckedChange={setAgreedToRules} className="mt-0.5" />
+                    <Label htmlFor="rules-complete" className="text-sm font-normal cursor-pointer leading-snug text-foreground">
+                      I have read and agree to our{" "}
+                      <Link to="/about#community-rules" target="_blank" className="text-mint-600 underline underline-offset-2 hover:text-mint-700" onClick={(e) => e.stopPropagation()}>
+                        Community Rules (Terms of Service and Privacy)
+                      </Link>
+                    </Label>
+                  </div>
+                </>
+              )}
+
               <div className="flex gap-3 pt-1">
-                <Button type="button" variant="outline" className="rounded-xl flex-1 h-11" onClick={() => { setStep(1); setError(""); }}>
-                  ← Back
-                </Button>
-                <Button type="submit" className="rounded-xl flex-1 h-11 bg-mint-500 hover:bg-mint-600 text-white font-semibold" disabled={loading}>
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send Verification Code →"}
+                {showCompleteFlow ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-xl flex-1 h-11"
+                    onClick={() => logout(true)}
+                  >
+                    Sign out
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" className="rounded-xl flex-1 h-11" onClick={() => { setStep(1); setError(""); }}>
+                    ← Back
+                  </Button>
+                )}
+                <Button
+                  type="submit"
+                  className="rounded-xl flex-1 h-11 bg-mint-500 hover:bg-mint-600 text-white font-semibold"
+                  disabled={loading || (showCompleteFlow && !agreedToRules)}
+                >
+                  {loading
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : showCompleteFlow
+                      ? "Save And Continue →"
+                      : "Send Verification Code →"}
                 </Button>
               </div>
             </form>

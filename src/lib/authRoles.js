@@ -9,6 +9,13 @@ export function isRegisteredUser(user) {
   return Boolean(user && REGISTERED_ROLES.includes(user.role));
 }
 
+/** Profile has finished signup (zip required). Admins / disabled skip this gate. */
+export function isProfileComplete(user) {
+  if (!user) return false;
+  if (user.role === "admin" || user.role === "disabled") return true;
+  return Boolean(String(user.zip_code || "").trim());
+}
+
 export function restoreRoleFromProfile(profileOrUser) {
   const prior = profileOrUser?.role_before_disabled;
   if (prior && REGISTERED_ROLES.includes(prior) && prior !== "admin") {

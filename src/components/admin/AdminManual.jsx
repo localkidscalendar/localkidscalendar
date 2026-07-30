@@ -177,7 +177,7 @@ const categories = [
           "Account.jsx VALID_TABS: messages, posts, saved, saved-organizers, notifications, saved-filters, profile. Unread badge uses countUnreadMessages.",
         technicalFeatures: [
           "?tab=flagged redirects to messages (legacy links)",
-          "?setup=1 opens Profile for zip completion after OAuth/setup",
+          "?complete=1 on Register finishes OAuth/incomplete profiles (same form as email signup); AppLayout redirects incomplete users there",
         ],
       },
       {

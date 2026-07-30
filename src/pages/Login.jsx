@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +7,29 @@ import { Label } from "@/components/ui/label";
 import { Mail, Lock, Loader2 } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
+import { useAuth } from "@/lib/AuthContext";
+import { isProfileComplete } from "@/lib/authRoles";
 
 export default function Login() {
+  const navigate = useNavigate();
+  const { user, isLoadingAuth, authChecked } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authChecked || isLoadingAuth || !user) return;
+    if (!isProfileComplete(user)) {
+      navigate("/register?complete=1", { replace: true });
+      return;
+    }
+    if (user.role === "disabled") {
+      navigate("/account-disabled", { replace: true });
+      return;
+    }
+    navigate("/", { replace: true });
+  }, [authChecked, isLoadingAuth, user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,11 +45,15 @@ export default function Login() {
       if (uid) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, zip_code")
           .eq("id", uid)
           .maybeSingle();
         if (profile?.role === "disabled") {
           window.location.href = "/account-disabled";
+          return;
+        }
+        if (!profile?.zip_code) {
+          window.location.href = "/register?complete=1";
           return;
         }
       }

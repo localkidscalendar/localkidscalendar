@@ -5,7 +5,7 @@ import Footer from "./Footer";
 import BannerAdDisplay from "@/components/ads/BannerAdDisplay";
 import BetaBanner from "@/components/beta/BetaBanner";
 import { useAuth } from "@/lib/AuthContext";
-import { isAccountDisabled } from "@/lib/authRoles";
+import { isAccountDisabled, isProfileComplete } from "@/lib/authRoles";
 
 /** Paths disabled users may open without being forced to the status page. */
 const DISABLED_ALLOWED_PREFIXES = [
@@ -26,6 +26,9 @@ const DISABLED_ALLOWED_PREFIXES = [
   "/advertiser-terms",
 ];
 
+/** Incomplete OAuth/email profiles may only read Community Rules while finishing signup. */
+const INCOMPLETE_ALLOWED_PREFIXES = ["/about"];
+
 function isPathAllowedWhileDisabled(pathname) {
   if (pathname === "/") return true;
   if (pathname.startsWith("/event/")) return true;
@@ -33,6 +36,12 @@ function isPathAllowedWhileDisabled(pathname) {
     if (prefix === "/" || prefix === "/event/") return false;
     return pathname === prefix || pathname.startsWith(`${prefix}/`);
   });
+}
+
+function isPathAllowedWhileIncomplete(pathname) {
+  return INCOMPLETE_ALLOWED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
 }
 
 export default function AppLayout() {
@@ -53,6 +62,14 @@ export default function AppLayout() {
     if (!isAccountDisabled(user)) return;
     if (isPathAllowedWhileDisabled(location.pathname)) return;
     navigate("/account-disabled", { replace: true });
+  }, [authChecked, userLoading, user, location.pathname, navigate]);
+
+  // Signed-in but unfinished signup → same Register profile form (not Account).
+  useEffect(() => {
+    if (!authChecked || userLoading) return;
+    if (!user || isAccountDisabled(user) || isProfileComplete(user)) return;
+    if (isPathAllowedWhileIncomplete(location.pathname)) return;
+    navigate("/register?complete=1", { replace: true });
   }, [authChecked, userLoading, user, location.pathname, navigate]);
 
   // Feature surfaces treat disabled accounts as signed out.

@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 
 /**
  * OAuth return path. Supabase attaches the session on redirect;
- * we wait for it, then send users with an incomplete profile to Account.
+ * incomplete profiles finish on the same Register profile form as email signup.
  */
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ export default function AuthCallback() {
       const userId = data.session.user.id;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("zip_code, first_name, role")
+        .select("zip_code, role")
         .eq("id", userId)
         .maybeSingle();
 
@@ -40,7 +40,7 @@ export default function AuthCallback() {
 
       const needsProfile = !profile?.zip_code;
       if (needsProfile) {
-        navigate("/account?setup=1", { replace: true });
+        navigate("/register?complete=1", { replace: true });
         return;
       }
       navigate("/", { replace: true });

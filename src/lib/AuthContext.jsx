@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { isAccountDisabled, isRegisteredUser } from "@/lib/authRoles";
+import { isAccountDisabled, isProfileComplete, isRegisteredUser } from "@/lib/authRoles";
 
 const AuthContext = createContext();
 
@@ -157,8 +157,12 @@ export const AuthProvider = ({ children }) => {
 
   const accountDisabled = isAccountDisabled(user);
   const registered = isRegisteredUser(user);
-  /** Feature for registered-only features — null when disabled (treated as signed out). */
-  const registeredUser = useMemo(() => (registered ? user : null), [registered, user]);
+  const profileComplete = isProfileComplete(user);
+  /** Feature for registered-only features — null when disabled or signup unfinished. */
+  const registeredUser = useMemo(
+    () => (registered && profileComplete ? user : null),
+    [registered, profileComplete, user]
+  );
 
   return (
     <AuthContext.Provider
@@ -168,6 +172,7 @@ export const AuthProvider = ({ children }) => {
         registeredUser,
         isAccountDisabled: accountDisabled,
         isRegistered: registered,
+        isProfileComplete: profileComplete,
         isAuthenticated,
         isLoadingAuth,
         isLoadingPublicSettings,

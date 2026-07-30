@@ -13,7 +13,6 @@ import MyPostsTab from "@/components/account/MyPostsTab";
 import NotificationsTab from "@/components/account/NotificationsTab";
 import MyMessagesTab from "@/components/account/MyMessagesTab";
 import { countUnreadMessages, publishUnreadMessagesCount } from "@/lib/userMessages";
-import { useToast } from "@/components/ui/use-toast";
 
 const VALID_TABS = new Set([
   "messages", "posts", "saved", "saved-organizers", "notifications", "saved-filters", "profile",
@@ -23,7 +22,6 @@ export default function Account() {
   const { user, setUser, userLoading } = useOutletContext();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("messages");
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -45,18 +43,6 @@ export default function Account() {
       setActiveTab(tab);
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    if (searchParams.get("setup") === "1") {
-      setActiveTab("profile");
-      toast({
-        title: "Finish your profile",
-        description: "Add your zip code (and name if needed) so local activities work correctly.",
-      });
-      searchParams.delete("setup");
-      setSearchParams(searchParams, { replace: true });
-    }
-  }, []);
 
   useEffect(() => {
     if (!user?.id) return;
