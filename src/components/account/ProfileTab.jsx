@@ -10,6 +10,7 @@ import HelpTip from "@/components/shared/HelpTip";
 import { Upload, Save, AlertTriangle, Loader2, KeyRound } from "lucide-react";
 import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
 import { processImageForUpload } from "@/lib/imageProcess";
+import useBetaConfig from "@/lib/useBetaConfig"; // BETA MODE
 
 function namesFromMetadata(meta = {}) {
   const full = (meta.full_name || meta.name || "").trim();
@@ -26,6 +27,7 @@ function namesFromMetadata(meta = {}) {
 export default function ProfileTab({ user, setUser }) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const betaConfig = useBetaConfig(); // BETA MODE
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
@@ -304,6 +306,15 @@ export default function ProfileTab({ user, setUser }) {
               ))}
             </select>
             <p className="text-xs text-muted-foreground mt-1">Used as your Home page default when you sign in.</p>
+            {betaConfig.enabled && Array.isArray(betaConfig.zip_codes) && betaConfig.zip_codes.length > 0 && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2 leading-relaxed">
+                Keep your real home zip here. During beta, Home only lists activities for:{" "}
+                <span className="font-semibold">
+                  {[...betaConfig.zip_codes].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ")}
+                </span>
+                . If your zip is outside that list, Home will explain and activities stay empty until you pick a beta area for browsing (session only).
+              </p>
+            )}
           </div>
         </div>
       </div>

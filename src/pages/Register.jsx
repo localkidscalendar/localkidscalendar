@@ -9,6 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import GoogleIcon from "@/components/GoogleIcon";
 import { Mail, Lock, Loader2, Users, Building2, MapPin, CheckCircle, AlertTriangle } from "lucide-react";
 import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
+import useBetaConfig from "@/lib/useBetaConfig"; // BETA MODE
+
+function BetaZipSignupNote({ betaConfig }) {
+  const zips = Array.isArray(betaConfig?.zip_codes) ? betaConfig.zip_codes : [];
+  if (!betaConfig?.enabled || zips.length === 0) return null;
+  const list = [...zips].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ");
+  return (
+    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed col-span-2">
+      Use your real home zip. During beta, Home only lists activities for: <span className="font-semibold">{list}</span>.
+      If your zip is outside that list, you can still join — Home will explain and activities will stay empty until you pick a beta area for browsing.
+    </p>
+  );
+}
 
 // Step indicator
 function StepBar({ step }) {
@@ -40,6 +53,7 @@ function StepBar({ step }) {
 
 export default function Register() {
   const [searchParams] = useSearchParams();
+  const betaConfig = useBetaConfig(); // BETA MODE
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -358,6 +372,7 @@ export default function Register() {
                       ))}
                     </select>
                   </div>
+                  <BetaZipSignupNote betaConfig={betaConfig} />
                 </div>
               )}
 
@@ -397,6 +412,7 @@ export default function Register() {
                         ))}
                       </select>
                     </div>
+                    <BetaZipSignupNote betaConfig={betaConfig} />
                   </div>
                 </div>
               )}

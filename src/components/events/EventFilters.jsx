@@ -13,7 +13,6 @@ import { supabase } from "@/lib/supabaseClient";
 import { ACTIVITY_CATEGORIES } from "@/lib/activityCategories";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
-import useBetaConfig, { isZipAllowed, betaZipBlockedCopy } from "@/lib/useBetaConfig"; // BETA MODE
 
 const SORT_OPTIONS = [
   { value: "posted", label: "Sort By Date Posted" },
@@ -57,7 +56,6 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   const [appliedSnapshot, setAppliedSnapshot] = useState(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const { toast } = useToast();
-  const betaConfig = useBetaConfig(); // BETA MODE
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -77,18 +75,6 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   }, [filters, localSearch, appliedSnapshot, savedFiltersApplied]);
 
   const updateFilter = (key, value) => {
-    // BETA MODE — block Stage 2 non-whitelist zips on the homepage filter
-    if (key === "zipCode") {
-      const digits = String(value || "").replace(/\D/g, "").slice(0, 5);
-      if (digits.length === 5 && !isZipAllowed(digits, betaConfig)) {
-        const copy = betaZipBlockedCopy(digits);
-        toast({ title: copy.title, description: copy.description, variant: "destructive" });
-        onFiltersChange({ ...filters, zipCode: "" });
-        return;
-      }
-      onFiltersChange({ ...filters, zipCode: digits });
-      return;
-    }
     onFiltersChange({ ...filters, [key]: value });
   };
 
@@ -158,18 +144,11 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
         });
       } else {
         const freeOnly = Boolean(data.free_only);
-        let zipCode = data.zip_code || filters.zipCode || "";
-        // BETA MODE — don't apply a saved zip outside the Stage 2 whitelist
-        if (zipCode && zipCode.length === 5 && !isZipAllowed(zipCode, betaConfig)) {
-          const copy = betaZipBlockedCopy(zipCode);
-          toast({ title: copy.title, description: `${copy.description} Your other saved filters were still applied.`, variant: "destructive" });
-          zipCode = "";
-        }
         const next = {
           search: data.search || "",
           category: data.category || "all",
           sortBy: data.sort_by || "posted",
-          zipCode,
+          zipCode: data.zip_code || filters.zipCode || "",
           radiusMiles: Number(data.radius_miles) || 15,
           ageMin: data.age_min != null ? String(data.age_min) : "",
           ageMax: data.age_max != null ? String(data.age_max) : "",

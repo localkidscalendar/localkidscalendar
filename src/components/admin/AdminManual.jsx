@@ -859,18 +859,20 @@ const categories = [
         id: "admin-beta-mode",
         title: "Beta Mode",
         overview:
-          "Temporary access controls: Stage 1 access code and/or Stage 2 zip whitelist. Banner can show when beta is enabled. When Stage 2 is on, non-whitelisted zips are blocked for posting activities, homepage zip filters, and Supporter ad purchase / waitlist (checkout API enforces the same rule).",
+          "Temporary access controls for a limited launch. Stage 1 is an access code gate. Stage 2 limits where activities and ads can be listed (whitelist zips) — not who may create an account. Users may store any real profile zip; if Home’s session zip is outside the whitelist, a highly visible notice explains that activities won’t appear until they pick a beta zip for browsing (session only).",
         features: [
-          "Toggle beta / stage 1",
-          "Access code",
-          "Allowed zip list",
-          "Blocks Post Activity, Home zip filter, Ad Manager check/checkout/waitlist outside whitelist",
+          "Toggle beta / stage 1 access code",
+          "Stage 2 allowed zip list for listings",
+          "Home out-of-area notice + empty activity list (profile zip unchanged)",
+          "Post Activity and Ad purchase/waitlist still blocked outside whitelist",
+          "Soft notes on Register / Profile / zip prompt",
         ],
         technicalOverview:
-          "beta_config table; AdminBetaPanel; BetaBanner / BetaStage1Gate; isZipAllowed / betaZipBlockedCopy in useBetaConfig.js.",
+          "beta_config; AdminBetaPanel; BetaBanner / BetaStage1Gate; BetaOutOfAreaNotice on Home; isZipAllowed in useBetaConfig.js.",
         technicalFeatures: [
           "Publicly readable config for client gates",
-          "create-ad-checkout.js also rejects non-whitelist zips when beta.enabled",
+          "create-ad-checkout.js rejects non-whitelist zips when beta.enabled",
+          "Home filteredEvents returns [] when session zip is outside Stage 2 list",
         ],
       },
       {

@@ -5,6 +5,7 @@ import EventCard from "@/components/events/EventCard";
 import EventFilters from "@/components/events/EventFilters";
 import useGeoLocation from "@/lib/useGeoLocation";
 import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig";
+import BetaOutOfAreaNotice from "@/components/beta/BetaOutOfAreaNotice"; // BETA MODE
 import SupporterAdCard from "@/components/ads/SupporterAdCard";
 import DefaultAdCard from "@/components/ads/DefaultAdCard";
 import ZipRequiredModal from "@/components/shared/ZipRequiredModal";
@@ -573,6 +574,17 @@ export default function Home() {
 
   const filteredEvents = useMemo(() => {
     // BETA MODE — remove this filter block along with useBetaConfig.js
+    const betaZips = Array.isArray(betaConfig.zip_codes) ? betaConfig.zip_codes : [];
+    const sessionZip = (filters.zipCode || "").trim();
+    const outsideBetaArea =
+      Boolean(betaConfig.enabled)
+      && betaZips.length > 0
+      && sessionZip.length === 5
+      && !isZipAllowed(sessionZip, betaConfig);
+
+    // Outside beta: keep the real/session zip, but don't show activities (prompt explains why)
+    if (outsideBetaArea) return [];
+
     let result = events.filter((e) => isZipAllowed(e.zip_code, betaConfig));
 
     if (filters.category && filters.category !== "all") {
@@ -674,6 +686,18 @@ export default function Home() {
     return result;
   }, [events, filters, orgFilter, savedEventIds, favoriteOrganizerIds, filterCenter, zipCoordsMap, betaConfig]);
 
+  // BETA MODE — session/Home zip outside Stage 2 whitelist (profile may still hold any real zip)
+  const outsideBetaArea = useMemo(() => {
+    const betaZips = Array.isArray(betaConfig.zip_codes) ? betaConfig.zip_codes : [];
+    const sessionZip = (filters.zipCode || "").trim();
+    return (
+      Boolean(betaConfig.enabled)
+      && betaZips.length > 0
+      && sessionZip.length === 5
+      && !isZipAllowed(sessionZip, betaConfig)
+    );
+  }, [betaConfig, filters.zipCode]);
+
   if (locationInitialized && !filters.zipCode) {
     return <ZipRequiredModal onSubmit={(zip, radius) => setCurrentZip(zip, radius, { manual: true })} />;
   }
@@ -725,6 +749,14 @@ export default function Home() {
         }
       </div>
 
+      {outsideBetaArea && (
+        <BetaOutOfAreaNotice
+          zip={filters.zipCode}
+          betaZips={betaConfig.zip_codes}
+          onSelectZip={(z) => setCurrentZip(z, filters.radiusMiles, { manual: true })}
+        />
+      )}
+
       {/* Org filter banner */}
       {orgFilter && (
         <div className="mb-4 flex items-center gap-2 bg-mint-50 border border-mint-200 rounded-xl px-4 py-2.5">
@@ -756,8 +788,15 @@ export default function Home() {
             <div className="w-16 h-16 rounded-2xl bg-mint-50 flex items-center justify-center mx-auto mb-4">
               <Calendar className="w-8 h-8 text-mint-300" />
             </div>
-            <h3 className="font-heading font-semibold text-lg mb-1">No Activities Found</h3>
-            <p className="text-sm text-muted-foreground mb-4">Try adjusting your filters or check back soon.</p>
+            <h3 className="font-heading font-semibold text-lg mb-1">
+              {outsideBetaArea ? "No activities in this beta view" : "No Activities Found"}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+              {outsideBetaArea
+                ? "During beta, listings only appear when your Home zip is one of the beta areas above. You can keep browsing with this zip — the list will stay empty."
+                : "Try adjusting your filters or check back soon."}
+            </p>
+            {!outsideBetaArea && (
             <Button
               variant="outline"
               className="rounded-xl"
@@ -783,6 +822,7 @@ export default function Home() {
             >
               Clear All Filters
             </Button>
+            )}
           </div>
           {activeAds.length > 0 && (
             <AdInjectedFeed events={[]} ads={activeAds} rotationIndex={adRotationIndex} zipCode={filters.zipCode} savedEventIds={savedEventIds} onToggleSave={toggleSave} user={user} />

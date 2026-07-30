@@ -3,10 +3,14 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MapPin } from "lucide-react";
+import useBetaConfig from "@/lib/useBetaConfig"; // BETA MODE
 
 export default function ZipRequiredModal({ onSubmit }) {
   const [zip, setZip] = useState("");
   const isValid = /^\d{5}$/.test(zip);
+  const betaConfig = useBetaConfig(); // BETA MODE
+  const betaZips = Array.isArray(betaConfig.zip_codes) ? betaConfig.zip_codes : [];
+  const showBetaNote = Boolean(betaConfig.enabled) && betaZips.length > 0;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -24,6 +28,15 @@ export default function ZipRequiredModal({ onSubmit }) {
           We couldn't detect your location. Enter your zip code to see activities near you, or{" "}
           <Link to="/login" className="text-mint-600 underline hover:text-mint-700">Sign In</Link> if you have an account.
         </p>
+        {showBetaNote && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-4 text-left leading-relaxed">
+            During beta, activity listings are only available for:{" "}
+            <span className="font-semibold">
+              {[...betaZips].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ")}
+            </span>
+            . You can enter any zip — if it’s outside that list, Home will explain and the activity list will be empty until you pick a beta area.
+          </p>
+        )}
         <Input
           value={zip}
           onChange={(e) => setZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
