@@ -141,10 +141,10 @@ export default function About() {
               </div>
             ))}
           </div>
+          <p className="mt-6 text-sm font-medium text-foreground leading-relaxed bg-peach-50 border border-peach-200 rounded-xl px-4 py-3">
+            Accounts that violate these rules may be suspended or removed. We&apos;re all here to create a better experience for local kids and families!
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground mt-4">
-          Accounts that violate these rules may be suspended or removed. We're all here to create a better experience for local kids and families!
-        </p>
       </section>
 
       {/* FAQ Section — same section chrome as rules */}
