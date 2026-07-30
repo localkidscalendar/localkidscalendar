@@ -461,7 +461,7 @@ export default function PostEvent() {
           {/* Location */}
           <div className="space-y-4">
             <div><Label className="text-sm">Venue / Location Name</Label><Input value={form.location_name} onChange={(e) => updateField("location_name", e.target.value)} className="rounded-xl mt-1" placeholder="e.g. City Park Recreation Center" /></div>
-            <div><Label className="text-sm">Street Address</Label><Input value={form.address} onChange={(e) => updateField("address", e.target.value)} className="rounded-xl mt-1" /></div>
+            <div><Label className="text-sm">Street Address</Label><Input value={form.address} onChange={(e) => updateField("address", toTitleCase(e.target.value))} className="rounded-xl mt-1" /></div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div><Label className="text-sm">City *</Label><Input value={form.city} onChange={(e) => updateField("city", toTitleCase(e.target.value))} className="rounded-xl mt-1" /></div>
               <div><Label className="text-sm">State *</Label><Input value={form.state} onChange={(e) => updateField("state", e.target.value.toUpperCase().slice(0, 2))} className="rounded-xl mt-1" maxLength={2} /></div>
