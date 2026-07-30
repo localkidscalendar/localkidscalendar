@@ -411,7 +411,7 @@ export default function PostEvent() {
           <div className="space-y-4">
             <div>
               <Label className="text-sm">Title *</Label>
-              <Input value={form.title} onChange={(e) => updateField("title", toTitleCase(e.target.value))} className="rounded-xl mt-1" placeholder="e.g. Summer Soccer Camp" />
+              <Input value={form.title} onChange={(e) => updateField("title", formatActivityTitle(e.target.value))} className="rounded-xl mt-1" placeholder="e.g. Summer Soccer Camp" />
             </div>
             <div>
               <Label className="text-sm">Description *</Label>
