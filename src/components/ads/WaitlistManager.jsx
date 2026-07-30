@@ -32,6 +32,17 @@ export async function joinAdWaitlist({ user, zipCode, planType = "monthly", busi
   const zip = (zipCode || "").trim();
   if (!/^\d{5}$/.test(zip)) throw new Error("Enter a valid 5-digit zip code");
 
+  // BETA MODE — Stage 2 whitelist
+  const { data: beta } = await supabase
+    .from("beta_config")
+    .select("enabled, zip_codes")
+    .eq("config_key", "global")
+    .maybeSingle();
+  const betaZips = Array.isArray(beta?.zip_codes) ? beta.zip_codes : [];
+  if (beta?.enabled && betaZips.length > 0 && !betaZips.includes(zip)) {
+    throw new Error(`Zip ${zip} isn't in our beta area yet. See the banner at the top of the site for available locations.`);
+  }
+
   const { data: existing } = await supabase
     .from("ad_waitlist")
     .select("id, status")

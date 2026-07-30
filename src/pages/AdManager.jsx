@@ -21,6 +21,7 @@ import CurrentAdRates from "@/components/ads/CurrentAdRates";
 import { createAdCheckout } from "@/lib/adBilling";
 import { SUPPORTER_RULES, TOS_INTRO, TOS_SECTIONS, TOS_FOOTER } from "@/lib/supporterContent";
 import { countOpenAdSlots, SLOT_HOLDING_STATUSES } from "@/lib/waitlistQueue";
+import useBetaConfig, { isZipAllowed, betaZipBlockedCopy } from "@/lib/useBetaConfig"; // BETA MODE
 
 const ADS_STATUS_FILTERS = [
   { value: "all", label: "All" },
@@ -154,6 +155,7 @@ function CountdownBanner({ expiresAt, onExpired }) {
 
 function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoinedWaitlist }) {
   const { toast } = useToast();
+  const betaConfig = useBetaConfig(); // BETA MODE
   const [pricing, setPricing] = useState({ monthly_rate: 150, annual_discount_percent: 30 });
   const [step, setStep] = useState(1);
   const [selectedAsset, setSelectedAsset] = useState(null);
@@ -240,6 +242,15 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
     setZipChecking(true);
     setZipStatus(null);
     try {
+      // BETA MODE — Stage 2 whitelist
+      if (!isZipAllowed(zip, betaConfig)) {
+        const copy = betaZipBlockedCopy(zip);
+        setZipStatus({ available: false, betaBlocked: true, errorMessage: `${copy.title}. ${copy.description}` });
+        toast({ title: copy.title, description: copy.description, variant: "destructive" });
+        setZipChecking(false);
+        return;
+      }
+
       const { data: existingAds, error } = await supabase
         .from("banner_ads")
         .select("id, status, user_id")
@@ -290,11 +301,18 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
 
   const handleSubmitRequest = async () => {
     if (!selectedAsset) return;
+    const zip = form.zip_code.trim();
+    // BETA MODE — Stage 2 whitelist (also enforced server-side)
+    if (!isZipAllowed(zip, betaConfig)) {
+      const copy = betaZipBlockedCopy(zip);
+      toast({ title: copy.title, description: copy.description, variant: "destructive" });
+      return;
+    }
     setSubmitting(true);
     try {
       const result = await createAdCheckout({
         plan_type: form.plan_type,
-        zip_code: form.zip_code.trim(),
+        zip_code: zip,
         business_name: selectedAsset.ad_name,
         link_url: selectedAsset.link_url,
         image_url: selectedAsset.image_url,
@@ -308,7 +326,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
       if (result.admin_bypass) {
         toast({
           title: "Ad is live!",
-          description: `Admin bypass — your ad for zip ${form.zip_code.trim()} is now active with no payment required.`,
+          description: `Admin bypass — your ad for zip ${zip} is now active with no payment required.`,
         });
         onSuccess();
         return;
@@ -435,6 +453,14 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
                 <div className="flex items-center gap-2 text-red-700">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   <span>Could not check availability. Please try again.</span>
+                </div>
+              ) : zipStatus.betaBlocked ? (
+                <div className="flex items-start gap-2 text-red-700">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Not available during beta</p>
+                    <p className="text-xs mt-1">{zipStatus.errorMessage || "This zip isn’t in our beta area yet."}</p>
+                  </div>
                 </div>
               ) : zipStatus.available ? (
                 <div className="space-y-2">

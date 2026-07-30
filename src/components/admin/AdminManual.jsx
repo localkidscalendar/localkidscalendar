@@ -859,16 +859,18 @@ const categories = [
         id: "admin-beta-mode",
         title: "Beta Mode",
         overview:
-          "Temporary access controls: Stage 1 access code and/or Stage 2 zip whitelist. Banner can show when beta is enabled.",
+          "Temporary access controls: Stage 1 access code and/or Stage 2 zip whitelist. Banner can show when beta is enabled. When Stage 2 is on, non-whitelisted zips are blocked for posting activities, homepage zip filters, and Supporter ad purchase / waitlist (checkout API enforces the same rule).",
         features: [
           "Toggle beta / stage 1",
           "Access code",
           "Allowed zip list",
+          "Blocks Post Activity, Home zip filter, Ad Manager check/checkout/waitlist outside whitelist",
         ],
         technicalOverview:
-          "beta_config table; AdminBetaPanel; BetaBanner / BetaStage1Gate.",
+          "beta_config table; AdminBetaPanel; BetaBanner / BetaStage1Gate; isZipAllowed / betaZipBlockedCopy in useBetaConfig.js.",
         technicalFeatures: [
           "Publicly readable config for client gates",
+          "create-ad-checkout.js also rejects non-whitelist zips when beta.enabled",
         ],
       },
       {

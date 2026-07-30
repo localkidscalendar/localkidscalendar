@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { ACTIVITY_CATEGORIES } from "@/lib/activityCategories";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
+import useBetaConfig, { isZipAllowed, betaZipBlockedCopy } from "@/lib/useBetaConfig"; // BETA MODE
 
 const SORT_OPTIONS = [
   { value: "posted", label: "Sort By Date Posted" },
@@ -56,6 +57,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   const [appliedSnapshot, setAppliedSnapshot] = useState(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const { toast } = useToast();
+  const betaConfig = useBetaConfig(); // BETA MODE
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -75,6 +77,18 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   }, [filters, localSearch, appliedSnapshot, savedFiltersApplied]);
 
   const updateFilter = (key, value) => {
+    // BETA MODE — block Stage 2 non-whitelist zips on the homepage filter
+    if (key === "zipCode") {
+      const digits = String(value || "").replace(/\D/g, "").slice(0, 5);
+      if (digits.length === 5 && !isZipAllowed(digits, betaConfig)) {
+        const copy = betaZipBlockedCopy(digits);
+        toast({ title: copy.title, description: copy.description, variant: "destructive" });
+        onFiltersChange({ ...filters, zipCode: "" });
+        return;
+      }
+      onFiltersChange({ ...filters, zipCode: digits });
+      return;
+    }
     onFiltersChange({ ...filters, [key]: value });
   };
 

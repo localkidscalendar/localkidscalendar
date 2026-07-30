@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import HelpTip from "@/components/shared/HelpTip";
-import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig"; // BETA MODE — remove with useBetaConfig.js
+import useBetaConfig, { isZipAllowed, betaZipBlockedCopy } from "@/lib/useBetaConfig"; // BETA MODE — remove with useBetaConfig.js
 import TimeInput from "@/components/shared/TimeInput";
 import HistoryBackLink from "@/components/shared/HistoryBackLink";
 import { Upload, Loader2, Save, ShieldCheck, Users, AlertTriangle, HelpCircle } from "lucide-react";
@@ -244,7 +244,8 @@ export default function PostEvent() {
     }
     // BETA MODE — remove this block along with useBetaConfig.js
     if (!isZipAllowed(form.zip_code.trim(), betaConfig)) {
-      toast({ title: `Zip code ${form.zip_code} isn't in our beta area yet`, description: "See the banner at the top of the site for available locations.", variant: "destructive" });
+      const copy = betaZipBlockedCopy(form.zip_code.trim());
+      toast({ title: copy.title, description: copy.description, variant: "destructive" });
       return;
     }
     setSubmitting(true);
@@ -381,8 +382,42 @@ export default function PostEvent() {
           {/* Dates */}
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><Label className="text-sm">Start Date *</Label><Input type="date" value={form.start_date} onChange={(e) => { const v = e.target.value; setForm((prev) => ({ ...prev, start_date: v, end_date: prev.end_date && prev.end_date < v ? v : prev.end_date })); }} className="rounded-xl mt-1" /></div>
-              <div><Label className="text-sm">End Date *</Label><Input type="date" value={form.end_date} onChange={(e) => updateField("end_date", e.target.value)} min={form.start_date || undefined} className="rounded-xl mt-1" /></div>
+              <div>
+                <Label className="text-sm">Start Date *</Label>
+                <Input
+                  type="date"
+                  required
+                  value={form.start_date}
+                  data-empty={!form.start_date ? "true" : "false"}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setForm((prev) => ({
+                      ...prev,
+                      start_date: v,
+                      end_date: prev.end_date && prev.end_date < v ? v : prev.end_date,
+                    }));
+                  }}
+                  className="rounded-xl mt-1"
+                />
+                {!form.start_date && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Required — select a start date</p>
+                )}
+              </div>
+              <div>
+                <Label className="text-sm">End Date *</Label>
+                <Input
+                  type="date"
+                  required
+                  value={form.end_date}
+                  data-empty={!form.end_date ? "true" : "false"}
+                  onChange={(e) => updateField("end_date", e.target.value)}
+                  min={form.start_date || undefined}
+                  className="rounded-xl mt-1"
+                />
+                {!form.end_date && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Required — select an end date</p>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -395,8 +430,27 @@ export default function PostEvent() {
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><Label className="text-sm">Registration Opens</Label><Input type="date" value={form.registration_start} onChange={(e) => updateField("registration_start", e.target.value)} className="rounded-xl mt-1" /></div>
-              <div><Label className="text-sm">Registration Closes</Label><Input type="date" value={form.registration_end} onChange={(e) => updateField("registration_end", e.target.value)} max={form.end_date || undefined} className="rounded-xl mt-1" /></div>
+              <div>
+                <Label className="text-sm">Registration Opens</Label>
+                <Input
+                  type="date"
+                  value={form.registration_start}
+                  data-empty={!form.registration_start ? "true" : "false"}
+                  onChange={(e) => updateField("registration_start", e.target.value)}
+                  className="rounded-xl mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Registration Closes</Label>
+                <Input
+                  type="date"
+                  value={form.registration_end}
+                  data-empty={!form.registration_end ? "true" : "false"}
+                  onChange={(e) => updateField("registration_end", e.target.value)}
+                  max={form.end_date || undefined}
+                  className="rounded-xl mt-1"
+                />
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <Switch checked={form.registration_full} onCheckedChange={(v) => updateField("registration_full", v)} />

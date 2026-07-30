@@ -44,5 +44,14 @@ export default function useBetaConfig() {
 export function isZipAllowed(zip, betaConfig) {
   if (!betaConfig || !betaConfig.enabled) return true;
   if (!betaConfig.zip_codes || betaConfig.zip_codes.length === 0) return true;
-  return betaConfig.zip_codes.includes(zip);
+  return betaConfig.zip_codes.includes(String(zip || "").trim());
+}
+
+/** Shared copy when a zip is outside the Stage 2 whitelist. */
+export function betaZipBlockedCopy(zip) {
+  const z = String(zip || "").trim();
+  return {
+    title: z ? `Zip ${z} isn't in our beta area yet` : "That zip isn't in our beta area yet",
+    description: "See the banner at the top of the site for available locations.",
+  };
 }

@@ -56,6 +56,20 @@ export default async function handler(req, res) {
     if (!/^\d{5}$/.test(zipCode)) {
       return res.status(400).json({ error: "A valid 5-digit zip_code is required" });
     }
+
+    // BETA MODE — Stage 2 zip whitelist (same rules as client)
+    const { data: beta } = await admin
+      .from("beta_config")
+      .select("enabled, zip_codes")
+      .eq("config_key", "global")
+      .maybeSingle();
+    const betaZips = Array.isArray(beta?.zip_codes) ? beta.zip_codes : [];
+    if (beta?.enabled && betaZips.length > 0 && !betaZips.includes(zipCode)) {
+      return res.status(400).json({
+        error: `Zip ${zipCode} isn't in our beta area yet. See the site banner for available locations.`,
+      });
+    }
+
     if (!businessName || !linkUrl) {
       return res.status(400).json({ error: "business_name and link_url are required" });
     }
