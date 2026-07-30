@@ -14,11 +14,9 @@ import useBetaConfig from "@/lib/useBetaConfig"; // BETA MODE
 function BetaZipSignupNote({ betaConfig }) {
   const zips = Array.isArray(betaConfig?.zip_codes) ? betaConfig.zip_codes : [];
   if (!betaConfig?.enabled || zips.length === 0) return null;
-  const list = [...zips].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ");
   return (
     <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed col-span-2">
-      Use your real home zip. During beta, Home only lists activities for: <span className="font-semibold">{list}</span>.
-      If your zip is outside that list, you can still join — Home will explain and activities will stay empty until you pick a beta area for browsing.
+      We are currently in limited areas (beta). For your profile, use your real home zip. But understand that during beta, you will only see activities for zip codes in our beta test markets. If your zip is outside that list, you can still join but you will have to adjust the zip code filters on the homepage to match with activities.
     </p>
   );
 }
