@@ -774,7 +774,7 @@ const categories = [
         id: "automated-notices",
         title: "Automated In-App Notices",
         overview:
-          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, flags). Previewed under Admin → Previews → Automated Messages without sending.",
+          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, flags). Previewed under Admin → Previews → Automated Messages without sending. Comment auto-remove notices have no action button (nowhere useful for the author to go).",
         features: [
           "Catalog-driven copy",
           "Preview with sample data",

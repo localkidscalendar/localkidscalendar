@@ -57,11 +57,9 @@ export const AUTOMATED_NOTICE_CATALOG = [
     title: "Community - Comment Removed (Community Flags)",
     subject: "Your comment was removed",
     body: "Your comment was automatically removed after being flagged by 3+ community members.",
-    actionLabel: "View Messages",
-    actionHref: "/account?tab=messages",
     channels: ["in_app"],
     audience: "Comment author",
-    when: "A comment reaches 3+ community flags and is auto-removed",
+    when: "A comment reaches 3+ community flags and is auto-removed (no action button — flagged comments are not listed elsewhere for the author)",
   },
   {
     key: "saved_activity_removed",
