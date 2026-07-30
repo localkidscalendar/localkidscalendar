@@ -37,6 +37,7 @@ function normalizeUrl(raw) {
 
 export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = false }) {
   const [assets, setAssets] = useState([]);
+  const [inUseAssetIds, setInUseAssetIds] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -50,17 +51,44 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
     if (!user?.id) return;
     setLoading(true);
     try {
-      const { data: items, error } = await supabase
-        .from("ad_library")
-        .select("*")
-        .eq("user_id", user.id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(50);
+      const [{ data: items, error }, { data: placements }] = await Promise.all([
+        supabase
+          .from("ad_library")
+          .select("*")
+          .eq("user_id", user.id)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        // Same statuses as delete_ad_library_asset RPC — block delete while attached to a live/billing ad
+        supabase
+          .from("banner_ads")
+          .select("ad_library_id, image_url, link_url")
+          .eq("user_id", user.id)
+          .in("status", ["active", "pending_payment", "pending_review", "past_due"]),
+      ]);
       if (error) throw error;
-      setAssets(items || []);
+      const list = items || [];
+      setAssets(list);
+
+      const used = new Set();
+      for (const p of placements || []) {
+        if (p.ad_library_id) used.add(p.ad_library_id);
+      }
+      // Fallback match when placement has no ad_library_id (legacy rows)
+      for (const asset of list) {
+        if (used.has(asset.id)) continue;
+        const matched = (placements || []).some(
+          (p) =>
+            !p.ad_library_id
+            && p.image_url === asset.image_url
+            && p.link_url === asset.link_url
+        );
+        if (matched) used.add(asset.id);
+      }
+      setInUseAssetIds(used);
     } catch {
       setAssets([]);
+      setInUseAssetIds(new Set());
     }
     setLoading(false);
   };
@@ -229,6 +257,8 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
             const isManualPending = asset.moderation_status === "manual_review";
             const isSelectable = isApproved && !isFlaggedAsset;
 
+            const isInUse = inUseAssetIds.has(asset.id);
+
             return (
               <div key={asset.id} className="rounded-2xl border bg-white overflow-hidden">
                 <div
@@ -244,6 +274,11 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                       <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>
                         <Icon className="w-3 h-3" />{cfg.label}
                       </span>
+                      {isInUse && !onSelectAsset && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
+                          In use
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -263,7 +298,18 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                       </Button>
                     </a>
                     {!onSelectAsset && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(asset)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-7 w-7 ${isInUse ? "text-muted-foreground/40 cursor-not-allowed" : "text-destructive"}`}
+                        disabled={isInUse}
+                        title={
+                          isInUse
+                            ? "This asset is assigned to an active ad and can’t be deleted. Assign a different creative to that zip first."
+                            : "Remove from library"
+                        }
+                        onClick={() => handleDelete(asset)}
+                      >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     )}

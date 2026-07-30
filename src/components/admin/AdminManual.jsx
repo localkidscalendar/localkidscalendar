@@ -481,7 +481,7 @@ const categories = [
         id: "ad-library",
         title: "Ad Library & Asset Cascade",
         overview:
-          "Reusable approved creatives (image + link). In-use assets cannot be deleted. Flagging/disabling an asset can cascade across zip placements; Supporters are notified and can assign a different approved creative.",
+          "Reusable approved creatives (image + link). In-use assets (assigned to active / pending / past-due zip ads) show a greyed, disabled trash control — delete only when unassigned. Flagging/disabling an asset can cascade across zip placements; Supporters are notified and can assign a different approved creative.",
         features: [
           "Library reuse at checkout/renewal",
           "Cannot delete assets used by live placements",
