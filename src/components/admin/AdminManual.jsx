@@ -86,7 +86,7 @@ const categories = [
           "Form fields use two capitalization helpers so names and titles stay readable without fighting abbreviations.",
         features: [
           "Strict Title Case: first letter of each word up; rest forced lowercase — Community Member first/last name (Register + Profile)",
-          "Soft Title Case: first letter of each word up; other letters left as typed (STEM/YMCA OK); shouty ALL CAPS titles are converted — activity Title / Venue / Contact Name, and Organizer name (Register + Profile)",
+          "Soft Title Case: first letter of each word up; other letters left as typed (STEM/YMCA OK); shouty ALL CAPS titles are converted — activity Title / Venue / Contact Name, Organizer name (Register + Profile), and Ad Library Asset Name",
           "Street / city on Post Activity still use a simple strict-style title case helper",
         ],
         technicalOverview:
