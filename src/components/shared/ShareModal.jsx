@@ -10,6 +10,20 @@ function isMobileUa() {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
 }
 
+function isAndroidUa() {
+  if (typeof navigator === "undefined") return false;
+  return /Android/i.test(navigator.userAgent || "");
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function shareNative({ title, url }) {
   if (!navigator.share) return false;
   try {
@@ -21,13 +35,15 @@ async function shareNative({ title, url }) {
   }
 }
 
-function facebookSharerUrl(shareUrl) {
-  // m.facebook.com is more reliable on phones than www + target=_blank
-  // (the FB app often hijacks www links and drops the shared URL).
-  const base = isMobileUa()
-    ? "https://m.facebook.com/sharer.php"
-    : "https://www.facebook.com/sharer/sharer.php";
-  return `${base}?u=${encodeURIComponent(shareUrl)}`;
+function desktopFacebookSharerUrl(shareUrl) {
+  return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+}
+
+function androidFacebookShareIntent(shareUrl) {
+  const u = encodeURIComponent(shareUrl);
+  const fallback = encodeURIComponent(desktopFacebookSharerUrl(shareUrl));
+  // Opens the Facebook app share flow when installed; otherwise falls back to the web sharer.
+  return `intent://www.facebook.com/sharer/sharer.php?u=${u}#Intent;scheme=https;package=com.facebook.katana;S.browser_fallback_url=${fallback};end`;
 }
 
 export default function ShareModal({ open, onOpenChange, url, title }) {
@@ -39,25 +55,51 @@ export default function ShareModal({ open, onOpenChange, url, title }) {
   const canNativeShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   const copyToClipboard = async () => {
-    await navigator.clipboard.writeText(shareUrl);
+    await copyText(shareUrl);
     setCopied(true);
     toast({ title: "Link copied!" });
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const openFacebookShare = (e) => {
+  const openFacebookShare = async (e) => {
     e.preventDefault();
-    const sharer = facebookSharerUrl(shareUrl);
-    if (isMobileUa()) {
-      // Same-tab navigation: new tabs get claimed by the FB app without the share payload.
-      window.location.assign(sharer);
+
+    if (!isMobileUa()) {
+      window.open(desktopFacebookSharerUrl(shareUrl), "_blank", "noopener,noreferrer");
       return;
     }
-    window.open(sharer, "_blank", "noopener,noreferrer");
+
+    // Mobile FB app hijacks sharer links and opens the feed without a compose dialog.
+    // Close this dialog first — iOS often blocks navigator.share while a modal is open.
+    onOpenChange?.(false);
+    await copyText(shareUrl);
+    await new Promise((r) => setTimeout(r, 150));
+
+    if (isAndroidUa()) {
+      window.location.assign(androidFacebookShareIntent(shareUrl));
+      return;
+    }
+
+    // iOS / other mobile: system share sheet correctly hands the URL to Facebook.
+    if (canNativeShare) {
+      toast({
+        title: "Link copied",
+        description: "Choose Facebook on the next screen to share it.",
+      });
+      const ok = await shareNative({ title: shareTitle, url: shareUrl });
+      if (ok) return;
+    }
+
+    toast({
+      title: "Link copied",
+      description: "Open Facebook and paste the link into your post.",
+    });
   };
 
   const openNativeShare = async (e) => {
     e.preventDefault();
+    onOpenChange?.(false);
+    await new Promise((r) => setTimeout(r, 150));
     const ok = await shareNative({ title: shareTitle, url: shareUrl });
     if (!ok) {
       toast({
@@ -77,7 +119,7 @@ export default function ShareModal({ open, onOpenChange, url, title }) {
     {
       label: "Facebook",
       icon: Facebook,
-      href: facebookSharerUrl(shareUrl),
+      href: desktopFacebookSharerUrl(shareUrl),
       onClick: openFacebookShare,
     },
     {
