@@ -220,9 +220,9 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <Select value={filters.category || "all"} onValueChange={(v) => onFiltersChange({ ...filters, category: v })}>
-          <SelectTrigger className="w-auto min-w-[160px] rounded-xl text-sm">
+          <SelectTrigger className="w-full sm:w-auto sm:min-w-[160px] rounded-xl text-sm">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
           <SelectContent>
@@ -232,91 +232,98 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
             ))}
           </SelectContent>
         </Select>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="rounded-xl text-sm font-normal min-w-[130px]">
-              <CalendarDays className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-              {filters.dateFrom ? moment(filters.dateFrom).format("MMM D, YYYY") : "From Date"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 rounded-xl">
-            <Calendar mode="single" selected={filters.dateFrom} onSelect={(d) => onFiltersChange({ ...filters, dateFrom: d, dateTo: filters.dateTo && d && moment(filters.dateTo).isBefore(moment(d)) ? d : filters.dateTo })} />
-          </PopoverContent>
-        </Popover>
-        <span className="text-sm text-muted-foreground self-center -mx-2">to</span>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="rounded-xl text-sm font-normal min-w-[130px]">
-              <CalendarDays className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-              {filters.dateTo ? moment(filters.dateTo).format("MMM D, YYYY") : "To Date"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 rounded-xl">
-            <Calendar mode="single" selected={filters.dateTo} onSelect={(d) => updateFilter("dateTo", d)} disabled={filters.dateFrom ? { before: filters.dateFrom } : undefined} />
-          </PopoverContent>
-        </Popover>
-        <Select value={filters.sortBy || "posted"} onValueChange={(v) => updateFilter("sortBy", v)}>
-          <SelectTrigger className="w-auto min-w-[190px] rounded-xl text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          variant={filters.savedOnly ? "secondary" : "outline"}
-          size="icon"
-          className={`rounded-xl shrink-0 ${filters.savedOnly ? "text-mint-500 border-mint-200 bg-mint-50 hover:bg-mint-100" : ""} ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-          onClick={toggleSavedOnly}
-          title="Filter to only show your Saved Activities. Manage them in My Account → Saved Activities."
-        >
-          <Bookmark className={`w-4 h-4 ${filters.savedOnly ? "fill-mint-500 text-mint-500" : ""}`} />
-        </Button>
-        <Button
-          variant={filters.favOrgsOnly ? "secondary" : "outline"}
-          size="icon"
-          className={`rounded-xl shrink-0 ${filters.favOrgsOnly ? "text-red-500 border-red-200 bg-red-50 hover:bg-red-100" : ""} ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-          onClick={toggleFavOrgsOnly}
-          title="Filter to only show your favorite Organizers. Manage them in My Account → Fav Organizers."
-        >
-          <Heart className={`w-4 h-4 ${filters.favOrgsOnly ? "fill-red-500 text-red-500" : ""}`} />
-        </Button>
-        <Button
-          variant={savedFiltersApplied ? "secondary" : "outline"}
-          size="icon"
-          className={`rounded-xl shrink-0 ${savedFiltersApplied ? "text-mint-500 border-mint-200 bg-mint-50 hover:bg-mint-100" : ""} ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-          onClick={toggleMyFilters}
-          disabled={loadingSavedFilters}
-          title={
-            savedFiltersApplied
-              ? "Clear your saved filter preferences and restore the previous filters."
-              : "Apply the filter preferences you saved. Manage them in My Account → My Filters. Click again to clear."
-          }
-        >
-          <UserCog className={`w-4 h-4 ${savedFiltersApplied ? "text-mint-500" : ""}`} />
-        </Button>
-        <AuthPromptModal open={authPrompt} onOpenChange={setAuthPrompt} message="Sign in to filter activities by your saved events, favorite organizers, and saved filter preferences." />
-        <div className="flex items-center gap-0.5 ml-auto">
-          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground rounded-xl gap-1" onClick={() => onExpandedChange(!expanded)}>
-            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            {expanded ? "Hide Extra Filters..." : "Show More Filters..."}
-          </Button>
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground rounded-xl gap-1" onClick={clearFilters}>
-              <X className="w-3 h-3" /> Clear
-            </Button>
-          )}
+
+        {/* Keep From / to / To on one row (full width on mobile) */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="rounded-xl text-sm font-normal flex-1 sm:flex-none sm:min-w-[130px]">
+                <CalendarDays className="w-3.5 h-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                <span className="truncate">{filters.dateFrom ? moment(filters.dateFrom).format("MMM D, YYYY") : "From Date"}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 rounded-xl">
+              <Calendar mode="single" selected={filters.dateFrom} onSelect={(d) => onFiltersChange({ ...filters, dateFrom: d, dateTo: filters.dateTo && d && moment(filters.dateTo).isBefore(moment(d)) ? d : filters.dateTo })} />
+            </PopoverContent>
+          </Popover>
+          <span className="text-sm text-muted-foreground shrink-0">to</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="rounded-xl text-sm font-normal flex-1 sm:flex-none sm:min-w-[130px]">
+                <CalendarDays className="w-3.5 h-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                <span className="truncate">{filters.dateTo ? moment(filters.dateTo).format("MMM D, YYYY") : "To Date"}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 rounded-xl">
+              <Calendar mode="single" selected={filters.dateTo} onSelect={(d) => updateFilter("dateTo", d)} disabled={filters.dateFrom ? { before: filters.dateFrom } : undefined} />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <Select value={filters.sortBy || "posted"} onValueChange={(v) => updateFilter("sortBy", v)}>
+            <SelectTrigger className="flex-1 min-w-[160px] sm:flex-none sm:w-auto sm:min-w-[190px] rounded-xl text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
-            variant="ghost"
-            size="sm"
-            className={`text-xs text-muted-foreground rounded-xl gap-1 ${helpOpen ? "bg-muted/60" : ""}`}
-            onClick={() => setHelpOpen((v) => !v)}
-            aria-expanded={helpOpen}
+            variant={filters.savedOnly ? "secondary" : "outline"}
+            size="icon"
+            className={`rounded-xl shrink-0 ${filters.savedOnly ? "text-mint-500 border-mint-200 bg-mint-50 hover:bg-mint-100" : ""} ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+            onClick={toggleSavedOnly}
+            title="Filter to only show your Saved Activities. Manage them in My Account → Saved Activities."
           >
-            <HelpCircle className="w-3 h-3" /> Help
+            <Bookmark className={`w-4 h-4 ${filters.savedOnly ? "fill-mint-500 text-mint-500" : ""}`} />
           </Button>
+          <Button
+            variant={filters.favOrgsOnly ? "secondary" : "outline"}
+            size="icon"
+            className={`rounded-xl shrink-0 ${filters.favOrgsOnly ? "text-red-500 border-red-200 bg-red-50 hover:bg-red-100" : ""} ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+            onClick={toggleFavOrgsOnly}
+            title="Filter to only show your favorite Organizers. Manage them in My Account → Fav Organizers."
+          >
+            <Heart className={`w-4 h-4 ${filters.favOrgsOnly ? "fill-red-500 text-red-500" : ""}`} />
+          </Button>
+          <Button
+            variant={savedFiltersApplied ? "secondary" : "outline"}
+            size="icon"
+            className={`rounded-xl shrink-0 ${savedFiltersApplied ? "text-mint-500 border-mint-200 bg-mint-50 hover:bg-mint-100" : ""} ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+            onClick={toggleMyFilters}
+            disabled={loadingSavedFilters}
+            title={
+              savedFiltersApplied
+                ? "Clear your saved filter preferences and restore the previous filters."
+                : "Apply the filter preferences you saved. Manage them in My Account → My Filters. Click again to clear."
+            }
+          >
+            <UserCog className={`w-4 h-4 ${savedFiltersApplied ? "text-mint-500" : ""}`} />
+          </Button>
+          <AuthPromptModal open={authPrompt} onOpenChange={setAuthPrompt} message="Sign in to filter activities by your saved events, favorite organizers, and saved filter preferences." />
+          <div className="flex items-center gap-0.5 sm:ml-auto w-full sm:w-auto">
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground rounded-xl gap-1" onClick={() => onExpandedChange(!expanded)}>
+              {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {expanded ? "Hide Extra Filters..." : "Show More Filters..."}
+            </Button>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground rounded-xl gap-1" onClick={clearFilters}>
+                <X className="w-3 h-3" /> Clear
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`text-xs text-muted-foreground rounded-xl gap-1 ${helpOpen ? "bg-muted/60" : ""}`}
+              onClick={() => setHelpOpen((v) => !v)}
+              aria-expanded={helpOpen}
+            >
+              <HelpCircle className="w-3 h-3" /> Help
+            </Button>
+          </div>
         </div>
       </div>
 
