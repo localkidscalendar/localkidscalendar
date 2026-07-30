@@ -96,8 +96,7 @@ $$;
 update public.user_messages
 set
   action_label = null,
-  action_href = null,
-  updated_at = now()
+  action_href = null
 where template_key = 'comment_removed_flags'
   and (
     action_label is not null
