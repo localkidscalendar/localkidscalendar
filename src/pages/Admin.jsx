@@ -173,7 +173,7 @@ function getActivityStatusMeta(event) {
     return {
       key: "user_deactivated",
       label: "Inactive",
-      reason: "Poster deactivated",
+      reason: "User deactivated",
       chipClass: "bg-muted text-muted-foreground",
       adminNotes: null,
       canAdminRestore: false,
@@ -699,7 +699,7 @@ export default function Admin() {
       if (!notes) {
         toast({
           title: "Can't restore from here",
-          description: "This activity was deactivated by the poster. They can reactivate it from My Posts.",
+          description: "This activity was deactivated by the user. They can reactivate it from My Posts.",
           variant: "destructive",
         });
         return;
@@ -1753,36 +1753,36 @@ export default function Admin() {
                         </td>
                         <td className="px-4 py-3">{e.flag_count || 0}</td>
                         <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/event/${e.id}`)} title="View activity">
+                          <div className="inline-flex items-center justify-end gap-1 min-w-[4.25rem]">
+                            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => navigate(`/event/${e.id}`)} title="View activity">
                               <Eye className="w-3.5 h-3.5" />
                             </Button>
-                            {e.status === "active" && (
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteEvent(e)} title="Delete activity">
+                            {e.status === "active" ? (
+                              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleDeleteEvent(e)} title="Delete activity">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
-                            )}
-                            {meta.canAdminRestore && (
+                            ) : meta.canAdminRestore ? (
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7"
+                                className="h-7 w-7 shrink-0"
                                 onClick={() => handleReactivateItem(e.id, "event", { adminNotes: meta.adminNotes, title: e.title })}
                                 title="Restore admin-removed activity"
                               >
                                 <RotateCcw className="w-3.5 h-3.5" />
                               </Button>
-                            )}
-                            {meta.isCommunityFlagged && (
+                            ) : meta.isCommunityFlagged ? (
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-peach-600"
+                                className="h-7 w-7 shrink-0 text-peach-600"
                                 onClick={() => openFlagsForActivity(e)}
                                 title="Open in Flags (search by title)"
                               >
                                 <Flag className="w-3.5 h-3.5" />
                               </Button>
+                            ) : (
+                              <span className="inline-block h-7 w-7 shrink-0" aria-hidden />
                             )}
                           </div>
                         </td>
