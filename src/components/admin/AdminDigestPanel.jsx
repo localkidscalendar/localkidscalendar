@@ -116,14 +116,14 @@ export default function AdminDigestPanel({ toast }) {
       <AdminPanelShell>
         <div className="space-y-6 max-w-xl">
           <p className="text-sm text-muted-foreground">
-            Controls for Monday weekly activity digest emails. Digests only send when a user has Weekly on and matching new activities.
+            Controls for Tuesday weekly activity digest emails. Digests only send when a user has Weekly on and matching new activities.
           </p>
 
           <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-4">
             <div>
               <p className="text-sm font-medium">Pause weekly digests</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                When on, the Monday cron sends no digest emails. Transactional emails (billing, waitlist) are unaffected.
+                When on, the Tuesday cron sends no digest emails. Transactional emails (billing, waitlist) are unaffected.
               </p>
               {paused && config?.paused_at && (
                 <p className="text-[11px] text-amber-700 mt-1">
@@ -153,7 +153,7 @@ export default function AdminDigestPanel({ toast }) {
                 />
               </div>
               <div>
-                <Label className="text-xs">Max digests per Monday run</Label>
+                <Label className="text-xs">Max digests per Tuesday run</Label>
                 <Input
                   className="mt-1 rounded-xl"
                   type="number"

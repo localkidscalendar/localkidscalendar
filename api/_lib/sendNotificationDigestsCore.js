@@ -470,7 +470,7 @@ export async function sendMatchingDigests(admin, { frequencies }) {
 }
 
 /**
- * Cron schedule: weekly digests only, on Mondays (America/Los_Angeles).
+ * Cron schedule: weekly digests only, on Tuesdays (America/Los_Angeles).
  */
 export function frequenciesForToday(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -478,5 +478,5 @@ export function frequenciesForToday(date = new Date()) {
     weekday: "short",
   }).formatToParts(date);
   const weekday = parts.find((p) => p.type === "weekday")?.value;
-  return weekday === "Mon" ? ["weekly"] : [];
+  return weekday === "Tue" ? ["weekly"] : [];
 }

@@ -103,7 +103,7 @@ export async function upsertEmailSuppression(admin, { email, userId = null, reas
   return data?.id || null;
 }
 
-/** True if a digest was already sent in the last ~6 days (covers weekly Monday cron retries). */
+/** True if a digest was already sent in the last ~6 days (covers weekly Tuesday cron retries). */
 export function alreadySentDigestThisWeek(lastDigestSentAt, now = new Date()) {
   if (!lastDigestSentAt) return false;
   const sent = new Date(lastDigestSentAt).getTime();

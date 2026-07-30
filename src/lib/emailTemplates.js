@@ -94,7 +94,7 @@ export const EMAIL_TEMPLATE_META = [
     value: "activity_digest",
     label: "Notification - Activity Digest (Weekly)",
     audience: "Users with weekly digest notifications enabled",
-    when: "Every Monday · includes Supporter ads for the recipient’s notification/profile zip (with default filler ads if slots are empty)",
+    when: "Every Tuesday · includes Supporter ads for the recipient’s notification/profile zip (with default filler ads if slots are empty)",
   },
   {
     value: "ad_flagged_admin",

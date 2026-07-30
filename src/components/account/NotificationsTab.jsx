@@ -105,7 +105,7 @@ export default function NotificationsTab({ user }) {
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
-        Choose receive weekly activity digests emailed to you every Monday morning, based on new activities from your favorite organizers and/or other new activities that match your preferences.{" "}
+        Choose receive weekly activity digests emailed to you every Tuesday morning, based on new activities from your favorite organizers and/or other new activities that match your preferences.{" "}
         <button
           type="button"
           onClick={() => setShowMore((v) => !v)}

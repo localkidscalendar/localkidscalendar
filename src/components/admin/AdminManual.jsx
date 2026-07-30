@@ -223,7 +223,7 @@ const categories = [
         overview:
           "Weekly activity digests are Off by default. Users can choose Weekly and include Favorite Organizers and/or Activity Matches (zip, keywords, age). Digests only send when there is matching content. A More… link explains auto-off and unsubscribe behavior without cluttering the form.",
         features: [
-          "Frequency: Off (default) or Weekly (Mondays)",
+          "Frequency: Off (default) or Weekly (Tuesdays)",
           "Favorite Organizers and/or Activity Matches toggles",
           "No empty “nothing new” emails",
           "One-click unsubscribe in each digest; Manage Preferences in Account",
@@ -611,12 +611,12 @@ const categories = [
       {
         id: "email-notifications",
         title: "Weekly Activity Digests",
-        keywords: ["monday", "resend", "digest"],
+        keywords: ["tuesday", "resend", "digest", "monday"],
         overview:
-          "Opt-in weekly emails of matching activities for Community Members. Cron runs daily at 8:00am Pacific but only sends on Mondays. Default preference is Off. Emails include up to 8 activity cards plus supporter/filler ads for the user’s zip.",
+          "Opt-in weekly emails of matching activities for Community Members. Cron runs daily at 8:00am Pacific but only sends on Tuesdays. Default preference is Off. Emails include up to 8 activity cards plus supporter/filler ads for the user’s zip.",
         features: [
           "Weekly only (no daily/monthly)",
-          "Monday ~8am PT",
+          "Tuesday ~8am PT",
           "Skip when zero matching activities",
           "Skips organizers and admins as digest recipients",
           "Manage Preferences + unsubscribe link in footer",
@@ -624,7 +624,7 @@ const categories = [
         technicalOverview:
           "vercel.json cron → /api/cron-send-notification-emails → sendMatchingDigests. HTML from buildDigestHtml. Send via sendViaResend.",
         technicalFeatures: [
-          "frequenciesForToday() returns ['weekly'] only on Monday America/Los_Angeles",
+          "frequenciesForToday() returns ['weekly'] only on Tuesday America/Los_Angeles",
           "Prefs frequency must be weekly; include_fav_organizers / include_other_activities drive matching",
           "Admin template preview: Previews → Emails (activity_digest)",
         ],
@@ -647,7 +647,7 @@ const categories = [
           "Admin → Mass Messages → Digest Notification: Pause weekly digests (digests only; billing/waitlist still send)",
           "Env EMAIL_SENDING_ENABLED=false: stops ALL Resend sends (emergency)",
           "Inactivity: no sign-in within configured days (default 90) → Weekly forced Off",
-          "Max digests per Monday run (default 200); last_digest_sent_at blocks same-week retries",
+          "Max digests per Tuesday run (default 200); last_digest_sent_at blocks same-week retries",
           "email_suppressions for bounce / complaint / unsubscribe / manual",
           "List-Unsubscribe headers + /unsubscribe page (no login required)",
           "Disabled accounts: digests Off on disable AND hard-skipped in the cron",
