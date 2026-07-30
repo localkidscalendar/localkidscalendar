@@ -199,7 +199,7 @@ export default function Navbar({ user, sessionUser = null }) {
                     Sign In
                   </Button>
                   {!disabledSession && (
-                    <Button size="sm" className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white hidden sm:flex" onClick={() => navigate("/register")}>
+                    <Button size="sm" className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={() => navigate("/register")}>
                       Join Free
                     </Button>
                   )}
@@ -232,17 +232,10 @@ export default function Navbar({ user, sessionUser = null }) {
                         Admin
                       </Link>
                     )}
-                    {!user && (
-                      <>
-                        {disabledSession && (
-                          <Link to="/account-disabled" onClick={() => setMobileOpen(false)} className="px-4 py-3 text-sm font-medium rounded-xl hover:bg-muted transition-colors text-red-600">
-                            Account Status
-                          </Link>
-                        )}
-                        <Button className="mt-4 rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={() => { setMobileOpen(false); navigate(disabledSession ? "/account-disabled" : "/register"); }}>
-                          {disabledSession ? "Account Status" : "Join Free"}
-                        </Button>
-                      </>
+                    {!user && disabledSession && (
+                      <Link to="/account-disabled" onClick={() => setMobileOpen(false)} className="px-4 py-3 text-sm font-medium rounded-xl hover:bg-muted transition-colors text-red-600">
+                        Account Status
+                      </Link>
                     )}
                   </div>
                 </SheetContent>
