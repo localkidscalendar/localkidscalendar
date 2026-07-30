@@ -133,15 +133,17 @@ export default function Home() {
       search: "", category: "all", sortBy: "posted",
       zipCode: "", radiusMiles: DEFAULT_RADIUS_MILES, ageMin: "", ageMax: "", priceMin: "", priceMax: "",
       freeOnly: false,
-      dateFrom: moment().toDate(), dateTo: moment().add(120, "days").toDate(), savedOnly: false, favOrgsOnly: false
+      dateFrom: moment().startOf("day").toDate(), dateTo: moment().add(120, "days").startOf("day").toDate(), savedOnly: false, favOrgsOnly: false
     };
     // Restore all non-location filters from this browser session (cleared when the session ends)
     try {
       const saved = sessionStorage.getItem(FILTER_SESSION_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.dateFrom) parsed.dateFrom = new Date(parsed.dateFrom);
-        if (parsed.dateTo) parsed.dateTo = new Date(parsed.dateTo);
+        // Normalize to calendar days — stored timestamps with a clock time can hide
+        // same-day activities (midnight end is before "now" this morning).
+        if (parsed.dateFrom) parsed.dateFrom = moment(parsed.dateFrom).startOf("day").toDate();
+        if (parsed.dateTo) parsed.dateTo = moment(parsed.dateTo).startOf("day").toDate();
         Object.assign(defaults, parsed);
       }
     } catch {}
@@ -638,15 +640,15 @@ export default function Home() {
       });
     }
     if (filters.dateFrom) {
-      const from = moment(filters.dateFrom);
+      const from = moment(filters.dateFrom).startOf("day");
       result = result.filter((e) => {
-        const end = e.end_date ? moment(e.end_date) : moment(e.start_date);
-        return end.isSameOrAfter(from);
+        const end = moment(e.end_date || e.start_date).startOf("day");
+        return end.isSameOrAfter(from, "day");
       });
     }
     if (filters.dateTo) {
-      const to = moment(filters.dateTo);
-      result = result.filter((e) => moment(e.start_date).isSameOrBefore(to));
+      const to = moment(filters.dateTo).endOf("day");
+      result = result.filter((e) => moment(e.start_date).startOf("day").isSameOrBefore(to, "day"));
     }
     if (orgFilter) {
       const q = orgFilter.toLowerCase();
@@ -817,8 +819,8 @@ export default function Home() {
                   priceMin: "",
                   priceMax: "",
                   freeOnly: false,
-                  dateFrom: moment().toDate(),
-                  dateTo: moment().add(120, "days").toDate(),
+                  dateFrom: moment().startOf("day").toDate(),
+                  dateTo: moment().add(120, "days").startOf("day").toDate(),
                   savedOnly: false,
                   favOrgsOnly: false,
                 });

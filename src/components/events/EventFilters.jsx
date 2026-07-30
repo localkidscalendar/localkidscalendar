@@ -100,8 +100,8 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
       priceMin: "",
       priceMax: "",
       freeOnly: false,
-      dateFrom: moment().toDate(),
-      dateTo: moment().add(120, "days").toDate(),
+      dateFrom: moment().startOf("day").toDate(),
+      dateTo: moment().add(120, "days").startOf("day").toDate(),
       savedOnly: false,
       favOrgsOnly: false,
     });
