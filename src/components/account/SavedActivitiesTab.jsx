@@ -138,7 +138,13 @@ export default function SavedActivitiesTab({ user }) {
       <EmptyState
         icon={Bookmark}
         title="No Saved Activities"
-        description="Save activities to keep track of them for later."
+        description={
+          <>
+            If you run across an Activity you want to follow, press the{" "}
+            <Bookmark className="inline-block w-3.5 h-3.5 align-text-bottom text-muted-foreground" aria-label="save" />{" "}
+            button to make it appear on this page. Then, you can also press the same icon on the homepage to filter for your Saved Activities.
+          </>
+        }
         actionLabel="Browse Activities"
         onAction={() => navigate("/")}
       />

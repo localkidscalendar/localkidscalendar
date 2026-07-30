@@ -83,7 +83,13 @@ export default function SavedOrganizersTab({ user }) {
       <EmptyState
         icon={Heart}
         title="No Favorite Organizers"
-        description="Favorite organizers from the Organizers page to see them here."
+        description={
+          <>
+            If you run across an Organizer you want to follow, press the{" "}
+            <Heart className="inline-block w-3.5 h-3.5 align-text-bottom text-muted-foreground" aria-label="favorite" />{" "}
+            button to make it appear on this page. Then, you can also press the same icon on the homepage to filter for your Fav Organizers.
+          </>
+        }
         actionLabel="Browse Organizers"
         onAction={() => navigate("/organizers")}
       />
