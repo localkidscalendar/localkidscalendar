@@ -346,7 +346,7 @@ const categories = [
           "Saved Activities / Fav Organizers / My Filters mutually exclusive",
         ],
         technicalOverview:
-          "EventFilters + Home.jsx sessionStorage (home_filters_session). Distance via Haversine. Cap ~200 results.",
+          "EventFilters + Home.jsx sessionStorage (home_filters_session). Distance via Haversine. Cap ~200 results. Mobile: category full-width; From/to/To dates stay on one row.",
         technicalFeatures: [
           "Search strips punctuation and splits words (OR)",
           "My Filters applied snapshot clears highlight when fields diverge",
