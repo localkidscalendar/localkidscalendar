@@ -21,7 +21,13 @@ export default function HistoryBackLink({
 
   const text = location.state?.backLabel || label;
 
-  const goBack = () => navigate(-1);
+  const goBack = () => {
+    if (location.state?.returnTo) {
+      navigate(location.state.returnTo);
+      return;
+    }
+    navigate(-1);
+  };
 
   if (variant === "button") {
     return (

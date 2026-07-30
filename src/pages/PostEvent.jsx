@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useOutletContext, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,35 @@ import { ACTIVITY_CATEGORIES, normalizeCategoryList } from "@/lib/activityCatego
 import { Checkbox } from "@/components/ui/checkbox";
 import { moderateEventImage } from "@/lib/moderateEventImage";
 
+/** Fields that must change when posting from Duplicate (prevents near-identical spam). */
+const DUPLICATE_SIGNIFICANT_FIELDS = [
+  "title",
+  "start_date",
+  "end_date",
+  "time_start",
+  "time_end",
+  "location_name",
+  "age_min",
+  "age_max",
+  "address",
+  "city",
+  "state",
+  "zip_code",
+];
+
+function significantSnapshot(form) {
+  const snap = {};
+  for (const key of DUPLICATE_SIGNIFICANT_FIELDS) {
+    snap[key] = String(form?.[key] ?? "").trim();
+  }
+  return snap;
+}
+
+function significantSnapshotsEqual(a, b) {
+  if (!a || !b) return false;
+  return DUPLICATE_SIGNIFICANT_FIELDS.every((key) => a[key] === b[key]);
+}
+
 export default function PostEvent() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
@@ -33,6 +62,7 @@ export default function PostEvent() {
   const [moderatingImage, setModeratingImage] = useState(false);
   const isOrganizer = user?.role === "organizer" || user?.role === "admin";
   const betaConfig = useBetaConfig(); // BETA MODE — remove with useBetaConfig.js
+  const duplicateBaselineRef = useRef(null);
 
   const toTitleCase = (str) => str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
 
@@ -65,7 +95,11 @@ export default function PostEvent() {
       navigate("/account");
       return;
     }
-    if (editId || duplicateId) loadExisting(editId || duplicateId);
+    if (editId || duplicateId) {
+      loadExisting(editId || duplicateId, { trackDuplicateBaseline: Boolean(duplicateId) });
+    } else {
+      duplicateBaselineRef.current = null;
+    }
     // Pre-fill org info for organizers from Organizer entity
     if (isOrganizer && !editId && !duplicateId) {
       loadOrganizerInfo(user.id);
@@ -96,7 +130,7 @@ export default function PostEvent() {
     } catch {}
   };
 
-  const loadExisting = async (eid) => {
+  const loadExisting = async (eid, { trackDuplicateBaseline = false } = {}) => {
     setLoading(true);
     try {
       const { data: e, error } = await supabase.from("events").select("*").eq("id", eid).single();
@@ -107,7 +141,7 @@ export default function PostEvent() {
       );
       const isFree = rest.is_free === true
         || /free/i.test(String(rest.cost || ""));
-      setForm({
+      const nextForm = {
         ...rest,
         categories,
         is_free: isFree,
@@ -115,8 +149,14 @@ export default function PostEvent() {
         age_min: rest.age_min?.toString() || "",
         age_max: rest.age_max?.toString() || "",
         rules_agreed: false,
-      });
-    } catch {}
+      };
+      setForm(nextForm);
+      duplicateBaselineRef.current = trackDuplicateBaseline
+        ? significantSnapshot(nextForm)
+        : null;
+    } catch {
+      duplicateBaselineRef.current = null;
+    }
     setLoading(false);
   };
 
@@ -242,6 +282,19 @@ export default function PostEvent() {
       toast({ title: "Registration Closes date can't be after the activity end date", variant: "destructive" });
       return;
     }
+    if (
+      duplicateId
+      && duplicateBaselineRef.current
+      && significantSnapshotsEqual(significantSnapshot(form), duplicateBaselineRef.current)
+    ) {
+      toast({
+        title: "Update the activity before posting",
+        description:
+          "Duplicated posts need a change to title, dates, times, venue, ages, or location (street, city, state, or zip). This keeps the calendar from filling with near-identical listings.",
+        variant: "destructive",
+      });
+      return;
+    }
     // BETA MODE — remove this block along with useBetaConfig.js
     if (!isZipAllowed(form.zip_code.trim(), betaConfig)) {
       const copy = betaZipBlockedCopy(form.zip_code.trim());
@@ -286,7 +339,19 @@ export default function PostEvent() {
         const { data: created, error } = await supabase.from("events").insert(data).select("id").single();
         if (error) throw error;
         toast({ title: "Activity posted!", description: "Your activity is now live and visible to the community." });
-        navigate(`/event/${created.id}`, { state: { fromApp: true, backLabel: "Back" } });
+        // Replace the filled form (and any ?duplicate=) with a clean Post page in history,
+        // then open the new activity so Back returns to a blank form for another post.
+        duplicateBaselineRef.current = null;
+        navigate("/post-event", { replace: true });
+        queueMicrotask(() => {
+          navigate(`/event/${created.id}`, {
+            state: {
+              fromApp: true,
+              backLabel: "Back to Post Activity",
+              returnTo: "/post-event",
+            },
+          });
+        });
       }
     } catch (err) {
       toast({
@@ -314,6 +379,14 @@ export default function PostEvent() {
         <h1 className="font-heading font-bold text-2xl mb-3">
           {editId ? "Edit Activity" : duplicateId ? "Duplicate Activity" : "Post an Activity"}
         </h1>
+        {duplicateId && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-6 text-sm text-amber-900">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+            <p>
+              Change at least one of: <strong>title, dates, times, venue, ages, or location</strong> (street, city, state, or zip) before submitting. Duplicate is for similar activities — not identical re-posts.
+            </p>
+          </div>
+        )}
 
         {/* Role badge */}
         <div className={`flex items-center gap-3 rounded-xl px-4 py-3 mb-6 ${isOrganizer ? "bg-mint-50 border border-mint-200" : "bg-accent/50 border border-border"}`}>
