@@ -17,6 +17,7 @@ import { processImageForUpload } from "@/lib/imageProcess";
 import { ACTIVITY_CATEGORIES, normalizeCategoryList } from "@/lib/activityCategories";
 import { Checkbox } from "@/components/ui/checkbox";
 import { moderateEventImage } from "@/lib/moderateEventImage";
+import { formatActivityTitle } from "@/lib/titleCase";
 
 /** Fields that must change when posting from Duplicate (prevents near-identical spam). */
 const DUPLICATE_SIGNIFICANT_FIELDS = [
