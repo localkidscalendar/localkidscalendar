@@ -163,16 +163,21 @@ export default function ProfileTab({ user, setUser }) {
       }
 
       const nextRole = isAdmin ? user.role : form.role;
-      const { error: profileError } = await supabase.from("profiles").upsert({
+      // Only send role during first-time setup (or for admins). Post-setup role
+      // changes are blocked by a DB trigger; omitting avoids a false failure.
+      const profilePayload = {
         id: user.id,
         email: user.email,
         first_name: isOrganizer ? "" : form.first_name.trim(),
         last_name: isOrganizer ? "" : form.last_name.trim(),
         zip_code: form.zip_code.trim(),
         radius_miles: normalizeRadiusMiles(form.radius_miles),
-        role: nextRole,
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (needsSetup || isAdmin) {
+        profilePayload.role = nextRole;
+      }
+      const { error: profileError } = await supabase.from("profiles").upsert(profilePayload);
       if (profileError) throw profileError;
 
       if (isOrganizer) {

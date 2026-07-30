@@ -88,7 +88,8 @@ create policy "Admins can update reactivation requests"
 grant select, insert on public.account_reactivation_requests to authenticated;
 grant update on public.account_reactivation_requests to authenticated;
 
--- Prevent non-admins from changing their own role (or clearing disable fields)
+-- Prevent non-admins from changing their own role (or clearing disable fields).
+-- Exception: incomplete profiles (no zip yet) may choose community_member or organizer once.
 create or replace function public.prevent_non_admin_role_change()
 returns trigger
 language plpgsql
@@ -107,12 +108,24 @@ begin
     return new;
   end if;
 
-  if new.role is distinct from old.role
-     or new.role_before_disabled is distinct from old.role_before_disabled
+  -- Non-admins never touch disable metadata
+  if new.role_before_disabled is distinct from old.role_before_disabled
      or new.disabled_note is distinct from old.disabled_note
      or new.disabled_at is distinct from old.disabled_at
      or new.disabled_by is distinct from old.disabled_by
   then
+    raise exception 'Only admins can change account disable / role fields';
+  end if;
+
+  if new.role is distinct from old.role then
+    -- One-time setup: incomplete profiles (no zip yet) may choose CM or Organizer
+    if coalesce(nullif(trim(old.zip_code), ''), '') = ''
+       and old.role in ('community_member', 'organizer')
+       and new.role in ('community_member', 'organizer')
+    then
+      return new;
+    end if;
+
     raise exception 'Only admins can change account disable / role fields';
   end if;
 
