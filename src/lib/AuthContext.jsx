@@ -139,6 +139,13 @@ export const AuthProvider = ({ children }) => {
     await supabase.auth.signOut();
     setUser(null);
     setIsAuthenticated(false);
+    // Drop Home location cache so the next guest visit uses geo / manual zip, not the prior profile.
+    try {
+      sessionStorage.removeItem("session_zip_current");
+      sessionStorage.removeItem("session_radius");
+      sessionStorage.removeItem("session_location_manual");
+      sessionStorage.removeItem("session_user_marker");
+    } catch {}
     if (shouldRedirect) {
       window.location.href = "/login";
     }

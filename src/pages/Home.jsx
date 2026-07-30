@@ -290,6 +290,10 @@ export default function Home() {
         sessionStorage.removeItem("session_zip_current");
         sessionStorage.removeItem("session_radius");
         sessionStorage.removeItem(LOCATION_MANUAL_KEY);
+        // Clear React state too — otherwise the persist effect rewrites the old zip
+        // into sessionStorage before geo/profile defaults apply.
+        setFilters((prev) => ({ ...prev, zipCode: "", radiusMiles: DEFAULT_RADIUS_MILES }));
+        setLocationInitialized(false);
       }
 
       if (user) {
