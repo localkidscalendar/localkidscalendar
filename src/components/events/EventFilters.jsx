@@ -158,11 +158,18 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
         });
       } else {
         const freeOnly = Boolean(data.free_only);
+        let zipCode = data.zip_code || filters.zipCode || "";
+        // BETA MODE — don't apply a saved zip outside the Stage 2 whitelist
+        if (zipCode && zipCode.length === 5 && !isZipAllowed(zipCode, betaConfig)) {
+          const copy = betaZipBlockedCopy(zipCode);
+          toast({ title: copy.title, description: `${copy.description} Your other saved filters were still applied.`, variant: "destructive" });
+          zipCode = "";
+        }
         const next = {
           search: data.search || "",
           category: data.category || "all",
           sortBy: data.sort_by || "posted",
-          zipCode: data.zip_code || filters.zipCode || "",
+          zipCode,
           radiusMiles: Number(data.radius_miles) || 15,
           ageMin: data.age_min != null ? String(data.age_min) : "",
           ageMax: data.age_max != null ? String(data.age_max) : "",
