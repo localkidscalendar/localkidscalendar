@@ -27,15 +27,19 @@ function isInactivePost(event) {
   return !isActivePost(event);
 }
 
-function inactiveReasonLabel(event) {
-  if (event.status === "archived") {
-    return Number(event.flag_count || 0) >= 3 ? "Inactive — community flags" : "Inactive — admin";
+/** Pill label for inactive posts (filter chips stay All / Active / Inactive). */
+function inactiveStatusPill(event) {
+  if (event.status === "archived" && Number(event.flag_count || 0) >= 3) {
+    return "Inactive: 3-User Flags";
   }
   if (event.status === "deleted" && event.admin_notes) {
-    return "Inactive — admin";
+    return "Inactive: Admin Removed";
   }
   if (event.status === "deleted") {
-    return "Inactive — deactivated";
+    return "Inactive: User Deactivated";
+  }
+  if (event.status === "archived") {
+    return "Inactive: Admin Removed";
   }
   return "Inactive";
 }
@@ -274,12 +278,11 @@ export default function MyPostsTab({ user }) {
                   <div className="min-w-0 order-2 sm:order-1 sm:flex-1">
                     <div className="flex items-start gap-2">
                       <p className="font-medium text-sm min-w-0 flex-1 sm:truncate">{e.title}</p>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground shrink-0 mt-0.5">
-                        Inactive
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground shrink-0 mt-0.5 max-w-[11rem] text-center leading-snug">
+                        {inactiveStatusPill(e)}
                       </span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{inactiveReasonLabel(e).replace(/^Inactive — /, "")}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {moment(e.start_date).format("MMM D, YYYY")} · {e.city}, {e.state}
                     </p>
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">

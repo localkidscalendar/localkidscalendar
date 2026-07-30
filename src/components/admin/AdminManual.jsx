@@ -196,7 +196,7 @@ const categories = [
           "Everything personal lives under My Account. Default tab is Messages. Profile is for editing a completed account (zip, distance, names/org, password reset) — not for first-time signup. Incomplete Google/email profiles are sent to Register to finish.",
         features: [
           "Messages (default) — in-app inbox",
-          "My Activity Posts — for community members / organizers / admin",
+          "My Activity Posts — Active / Inactive filter chips; inactive rows show reason in the status pill (e.g. Inactive: User Deactivated, Inactive: 3-User Flags, Inactive: Admin Removed)",
           "Saved Activities, Fav Organizers, Email Notifications, Home Search Filters (My Filters), Profile",
           "Profile: account type read-only; distance editable; names/org use Strict/Soft Title Case",
         ],
@@ -888,7 +888,7 @@ const categories = [
           "Hard gate: if user.role !== 'admin' navigate home",
           "Consistent AdminSectionHeader + AdminPanelShell chrome",
           "Deletion encoding: user deactivate → deleted + empty admin_notes; admin remove → deleted + notes; 3-flag → archived (flag_count ≥ 3)",
-          "My Posts: user may self-reactivate only deleted + empty notes",
+          "My Posts: user may self-reactivate only deleted + empty notes; inactiveStatusPill labels reason on the pill (filters stay All/Active/Inactive)",
         ],
       },
       {
