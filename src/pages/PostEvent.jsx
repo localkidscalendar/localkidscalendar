@@ -64,6 +64,7 @@ export default function PostEvent() {
   const isOrganizer = user?.role === "organizer" || user?.role === "admin";
   const betaConfig = useBetaConfig(); // BETA MODE — remove with useBetaConfig.js
   const duplicateBaselineRef = useRef(null);
+  const endDateRef = useRef(null);
 
   const toTitleCase = (str) => str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
 
@@ -275,8 +276,10 @@ export default function PostEvent() {
       toast({ title: "Please wait for your photo review to finish before submitting.", variant: "destructive" });
       return;
     }
-    if (form.end_date && form.end_date < form.start_date) {
+    if (form.end_date && form.start_date && form.end_date < form.start_date) {
       toast({ title: "End date can't be before the start date", variant: "destructive" });
+      endDateRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      endDateRef.current?.focus();
       return;
     }
     if (form.registration_end && form.end_date && form.registration_end > form.end_date) {
@@ -406,7 +409,7 @@ export default function PostEvent() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
           {/* Basic */}
           <div className="space-y-4">
             <div>
@@ -480,16 +483,36 @@ export default function PostEvent() {
               <div>
                 <Label className="text-sm">End Date *</Label>
                 <Input
+                  ref={endDateRef}
                   type="date"
                   required
                   value={form.end_date}
                   data-empty={!form.end_date ? "true" : "false"}
-                  onChange={(e) => updateField("end_date", e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    // iOS often ignores min= on the native picker — clamp in JS
+                    if (form.start_date && v && v < form.start_date) {
+                      updateField("end_date", form.start_date);
+                      toast({
+                        title: "End date can't be before the start date",
+                        description: "It was set to match the start date.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    updateField("end_date", v);
+                  }}
                   min={form.start_date || undefined}
-                  className="rounded-xl mt-1"
+                  className={`rounded-xl mt-1 ${form.start_date && form.end_date && form.end_date < form.start_date ? "border-destructive" : ""}`}
                 />
                 {!form.end_date && (
                   <p className="text-[11px] text-muted-foreground mt-1">Required — select an end date</p>
+                )}
+                {form.start_date && form.end_date && form.end_date < form.start_date && (
+                  <p className="text-[11px] text-destructive mt-1">End date can’t be before the start date</p>
+                )}
+                {form.start_date && !(form.end_date && form.end_date < form.start_date) && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Must be on or after the start date</p>
                 )}
               </div>
             </div>
