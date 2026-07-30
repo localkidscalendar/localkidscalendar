@@ -141,24 +141,26 @@ export default function Supporters() {
         )}
       </div>
 
-      <div className="mb-10 bg-white rounded-2xl border border-border p-6 sm:p-8">
-        <div className="flex items-center gap-3 mb-5">
-          <Shield className="w-6 h-6 text-peach-500" />
+      <div className="mb-10">
+        <div className="flex items-center gap-2 mb-1">
+          <Shield className="w-5 h-5 text-peach-500" />
           <h2 className="font-heading font-bold text-xl">Our Supporter Rules</h2>
         </div>
-        <p className="text-sm text-muted-foreground mb-6">
+        <p className="text-sm text-muted-foreground mb-4">
           To protect our community of families and children, all Supporters must agree to and abide by the following rules. Violations may result in immediate removal without refund.
         </p>
-        <div className="space-y-4">
-          {SUPPORTER_RULES.map((rule, idx) => (
-            <div key={idx} className="flex gap-3">
-              <span className="text-peach-400 font-bold text-lg leading-tight shrink-0 mt-0.5">✦</span>
-              <div>
-                <p className="font-semibold text-sm mb-0.5">{rule.title}</p>
-                <p className="text-sm text-muted-foreground leading-relaxed">{rule.text}</p>
+        <div className="bg-white rounded-2xl border border-border p-6 sm:p-8">
+          <div className="space-y-4">
+            {SUPPORTER_RULES.map((rule, idx) => (
+              <div key={idx} className="flex gap-3">
+                <span className="text-peach-400 font-bold text-lg leading-tight shrink-0 mt-0.5">✦</span>
+                <div>
+                  <p className="font-semibold text-sm mb-0.5">{rule.title}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{rule.text}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 

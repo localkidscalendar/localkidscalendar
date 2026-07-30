@@ -8,7 +8,7 @@ export const SUPPORTER_RULES = [
   { title: "Working, Safe Links", text: "All destination URLs must be active, safe, and relevant to your ad content. Links to malware, phishing sites, or unrelated content will result in immediate removal." },
   { title: "Local Community Focus", text: "We prioritize businesses and services that are genuinely relevant to local families and children. Ads should have a clear connection to the community they are targeting." },
   { title: "No Competitor Targeting", text: "Ads may not directly disparage or negatively target competing businesses, organizations, or individuals." },
-  { title: "Image Quality Standards", text: "Ad images must be high resolution, clear, and professional. Blurry, pixelated, or low-quality images that reflect poorly on the platform will not be approved. Best display fit for Supporter ads is 600 × 400 px (3:2 landscape). Large phone photos are fine — the site automatically resizes and compresses before upload." },
+  { title: "Image Quality Standards", text: "Ad images must be high resolution, clear, and professional. Blurry, pixelated, or low-quality images that reflect poorly on the platform will not be approved. Best display fit for Supporter ads is 600 × 400 px (3:2 landscape). The site resizes and compresses photos before upload." },
   { title: "Compliance with Laws", text: "All ads must comply with applicable local, state, and federal laws, including truth-in-advertising standards, privacy laws, and any regulations relevant to your industry." },
   { title: "Community Flagging", text: "Our community of parents can flag ads they feel are inappropriate. Ads flagged 3 or more times are automatically suspended pending review. Repeated violations will result in permanent removal without refund." },
   { title: "Replacement Ads", text: "If your ad is removed due to flagging or violation, you must submit a compliant replacement before your spot can be restored. Replacement ads undergo manual review." },
@@ -25,7 +25,7 @@ export const DEFAULT_AD_IMAGE_RECOMMENDED =
 /** Shown on Ad Library upload so advertisers know what will be declined. */
 export const AD_IMAGE_REVIEW_GUIDELINES = [
   "Best fit: 600 × 400 px (3:2 landscape) — keep the main subject centered",
-  "Large phone photos are fine — the site resizes and compresses before upload",
+  "The site resizes and compresses photos before upload",
   "No nudity, sexual content, or sexually suggestive imagery",
   "No graphic violence, gore, weapons, or hate symbols",
   "No drugs, alcohol-focused marketing, gambling, or illegal products",
