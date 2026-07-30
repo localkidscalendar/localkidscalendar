@@ -54,6 +54,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   const [loadingSavedFilters, setLoadingSavedFilters] = useState(false);
   const [savedFiltersApplied, setSavedFiltersApplied] = useState(false);
   const [appliedSnapshot, setAppliedSnapshot] = useState(null);
+  const [preApplySnapshot, setPreApplySnapshot] = useState(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const { toast } = useToast();
 
@@ -71,6 +72,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
     if (!myFiltersMatch(appliedSnapshot, current)) {
       setSavedFiltersApplied(false);
       setAppliedSnapshot(null);
+      setPreApplySnapshot(null);
     }
   }, [filters, localSearch, appliedSnapshot, savedFiltersApplied]);
 
@@ -81,6 +83,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   const clearMyFiltersApplied = () => {
     setSavedFiltersApplied(false);
     setAppliedSnapshot(null);
+    setPreApplySnapshot(null);
   };
 
   const clearFilters = () => {
@@ -127,8 +130,24 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
     });
   };
 
-  const loadSavedFilters = async () => {
+  const toggleMyFilters = async () => {
     if (!user) { setAuthPrompt(true); return; }
+
+    // Second click: turn off and restore filters from before My Filters was applied
+    if (savedFiltersApplied) {
+      if (preApplySnapshot) {
+        setLocalSearch(preApplySnapshot.search || "");
+        onFiltersChange({
+          ...filters,
+          ...preApplySnapshot,
+          savedOnly: false,
+          favOrgsOnly: false,
+        });
+      }
+      clearMyFiltersApplied();
+      return;
+    }
+
     setLoadingSavedFilters(true);
     try {
       const { data, error } = await supabase
@@ -143,6 +162,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
           description: "Save your defaults under Account → My Filters.",
         });
       } else {
+        setPreApplySnapshot(snapshotMyFilters({ ...filters, search: localSearch }));
         const freeOnly = Boolean(data.free_only);
         const next = {
           search: data.search || "",
@@ -267,9 +287,13 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
           variant={savedFiltersApplied ? "secondary" : "outline"}
           size="icon"
           className={`rounded-xl shrink-0 ${savedFiltersApplied ? "text-mint-500 border-mint-200 bg-mint-50 hover:bg-mint-100" : ""} ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-          onClick={loadSavedFilters}
+          onClick={toggleMyFilters}
           disabled={loadingSavedFilters}
-          title="Apply the filter preferences you saved. Manage them in My Account → My Filters."
+          title={
+            savedFiltersApplied
+              ? "Clear your saved filter preferences and restore the previous filters."
+              : "Apply the filter preferences you saved. Manage them in My Account → My Filters. Click again to clear."
+          }
         >
           <UserCog className={`w-4 h-4 ${savedFiltersApplied ? "text-mint-500" : ""}`} />
         </Button>
@@ -405,7 +429,7 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-input bg-background">
                   <UserCog className="h-3 w-3" />
                 </span>
-                <p><span className="font-medium text-foreground">My Filters:</span> Apply the filter preferences you saved. Manage them in My Account → My Filters.</p>
+                <p><span className="font-medium text-foreground">My Filters:</span> Apply the filter preferences you saved. Click again to clear and restore your previous filters. Manage them in My Account → My Filters.</p>
               </div>
             </div>
           </div>
