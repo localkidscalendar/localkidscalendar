@@ -819,7 +819,7 @@ const categories = [
         overview:
           "Admin is a tabbed operator console. Many tabs have a sub-nav for sections. Access requires profiles.role = admin.",
         features: [
-          "Activities — list/edit/remove activities",
+          "Activities — list with Active/Inactive filters; status reasons; restore only admin-removed (with confirm); flag shortcut to Flags search; expandable admin notes",
           "Ads — supporter ads, zip config, waitlist, rates, discounts, fillers",
           "Beta — stage gates / zip whitelist",
           "Contact Us — inbound messages",

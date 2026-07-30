@@ -128,6 +128,82 @@ function formatMessageSubmittedAt(createdDate) {
   return `${local.format("MMM D, YYYY h:mm A")} · ${local.fromNow()}`;
 }
 
+/** Status / reason for Admin → All Activities (matches My Posts inactive labels). */
+function getActivityStatusMeta(event) {
+  const notes = String(event?.admin_notes || "").trim();
+  const flags = Number(event?.flag_count || 0);
+
+  if (event?.status === "active") {
+    return {
+      key: "active",
+      label: "Active",
+      reason: null,
+      chipClass: "bg-mint-50 text-mint-600",
+      adminNotes: null,
+      canAdminRestore: false,
+      isCommunityFlagged: false,
+    };
+  }
+
+  if (event?.status === "archived" && flags >= 3) {
+    return {
+      key: "flagged",
+      label: "Inactive",
+      reason: "Community flags",
+      chipClass: "bg-peach-50 text-peach-600",
+      adminNotes: null,
+      canAdminRestore: false,
+      isCommunityFlagged: true,
+    };
+  }
+
+  if (event?.status === "deleted" && notes) {
+    return {
+      key: "admin_removed",
+      label: "Inactive",
+      reason: "Admin removed",
+      chipClass: "bg-red-50 text-red-600",
+      adminNotes: notes,
+      canAdminRestore: true,
+      isCommunityFlagged: false,
+    };
+  }
+
+  if (event?.status === "deleted") {
+    return {
+      key: "user_deactivated",
+      label: "Inactive",
+      reason: "Poster deactivated",
+      chipClass: "bg-muted text-muted-foreground",
+      adminNotes: null,
+      canAdminRestore: false,
+      isCommunityFlagged: false,
+    };
+  }
+
+  if (event?.status === "archived") {
+    return {
+      key: "archived",
+      label: "Inactive",
+      reason: "Admin",
+      chipClass: "bg-red-50 text-red-600",
+      adminNotes: notes || null,
+      canAdminRestore: false,
+      isCommunityFlagged: false,
+    };
+  }
+
+  return {
+    key: event?.status || "unknown",
+    label: event?.status || "Unknown",
+    reason: null,
+    chipClass: "bg-muted text-muted-foreground",
+    adminNotes: notes || null,
+    canAdminRestore: false,
+    isCommunityFlagged: false,
+  };
+}
+
 export default function Admin() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
@@ -140,8 +216,10 @@ export default function Admin() {
   const [stats, setStats] = useState({});
   const [messages, setMessages] = useState([]);
   const [eventSearch, setEventSearch] = useState("");
+  const [eventStatusFilter, setEventStatusFilter] = useState("all"); // all | active | inactive
   const [eventSortBy, setEventSortBy] = useState("date");
   const [eventSortOrder, setEventSortOrder] = useState("desc");
+  const [expandedEventNotes, setExpandedEventNotes] = useState(() => new Set());
   const [userSearch, setUserSearch] = useState("");
   const [userSortBy, setUserSortBy] = useState("joined");
   const [userSortOrder, setUserSortOrder] = useState("desc");
@@ -614,8 +692,23 @@ export default function Admin() {
     loadAll();
   };
 
-  const handleReactivateItem = async (itemId, itemType) => {
+  const handleReactivateItem = async (itemId, itemType, opts = {}) => {
     const table = itemType === "event" ? "events" : itemType === "comment" ? "comments" : "banner_ads";
+    if (itemType === "event") {
+      const notes = String(opts.adminNotes || "").trim();
+      if (!notes) {
+        toast({
+          title: "Can't restore from here",
+          description: "This activity was deactivated by the poster. They can reactivate it from My Posts.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const title = opts.title || "this activity";
+      if (!window.confirm(`Restore "${title}"?\n\nThis was removed by an admin and will become visible on the public site again.`)) {
+        return;
+      }
+    }
     const updates = { status: "active", updated_at: new Date().toISOString() };
     if (itemType === "event") updates.admin_notes = "";
     const { error } = await supabase.from(table).update(updates).eq("id", itemId);
@@ -627,6 +720,23 @@ export default function Admin() {
       title: `${itemType === "event" ? "Activity" : itemType === "comment" ? "Comment" : "Ad"} reactivated`,
     });
     loadAll();
+  };
+
+  const openFlagsForActivity = (event) => {
+    setFlagSearch(event?.title || "");
+    setFlagTypeFilter("event");
+    setFlagsSection("flags-flagged-content");
+    setFlaggedContentPage(1);
+    setActiveTab("flags");
+  };
+
+  const toggleEventNotes = (eventId) => {
+    setExpandedEventNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(eventId)) next.delete(eventId);
+      else next.add(eventId);
+      return next;
+    });
   };
 
   const openDisableUserDialog = (userId, userName, isSupporter = false) => {
@@ -1366,6 +1476,11 @@ export default function Admin() {
 
   const filteredAndSortedEvents = useMemo(() => {
     let filtered = events;
+    if (eventStatusFilter === "active") {
+      filtered = filtered.filter((e) => e.status === "active");
+    } else if (eventStatusFilter === "inactive") {
+      filtered = filtered.filter((e) => e.status !== "active");
+    }
     if (eventSearch.trim()) {
       const search = eventSearch.toLowerCase();
       filtered = filtered.filter((e) =>
@@ -1387,7 +1502,7 @@ export default function Admin() {
       });
     }
     return sorted;
-  }, [events, eventSearch, eventSortBy, eventSortOrder]);
+  }, [events, eventSearch, eventStatusFilter, eventSortBy, eventSortOrder]);
 
   const filteredAndSortedUsers = useMemo(() => {
     let filtered = users;
@@ -1542,13 +1657,33 @@ export default function Admin() {
         <TabsContent value="activities">
           <AdminSectionHeader title="All Activities" icon={CalendarDays} />
           <AdminPanelShell>
-            <div className="pb-4 mb-4 border-b border-border">
+            <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
               <Input
                 placeholder="Search by title or zip code…"
                 value={eventSearch}
                 onChange={(e) => { setEventSearch(e.target.value); setEventsPage(1); }}
                 className="rounded-lg h-8 text-sm sm:max-w-xs"
               />
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: "all", label: "All" },
+                  { id: "active", label: "Active" },
+                  { id: "inactive", label: "Inactive" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => { setEventStatusFilter(opt.id); setEventsPage(1); }}
+                    className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                      eventStatusFilter === opt.id
+                        ? "border-mint-300 bg-mint-50 text-mint-700"
+                        : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -1580,35 +1715,80 @@ export default function Admin() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredAndSortedEvents.slice((eventsPage - 1) * PAGE_SIZE, eventsPage * PAGE_SIZE).map((e) => (
-                    <tr key={e.id} className="hover:bg-muted/30">
-                      <td className="px-4 py-3 max-w-[200px] truncate">{e.title}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{moment(e.start_date).format("MMM D, YY")}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${e.status === "active" ? "bg-mint-50 text-mint-500" : "bg-red-50 text-red-500"}`}>
-                          {e.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">{e.flag_count || 0}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/event/${e.id}`)}>
-                            <Eye className="w-3.5 h-3.5" />
-                          </Button>
-                          {e.status === "active" && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteEvent(e)} title="Delete activity">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+                  {filteredAndSortedEvents.slice((eventsPage - 1) * PAGE_SIZE, eventsPage * PAGE_SIZE).map((e) => {
+                    const meta = getActivityStatusMeta(e);
+                    const notesOpen = expandedEventNotes.has(e.id);
+                    return (
+                      <tr key={e.id} className="hover:bg-muted/30 align-top">
+                        <td className="px-4 py-3 max-w-[220px]">
+                          <p className="truncate font-medium">{e.title}</p>
+                          {meta.adminNotes && (
+                            <div className="mt-1">
+                              <button
+                                type="button"
+                                onClick={() => toggleEventNotes(e.id)}
+                                className="inline-flex items-center gap-0.5 text-[11px] text-mint-600 hover:underline"
+                              >
+                                {notesOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                {notesOpen ? "Hide admin note" : "Show admin note"}
+                              </button>
+                              {notesOpen && (
+                                <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap rounded-lg bg-muted/40 border border-border px-2 py-1.5">
+                                  {meta.adminNotes}
+                                </p>
+                              )}
+                            </div>
                           )}
-                          {e.status === "deleted" && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleReactivateItem(e.id, "event")} title="Restore this activity to active">
-                              <RotateCcw className="w-3.5 h-3.5" />
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{moment(e.start_date).format("MMM D, YY")}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-0.5">
+                            <span className={`inline-flex w-fit px-2 py-0.5 rounded-full text-xs font-medium ${meta.chipClass}`}>
+                              {meta.label}
+                            </span>
+                            {meta.reason && (
+                              <span className="text-[11px] text-muted-foreground">{meta.reason}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">{e.flag_count || 0}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/event/${e.id}`)} title="View activity">
+                              <Eye className="w-3.5 h-3.5" />
                             </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {e.status === "active" && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteEvent(e)} title="Delete activity">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                            {meta.canAdminRestore && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleReactivateItem(e.id, "event", { adminNotes: meta.adminNotes, title: e.title })}
+                                title="Restore admin-removed activity"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                            {meta.isCommunityFlagged && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-peach-600"
+                                onClick={() => openFlagsForActivity(e)}
+                                title="Open in Flags (search by title)"
+                              >
+                                <Flag className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
