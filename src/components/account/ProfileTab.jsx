@@ -309,7 +309,7 @@ export default function ProfileTab({ user, setUser }) {
           </div>
           {betaConfig.enabled && Array.isArray(betaConfig.zip_codes) && betaConfig.zip_codes.length > 0 && (
             <p className="sm:col-span-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-              Keep your real home zip here. During beta, Home only lists activities for:{" "}
+              During beta, Home only lists activities for:{" "}
               <span className="font-semibold">
                 {[...betaConfig.zip_codes].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ")}
               </span>
