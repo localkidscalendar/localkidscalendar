@@ -284,6 +284,18 @@ export default function MyPostsTab({ user }) {
                     </p>
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <TrendingUp className="w-3.5 h-3.5" /> {e.impression_count || 0} impressions
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <Eye className="w-3.5 h-3.5" /> {e.view_count || 0} views
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <Bookmark className="w-3.5 h-3.5" /> {e.save_count || 0} saves
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <MessageSquare className="w-3.5 h-3.5" /> {commentCounts[e.id] || 0} comments
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <Flag className="w-3.5 h-3.5" /> {e.flag_count || 0} of 3 flags
                       </span>
                     </div>
