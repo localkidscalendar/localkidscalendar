@@ -347,7 +347,7 @@ export default function PostEvent() {
           navigate(`/event/${created.id}`, {
             state: {
               fromApp: true,
-              backLabel: "Back to Post Activity",
+              backLabel: "Back to New Post Activity",
               returnTo: "/post-event",
             },
           });
