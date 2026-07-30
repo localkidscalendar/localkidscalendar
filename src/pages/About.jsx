@@ -1,9 +1,54 @@
 import React, { useState, useEffect } from "react";
 import { useOutletContext, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
-import { ChevronDown, ChevronUp, Search, UserPlus } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, UserPlus, Shield, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import GrowingCommunitySection from "@/components/about/GrowingCommunitySection";
+
+const COMMUNITY_RULES = [
+  {
+    title: "Support Local",
+    text: "Help us grow by sharing activities you love, inviting friends, and being an active part of our community.",
+  },
+  {
+    title: "Respect the Community",
+    text: "Keep comments and interactions friendly and constructive. We don't tolerate harassment, discrimination, or hate speech of any kind.",
+  },
+  {
+    title: "Be Honest and Accurate",
+    text: "Post truthful information about activities, prices, ages, and schedules. Misleading or false listings hurt families and damage trust in our community.",
+  },
+  {
+    title: "Protect Privacy",
+    text: "Never share personal information about children or families without permission. Be mindful of what you post in photos and comments. We value your privacy and do not sell your personal data; we only use information to facilitate local community connections.",
+  },
+  {
+    title: "No Personal Solicitation",
+    text: (
+      <>
+        Activities should not be used for soliciting individual services, offers, discounts, etc. Don't post babysitting services, private lessons, one-on-one tutoring, etc. (These types of solicitations may be appropriate as paid-for{" "}
+        <Link to="/supporters" className="text-mint-500 hover:underline">Supporter</Link>
+        {" "}advertisements though.)
+      </>
+    ),
+  },
+  {
+    title: "No Spam or Inappropriate Content",
+    text: "Don't post spam, adult content, or unrelated ads. Keep all posts relevant to kids' activities and family interests.",
+  },
+  {
+    title: "Geographic Scope",
+    text: "LocalKidsCalendar.com is intended exclusively for use within the United States. By using this site, you confirm that you are located within the U.S.",
+  },
+  {
+    title: "Disclaimer",
+    text: "This platform is a community-powered hub. LocalKidsCalendar.com does not verify, endorse, or guarantee the safety or quality of any third-party activities posted. Users participate in listed activities at their own discretion and risk.",
+  },
+  {
+    title: "Report Issues",
+    text: "If you see something inappropriate or harmful, use the flag feature to let our moderation team know. We review all reports seriously.",
+  },
+];
 
 export default function About() {
   const { user } = useOutletContext();
@@ -75,32 +120,45 @@ export default function About() {
       {/* Growing the Community Section */}
       <GrowingCommunitySection user={user} />
 
-      {/* Community Rules Section */}
+      {/* Community Rules Section — matches Supporters → Our Supporter Rules */}
       <section id="community-rules">
-        <h2 className="font-heading font-bold text-2xl sm:text-3xl text-foreground mb-4">Our Community Rules</h2>
-        <div className="prose prose-sm max-w-none text-muted-foreground space-y-4 leading-relaxed">
-          <p>To keep LocalKidsCalendar.com a safe, welcoming, and valuable resource for all families and organizers, we ask everyone to follow these guidelines and policies (Terms of Service and Privacy):</p>
-          <ul className="list-disc list-inside space-y-2">
-            <li><strong>Support Local:</strong> Help us grow by sharing activities you love, inviting friends, and being an active part of our community.</li>
-            <li><strong>Respect the Community:</strong> Keep comments and interactions friendly and constructive. We don't tolerate harassment, discrimination, or hate speech of any kind.</li>
-            <li><strong>Be Honest and Accurate:</strong> Post truthful information about activities, prices, ages, and schedules. Misleading or false listings hurt families and damage trust in our community.</li>
-            <li><strong>Protect Privacy:</strong> Never share personal information about children or families without permission. Be mindful of what you post in photos and comments. We value your privacy and do not sell your personal data; we only use information to facilitate local community connections.</li>
-            <li><strong>No Personal Solicitation:</strong> Activities should not be used for soliciting individual services, offers, discounts, etc. Don't post babysitting services, private lessons, one-on-one tutoring, etc. (These types of solicitations may be appropriate as paid-for <Link to="/supporters" className="text-mint-500 hover:underline">Supporter</Link> advertisements though.)</li>
-            <li><strong>No Spam or Inappropriate Content:</strong> Don't post spam, adult content, or unrelated ads. Keep all posts relevant to kids' activities and family interests.</li>
-            <li><strong>Geographic Scope:</strong> LocalKidsCalendar.com is intended exclusively for use within the United States. By using this site, you confirm that you are located within the U.S.</li>
-            <li><strong>Disclaimer:</strong> This platform is a community-powered hub. LocalKidsCalendar.com does not verify, endorse, or guarantee the safety or quality of any third-party activities posted. Users participate in listed activities at their own discretion and risk.</li>
-            <li><strong>Report Issues:</strong> If you see something inappropriate or harmful, use the flag feature to let our moderation team know. We review all reports seriously.</li>
-          </ul>
-          <p>Accounts that violate these rules may be suspended or removed. We're all here to create a better experience for local kids and families!</p>
+        <div className="flex items-center gap-2 mb-1">
+          <Shield className="w-5 h-5 text-peach-500" />
+          <h2 className="font-heading font-bold text-xl">Our Community Rules</h2>
         </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          To keep LocalKidsCalendar.com a safe, welcoming, and valuable resource for all families and organizers, we ask everyone to follow these guidelines and policies (Terms of Service and Privacy):
+        </p>
+        <div className="bg-white rounded-2xl border border-border p-6 sm:p-8">
+          <div className="space-y-4">
+            {COMMUNITY_RULES.map((rule) => (
+              <div key={rule.title} className="flex gap-3">
+                <span className="text-peach-400 font-bold text-lg leading-tight shrink-0 mt-0.5">✦</span>
+                <div>
+                  <p className="font-semibold text-sm mb-0.5">{rule.title}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{rule.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground mt-4">
+          Accounts that violate these rules may be suspended or removed. We're all here to create a better experience for local kids and families!
+        </p>
       </section>
 
-      {/* FAQ Section */}
+      {/* FAQ Section — same section chrome as rules */}
       <section>
-        <h2 className="font-heading font-bold text-2xl sm:text-3xl text-foreground mb-6">Frequently Asked Questions</h2>
+        <div className="flex items-center gap-2 mb-1">
+          <HelpCircle className="w-5 h-5 text-peach-500" />
+          <h2 className="font-heading font-bold text-xl">Frequently Asked Questions</h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Quick answers about using LocalKidsCalendar.com. Browse by category or search below.
+        </p>
 
         {faqs.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6">
+          <div className="flex flex-wrap gap-2 mb-4">
             {categories.map((cat) => (
               <button
                 key={cat}
@@ -118,7 +176,7 @@ export default function About() {
         )}
 
         {faqs.length > 0 && (
-          <div className="relative mb-6">
+          <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
@@ -130,33 +188,35 @@ export default function About() {
           </div>
         )}
 
-        {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No FAQs available yet. Check back soon!</p>
-        ) : (
-          <div className="space-y-2">
-            {filtered.map((faq) => (
-              <div key={faq.id} className="border border-border rounded-xl overflow-hidden">
-                <button
-                  className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-muted/40 transition-colors"
-                  onClick={() => setOpenId(openId === faq.id ? null : faq.id)}
-                >
-                  <span className="font-medium text-sm text-foreground pr-4">{faq.question}</span>
-                  {openId === faq.id ? (
-                    <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+        <div className="bg-white rounded-2xl border border-border p-6 sm:p-8">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No FAQs available yet. Check back soon!</p>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((faq) => (
+                <div key={faq.id} className="border border-border rounded-xl overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-muted/40 transition-colors"
+                    onClick={() => setOpenId(openId === faq.id ? null : faq.id)}
+                  >
+                    <span className="font-semibold text-sm text-foreground pr-4">{faq.question}</span>
+                    {openId === faq.id ? (
+                      <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                    )}
+                  </button>
+                  {openId === faq.id && (
+                    <div
+                      className="px-5 pb-4 text-sm text-muted-foreground leading-relaxed border-t border-border pt-3 [&_a]:text-mint-500 [&_a]:underline"
+                      dangerouslySetInnerHTML={{ __html: faq.answer }}
+                    />
                   )}
-                </button>
-                {openId === faq.id && (
-                  <div
-                    className="px-5 pb-4 text-sm text-muted-foreground leading-relaxed border-t border-border pt-3 [&_a]:text-mint-500 [&_a]:underline"
-                    dangerouslySetInnerHTML={{ __html: faq.answer }}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
