@@ -376,7 +376,7 @@ const categories = [
         features: [
           "Thread on Event Detail",
           "Flag with the same reason set as activities",
-          "Auto-hide at 3 distinct flaggers",
+          "Auto-hide at 3 distinct flaggers; author gets an in-app notice with no action button (comments are not listed under My Posts)",
         ],
         technicalOverview:
           "comments table with flag_count / flagged_by / status. Shown in Admin → Flags with events and ads.",
