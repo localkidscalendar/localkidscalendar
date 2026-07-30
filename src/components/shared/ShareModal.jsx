@@ -16,10 +16,18 @@ async function shareNative({ title, url }) {
     await navigator.share({ title, text: title, url });
     return true;
   } catch (err) {
-    // User cancelled — not an error worth toasting
     if (err?.name === "AbortError") return true;
     return false;
   }
+}
+
+function facebookSharerUrl(shareUrl) {
+  // m.facebook.com is more reliable on phones than www + target=_blank
+  // (the FB app often hijacks www links and drops the shared URL).
+  const base = isMobileUa()
+    ? "https://m.facebook.com/sharer.php"
+    : "https://www.facebook.com/sharer/sharer.php";
+  return `${base}?u=${encodeURIComponent(shareUrl)}`;
 }
 
 export default function ShareModal({ open, onOpenChange, url, title }) {
@@ -37,15 +45,14 @@ export default function ShareModal({ open, onOpenChange, url, title }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const openFacebookShare = async (e) => {
+  const openFacebookShare = (e) => {
     e.preventDefault();
-    // On mobile, facebook.com/sharer links are often hijacked by the FB app,
-    // which opens the feed and drops the shared URL. Prefer the OS share sheet.
-    if (isMobileUa() && canNativeShare) {
-      const ok = await shareNative({ title: shareTitle, url: shareUrl });
-      if (ok) return;
+    const sharer = facebookSharerUrl(shareUrl);
+    if (isMobileUa()) {
+      // Same-tab navigation: new tabs get claimed by the FB app without the share payload.
+      window.location.assign(sharer);
+      return;
     }
-    const sharer = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
     window.open(sharer, "_blank", "noopener,noreferrer");
   };
 
@@ -70,7 +77,7 @@ export default function ShareModal({ open, onOpenChange, url, title }) {
     {
       label: "Facebook",
       icon: Facebook,
-      href: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
+      href: facebookSharerUrl(shareUrl),
       onClick: openFacebookShare,
     },
     {
