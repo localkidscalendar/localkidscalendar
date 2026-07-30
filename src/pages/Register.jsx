@@ -319,11 +319,21 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-lg">
 
-        {/* Branded header */}
+        {/* Branded header — same mark as AuthLayout / Login */}
         <div className="text-center mb-8">
-          <Link to={showCompleteFlow ? "#" : "/"} className="inline-block mb-4" onClick={(e) => showCompleteFlow && e.preventDefault()}>
-            <span className="font-display font-bold text-2xl text-primary">
-              🌿 LocalKids<span className="text-mint-500">Calendar</span>
+          <Link
+            to={showCompleteFlow ? "#" : "/"}
+            className="inline-flex flex-col items-center gap-3 mb-4"
+            onClick={(e) => showCompleteFlow && e.preventDefault()}
+          >
+            <img
+              src="/logo.png"
+              alt="LocalKidsCalendar"
+              className="h-20 w-20 object-contain border border-gray-300 rounded-xl bg-white"
+            />
+            <span className="font-heading font-bold text-xl leading-tight">
+              <span className="text-foreground">LocalKids</span>
+              <span className="text-mint-500">Calendar</span>
             </span>
           </Link>
           <h1 className="font-heading font-bold text-2xl text-foreground">
