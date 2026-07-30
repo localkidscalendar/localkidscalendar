@@ -13,6 +13,7 @@ import { AD_IMAGE_REVIEW_GUIDELINES, SUPPORTER_AD_IMAGE_RECOMMENDED } from "@/li
 import { moderateAdContent } from "@/lib/moderateAdContent";
 import { deleteAdLibraryAsset } from "@/lib/quarantineAdLibrary";
 import { processImageForUpload } from "@/lib/imageProcess";
+import { formatActivityTitle } from "@/lib/titleCase";
 
 const MOD_CONFIG = {
   pending: { label: "Reviewing…", color: "bg-yellow-100 text-yellow-700", icon: Clock },
@@ -24,9 +25,6 @@ const MOD_CONFIG = {
 };
 
 const EMPTY_FORM = { ad_name: "", image_url: "", link_url: "" };
-
-const toTitleCase = (str) =>
-  str.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
 
 function normalizeUrl(raw) {
   const trimmed = (raw || "").trim();
@@ -418,7 +416,7 @@ function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, o
 
       <div>
         <Label>Asset Name *</Label>
-        <Input className="mt-1" placeholder="Summer Camp Banner" value={form.ad_name} onChange={(e) => setForm((f) => ({ ...f, ad_name: toTitleCase(e.target.value) }))} />
+        <Input className="mt-1" placeholder="Summer Camp Banner" value={form.ad_name} onChange={(e) => setForm((f) => ({ ...f, ad_name: formatActivityTitle(e.target.value) }))} />
       </div>
       <div>
         <Label>Ad Image *</Label>
