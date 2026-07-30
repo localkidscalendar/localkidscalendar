@@ -4,7 +4,10 @@ import { Input } from "@/components/ui/input";
 
 /**
  * Admin Site Manual — layman overview + technical breakdown per topic.
- * Update this file whenever product rules or major workflows change.
+ *
+ * STANDING RULE: Update this file whenever product rules, admin workflows,
+ * signup/profile behavior, or major UX changes ship (same PR / same change set).
+ * Prefer updating the relevant section(s) rather than only mentioning changes in chat.
  *
  * Shape per section:
  *   id, title, overview, features[], technicalOverview, technicalFeatures[]
@@ -60,18 +63,36 @@ const categories = [
         id: "zip-code-validation",
         title: "Zip Code & Distance Defaults",
         overview:
-          "Anywhere a zip is entered, the site requires a valid 5-digit US zip. Signed-in users also set a preferred search distance on Profile (default 15 miles). Together these drive homepage filtering and “local” meaning for the session.",
+          "Anywhere a zip is entered, the site requires a valid 5-digit US zip. Search distance (radius) is set on My Account → Profile after signup (default 15 miles) — it is not asked on the create-account profile form. Zip + distance drive homepage filtering and “local” meaning for the session.",
         features: [
           "5-digit zip only (no letters, no ZIP+4)",
           "Profile distance options typically 5 / 10 / 15 / 25 / 50 / 100 miles; default 15",
-          "Used on Post Activity, Profile, Ad checkout, and filters",
+          "Register / finish-profile: zip required; distance omitted (defaults to 15 until edited on Profile)",
+          "Also used on Post Activity, Ad checkout, and Home filters",
         ],
         technicalOverview:
           "Client masks enforce /^\\d{5}$/. Profile stores zip_code and radius_miles on profiles. Distance filtering uses Haversine against geocoded coordinates (zippopotam.us).",
         technicalFeatures: [
           "profiles.radius_miles column (migration profile_radius_miles)",
-          "locationDefaults.js centralizes default radius where used",
+          "locationDefaults.js centralizes DEFAULT_RADIUS_MILES; Register finalizeProfile writes the default",
           "Exact zip matching is still used in weekly digest matching today (radius geocoding for digests is not applied yet)",
+        ],
+      },
+      {
+        id: "title-case-rules",
+        title: "Capitalization (Strict vs Soft Title Case)",
+        keywords: ["title case", "strict", "soft", "capitalization", "STEM", "YMCA"],
+        overview:
+          "Form fields use two capitalization helpers so names and titles stay readable without fighting abbreviations.",
+        features: [
+          "Strict Title Case: first letter of each word up; rest forced lowercase — Community Member first/last name (Register + Profile)",
+          "Soft Title Case: first letter of each word up; other letters left as typed (STEM/YMCA OK); shouty ALL CAPS titles are converted — activity Title / Venue / Contact Name, and Organizer name (Register + Profile)",
+          "Street / city on Post Activity still use a simple strict-style title case helper",
+        ],
+        technicalOverview:
+          "src/lib/titleCase.js — toStrictTitleCase (live inputs, preserves spaces), toTitleCaseLabel (trimmed labels), formatActivityTitle (soft + shout detection).",
+        technicalFeatures: [
+          "Shout detection in formatActivityTitle: letters-only all uppercase, ≥6 letters, and 2+ words or ≥12 letters",
         ],
       },
     ],
@@ -83,25 +104,29 @@ const categories = [
       {
         id: "user-registration",
         title: "User Registration & Login",
-        keywords: ["otp", "google", "oauth", "password", "sign up", "register", "honeypot", "bot", "spam"],
+        keywords: ["otp", "google", "oauth", "password", "sign up", "register", "honeypot", "bot", "spam", "complete profile"],
         overview:
-          "Users register with email/password or Google. At signup they choose Community Member or Organizer (permanent for that account). Email verification uses Supabase OTP/confirm flows. Returning users sign in the same ways, or reset a password via email link.",
+          "Users register with email/password or Google. Account type (Community Member or Organizer) is chosen on the shared Register profile step and is permanent for that email. Google and any incomplete profile finish on the same Register form — not on My Account → Profile. Email verification uses Supabase confirm flows. Until the profile zip is saved, the rest of the app is gated.",
         features: [
-          "Sign-up: email/password or Google OAuth",
-          "Account type: Community Member or Organizer — one email cannot be both",
-          "Email verification required before full access (OTP / confirm link)",
-          "Password reset via secure email link",
-          "Phone may be collected later on Profile where enabled; not required for signup",
-          "First-line bot defense on Register: honeypot + minimum time before continuing (~3 seconds)",
+          "Sign-up: email/password or Google OAuth (Register and Login both offer Google)",
+          "One profile form for email step 2 and Google/incomplete finish (?complete=1)",
+          "Account type: Community Member or Organizer — locked after registration completes",
+          "Register asks for names/org + zip (not distance); Community Rules agreement required",
+          "Incomplete signed-in users cannot browse the site until they finish Register (About / Community Rules still allowed)",
+          "Email verification / password reset via Supabase Auth email (branded From requires Custom SMTP — see Email / Auth SMTP)",
+          "Register header uses the site /logo.png (same mark as Login)",
+          "First-line bot defense on email Register: honeypot + ~3s minimum before profile step submit",
         ],
         technicalOverview:
-          "Register.jsx / Login.jsx / ForgotPassword.jsx / ResetPassword.jsx / AuthCallback.jsx use supabase.auth. Profile rows are created by handle_new_user from auth metadata (role, names, zip). Organizer shell rows can be created in finalizeProfile or AuthContext when org metadata is present.",
+          "Register.jsx / Login.jsx / AuthCallback.jsx / AppLayout.jsx. Google creates auth.users + handle_new_user profile (default community_member, empty zip). AuthCallback and AppLayout send incomplete users to /register?complete=1. isProfileComplete (authRoles.js) requires zip (admins/disabled exempt). Role may change once while zip is still empty (DB trigger prevent_non_admin_role_change).",
         technicalFeatures: [
           "profiles.role from metadata; default community_member if missing",
           "Auth invite links can prefill role/email query params on Register",
           "Primary admin email may be promoted to role=admin via SQL migrations (ensure_admin_role)",
           "Navbar/Admin access: role === 'admin' (Admin page hard-requires admin)",
-          "Register honeypot field hp_website (hidden); step-2 blocked if filled or form open < 3s",
+          "Register honeypot hp_website; email path step-2 blocked if filled or form open < 3s (OAuth complete path skips timing)",
+          "registeredUser in AuthContext requires isRegistered && isProfileComplete",
+          "Migration allow_initial_role_selection.sql — one-time CM↔Organizer while zip empty",
         ],
       },
       {
@@ -122,7 +147,8 @@ const categories = [
         technicalFeatures: [
           "role_before_disabled preserved on disable; restoreRoleFromProfile in authRoles.js",
           "Weekly digests intentionally skip organizer and admin recipients",
-          "ProfileTab locks role after setup for non-admins; admins keep their real role on save",
+          "ProfileTab locks role after registration for non-admins (edit Profile never offers account-type change); admins keep their real role on save",
+          "authRoles.isProfileComplete gates app access until zip is set",
         ],
       },
       {
@@ -167,17 +193,18 @@ const categories = [
         id: "user-dashboard",
         title: "My Account Tabs",
         overview:
-          "Everything personal lives under My Account. Default tab is Messages. There is no separate Dashboard and no Flagged Content tab anymore (flags are handled via moderation and Admin Flags).",
+          "Everything personal lives under My Account. Default tab is Messages. Profile is for editing a completed account (zip, distance, names/org, password reset) — not for first-time signup. Incomplete Google/email profiles are sent to Register to finish.",
         features: [
           "Messages (default) — in-app inbox",
           "My Activity Posts — for community members / organizers / admin",
           "Saved Activities, Fav Organizers, Email Notifications, Home Search Filters (My Filters), Profile",
+          "Profile: account type read-only; distance editable; names/org use Strict/Soft Title Case",
         ],
         technicalOverview:
           "Account.jsx VALID_TABS: messages, posts, saved, saved-organizers, notifications, saved-filters, profile. Unread badge uses countUnreadMessages.",
         technicalFeatures: [
           "?tab=flagged redirects to messages (legacy links)",
-          "?complete=1 on Register finishes OAuth/incomplete profiles (same form as email signup); AppLayout redirects incomplete users there",
+          "Incomplete profiles: AuthCallback + AppLayout → /register?complete=1 (not Account ?setup=1)",
         ],
       },
       {
@@ -245,19 +272,23 @@ const categories = [
         id: "posting-activity",
         title: "Posting an Activity",
         overview:
-          "Community Members and Organizers post activities with dates, ages, cost, location, categories (up to three), and optional photo. End date is required and cannot be before start date. Community Rules must be accepted.",
+          "Community Members and Organizers post activities with dates, ages, cost, location, categories (up to three), and optional photo. End date is required and cannot be before start date (clamped on change; iOS pickers may not gray out earlier days). Community Rules must be accepted. Validation toasts appear near the bottom on mobile so they stay visible by Submit.",
         features: [
           "Categories / types for camps, classes, sports, etc.",
           "Organizer posts show org branding / highlight styling",
           "Photo optional; auto-resized then AI-reviewed on upload",
-          "Zip must be 5 digits; end date required",
+          "Zip must be 5 digits; end date required and on/after start date",
+          "Title, venue, and contact name use Soft Title Case",
+          "Duplicate posts must change a significant field before re-submit",
         ],
         technicalOverview:
-          "PostEvent.jsx inserts into events. Client processImageForUpload then Supabase event-media upload, then /api/photo-review. posted_by_role / org fields drive EventCard styling.",
+          "PostEvent.jsx inserts into events (form noValidate so JS validation always runs). Client processImageForUpload then Supabase event-media upload, then /api/photo-review. posted_by_role / org fields drive EventCard styling. Toasts: src/components/ui/toast.jsx bottom / safe-area.",
         technicalFeatures: [
-          "events.status active vs archived for moderation/removal",
+          "events.status active | deleted | archived | expired",
+          "End date onChange clamps to start_date; start_date change also lifts end_date if needed",
           "HistoryBackLink / navigation history for cancel/back UX where wired",
           "src/lib/imageProcess.js presets: activityPhoto + logo",
+          "formatActivityTitle on title, location_name, contact_name",
         ],
       },
       {
@@ -409,7 +440,8 @@ const categories = [
           "Registered users flag activities, comments, or ads (Inaccurate, Inappropriate, Spam, Other with required details). At 3 distinct flaggers, content auto-hides (or ads go flagged). Admin Flags reviews dispositions and history.",
         features: [
           "Same reasons everywhere; Other requires text",
-          "Threshold: 3 different users",
+          "Threshold: 3 different users → activity/comment status archived; ads go flagged",
+          "Admin → Flags is the primary place to Reactivate 3-flag cases (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
           "Admin: Manually Deactivate, Reactivate, Reviewed, Clear Flag / flags cleared",
           "Ad asset cascade: disabling a creative can affect all zip placements using it",
         ],
@@ -662,6 +694,25 @@ const categories = [
         ],
       },
       {
+        id: "email-auth-smtp",
+        title: "Auth Emails (Signup Confirm / Password Reset)",
+        keywords: ["smtp", "supabase", "noreply", "confirm", "verification", "resend smtp"],
+        overview:
+          "Signup confirmation and password-reset messages are sent by Supabase Auth — not by the app’s Resend helper used for digests and supporter mail. Out of the box they come from Supabase’s default sender (looks generic). Production should use Custom SMTP (typically Resend) with a verified domain so From looks like Local Kids Calendar.",
+        features: [
+          "Default: Supabase built-in SMTP (limited rate; team-only destinations on free tier; generic From)",
+          "Production: Authentication → SMTP in Supabase — host smtp.resend.com, user resend, password = Resend API key, sender on a Resend-verified domain (e.g. noreply@yourdomain.com)",
+          "Minimum interval per user (default 60s) limits resend spam — leave as-is unless you have a reason",
+          "Google OAuth consent branding is configured in Google Cloud (app name/logo/domain), not in this repo; fully hiding *.supabase.co in the allow line needs a Supabase custom Auth domain",
+        ],
+        technicalOverview:
+          "Supabase Dashboard Auth SMTP + Email Templates. App transactional mail remains api/_lib/resendSend.js + RESEND_FROM_EMAIL.",
+        technicalFeatures: [
+          "Do not use onboarding@resend.dev as Auth From for real users",
+          "Gmail addresses cannot be used as Resend From for the product domain",
+        ],
+      },
+      {
         id: "email-supporter",
         title: "Supporter & Transactional Emails",
         overview:
@@ -819,23 +870,25 @@ const categories = [
         overview:
           "Admin is a tabbed operator console. Many tabs have a sub-nav for sections. Access requires profiles.role = admin.",
         features: [
-          "Activities — list with Active/Inactive filters; status reasons; restore only admin-removed (with confirm); flag shortcut to Flags search; expandable admin notes",
+          "Activities — All/Active/Inactive pills; status + reason (Active, User deactivated, Admin removed, Community flags); expandable admin notes; View always aligned with a reserved action slot; Trash on active; Restore only for Admin removed (confirm); Flag icon on community-flagged rows opens Flags with title search + Activities filter",
           "Ads — supporter ads, zip config, waitlist, rates, discounts, fillers",
           "Beta — stage gates / zip whitelist",
           "Contact Us — inbound messages",
           "FAQs — manage public FAQ entries",
-          "Flags — flagged content + users flagging",
-          "Manual — this document",
+          "Flags — flagged content + users flagging (primary restore path for 3-flag archived activities)",
+          "Manual — this document (keep updated when product/admin rules change)",
           "Mass Messages — compose, archive, digest controls",
           "Previews — emails, automated messages, site notices",
           "Reviews — activity photos + ad creatives needing humans",
           "Users — zip reports, user list, reactivation requests",
         ],
         technicalOverview:
-          "Admin.jsx tabs + AdminSubNav section arrays (ADS_SECTIONS, FLAGS_SECTIONS, USER_SECTIONS, PREVIEW_SECTIONS, REVIEW_SECTIONS, MASS_MESSAGE_SECTIONS, …).",
+          "Admin.jsx tabs + AdminSubNav section arrays (ADS_SECTIONS, FLAGS_SECTIONS, USER_SECTIONS, PREVIEW_SECTIONS, REVIEW_SECTIONS, MASS_MESSAGE_SECTIONS, …). All Activities helpers: getActivityStatusMeta, openFlagsForActivity, handleReactivateItem (admin notes required for events).",
         technicalFeatures: [
           "Hard gate: if user.role !== 'admin' navigate home",
           "Consistent AdminSectionHeader + AdminPanelShell chrome",
+          "Deletion encoding: user deactivate → deleted + empty admin_notes; admin remove → deleted + notes; 3-flag → archived (flag_count ≥ 3)",
+          "My Posts: user may self-reactivate only deleted + empty notes",
         ],
       },
       {
@@ -865,10 +918,11 @@ const categories = [
           "Stage 2 allowed zip list for listings",
           "Home out-of-area notice + empty activity list (profile zip unchanged)",
           "Post Activity and Ad purchase/waitlist still blocked outside whitelist",
-          "Soft notes on Register / Profile / zip prompt",
+          "Register / Profile beta zip note only after a 5-digit zip is entered that is outside the whitelist (lists beta zips)",
+          "Beta banner locations dialog works on mobile (DialogTrigger)",
         ],
         technicalOverview:
-          "beta_config; AdminBetaPanel; BetaBanner / BetaStage1Gate; BetaOutOfAreaNotice on Home; isZipAllowed in useBetaConfig.js.",
+          "beta_config; AdminBetaPanel; BetaBanner / BetaStage1Gate; BetaOutOfAreaNotice on Home; isZipAllowed in useBetaConfig.js. Register BetaZipOutsideNote / Profile BetaZipOutsideNote.",
         technicalFeatures: [
           "Publicly readable config for client gates",
           "create-ad-checkout.js rejects non-whitelist zips when beta.enabled",

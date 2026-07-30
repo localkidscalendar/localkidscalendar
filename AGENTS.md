@@ -35,3 +35,4 @@ npx skills add base44/skills
 - Prefer the existing Base44 CLI workflow over adding new npm scripts for Base44-specific tasks.
 - Reuse the existing SDK client and Vite plugin patterns before adding new Base44 integration paths.
 - Run the relevant checks from `package.json` before finishing code changes.
+- **Admin Manual:** When product rules, signup/profile flows, or admin workflows change, update `src/components/admin/AdminManual.jsx` in the same change set (standing rule).
