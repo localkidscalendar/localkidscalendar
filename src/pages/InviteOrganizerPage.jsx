@@ -7,7 +7,10 @@ import HistoryBackLink from "@/components/shared/HistoryBackLink";
 
 const MEMO_SUBJECT = "I think your organization would be a great fit for LocalKidsCalendar.com";
 
-const MEMO_BODY_SMS = `Hi! I think your organization would be a great fit for LocalKidsCalendar.com — a free, community-powered hub where local families discover kids' camps, classes, sports, and events. It's free to list your activities and reach families already searching for what you offer. Check it out: LocalKidsCalendar.com`;
+const SITE_URL = "https://localkidscalendar.vercel.app";
+const TIPS_URL = `${SITE_URL}/tips-organizers`;
+
+const MEMO_BODY_SMS = `Hi! I think your organization would be a great fit for LocalKidsCalendar.com — a free, community-powered hub where local families discover kids' camps, classes, sports, and events. It's free to list your activities and reach families already searching for what you offer. Check it out: ${SITE_URL} — Tips: ${TIPS_URL}`;
 
 const MEMO_BODY = `Hi there,
 
@@ -20,10 +23,10 @@ Here's why organizers love it:
 - Grow your audience beyond your existing newsletter or social media followers.
 
 Getting started is easy:
-1. Visit LocalKidsCalendar.com
+1. Visit ${SITE_URL}
 2. Create a free account and choose "Organizer" as your account type
 3. Post your first activity with photos and full details
-4. Check out the Tips for Organizers guide to learn more and make the most of the experience.
+4. Check out the Tips for Organizers guide to learn more and make the most of the experience: ${TIPS_URL}
 
 We'd love to have you join our community!`;
 
@@ -77,10 +80,15 @@ export default function InviteOrganizerPage() {
             </ul>
             <p className="font-semibold">Getting started is easy:</p>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-              <li>Visit LocalKidsCalendar.com</li>
-              <li>Create a free account and choose "Organizer" as your account type</li>
+              <li>Visit <a href={SITE_URL} className="text-mint-500 hover:underline">{SITE_URL.replace(/^https:\/\//, "")}</a></li>
+              <li>Create a free account and choose &quot;Organizer&quot; as your account type</li>
               <li>Post your first activity with photos and full details</li>
-              <li>Check out the <Link to="/tips-organizers" className="text-mint-500 hover:underline">Tips for Organizers</Link> guide to learn more and make the most of the experience.</li>
+              <li>
+                Check out the{" "}
+                <Link to="/tips-organizers" className="text-mint-500 hover:underline">Tips for Organizers</Link>
+                {" "}guide to learn more and make the most of the experience:{" "}
+                <a href={TIPS_URL} className="text-mint-500 hover:underline break-all">{TIPS_URL}</a>
+              </li>
             </ol>
             <p>We'd love to have you join our community!</p>
           </div>

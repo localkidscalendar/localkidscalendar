@@ -7,7 +7,10 @@ import HistoryBackLink from "@/components/shared/HistoryBackLink";
 
 const MEMO_SUBJECT = "Check out LocalKidsCalendar.com — a free hub for local kids' activities";
 
-const MEMO_BODY_SMS = `Hi! I found LocalKidsCalendar.com — a free, community-powered hub where local families discover kids' camps, classes, sports, and events. Thought you might like it too: LocalKidsCalendar.com`;
+const SITE_URL = "https://localkidscalendar.vercel.app";
+const TIPS_URL = `${SITE_URL}/tips-community-members`;
+
+const MEMO_BODY_SMS = `Hi! I found LocalKidsCalendar.com — a free, community-powered hub where local families discover kids' camps, classes, sports, and events. Thought you might like it too: ${SITE_URL} — Tips: ${TIPS_URL}`;
 
 const MEMO_BODY = `Hi there,
 
@@ -20,10 +23,10 @@ Here's why parents love it:
 - Option to receive weekly email notifications with new posts that match your preferences and when your favorite organizers add new activities.
 
 Getting started is easy:
-1. Visit LocalKidsCalendar.com
+1. Visit ${SITE_URL}
 2. Create a free account as a Community Member
 3. Save your favorite activities and organizers
-4. Check out the Tips for Community Members guide to learn more and make the most of the experience.
+4. Check out the Tips for Community Members guide to learn more and make the most of the experience: ${TIPS_URL}
 
 Hope to see you there!`;
 
@@ -77,10 +80,15 @@ export default function InviteCommunityMemberPage() {
             </ul>
             <p className="font-semibold">Getting started is easy:</p>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-              <li>Visit LocalKidsCalendar.com</li>
+              <li>Visit <a href={SITE_URL} className="text-mint-500 hover:underline">{SITE_URL.replace(/^https:\/\//, "")}</a></li>
               <li>Create a free account as a Community Member</li>
               <li>Save your favorite activities and organizers</li>
-              <li>Check out the <Link to="/tips-community-members" className="text-mint-500 hover:underline">Tips for Community Members</Link> guide to learn more and make the most of the experience.</li>
+              <li>
+                Check out the{" "}
+                <Link to="/tips-community-members" className="text-mint-500 hover:underline">Tips for Community Members</Link>
+                {" "}guide to learn more and make the most of the experience:{" "}
+                <a href={TIPS_URL} className="text-mint-500 hover:underline break-all">{TIPS_URL}</a>
+              </li>
             </ol>
             <p>Hope to see you there!</p>
           </div>

@@ -7,7 +7,10 @@ import HistoryBackLink from "@/components/shared/HistoryBackLink";
 
 const MEMO_SUBJECT = "I think your business would be a great Supporter for LocalKidsCalendar.com";
 
-const MEMO_BODY_SMS = `Hi! I think your business would be a great Supporter for LocalKidsCalendar.com — a free, community-powered hub where local families discover kids' camps, classes, sports, and events. It's a great way to reach local parents. Check it out: LocalKidsCalendar.com`;
+const SITE_URL = "https://localkidscalendar.vercel.app";
+const TIPS_URL = `${SITE_URL}/tips-supporters`;
+
+const MEMO_BODY_SMS = `Hi! I think your business would be a great Supporter for LocalKidsCalendar.com — a free, community-powered hub where local families discover kids' camps, classes, sports, and events. It's a great way to reach local parents. Check it out: ${SITE_URL} — Tips: ${TIPS_URL}`;
 
 const MEMO_BODY = `Hi there,
 
@@ -20,10 +23,10 @@ Here's why businesses love supporting it:
 - Supporting the platform helps keep it free for every parent in the community.
 
 Getting started is easy:
-1. Visit LocalKidsCalendar.com
+1. Visit ${SITE_URL}
 2. Create a free account and upgrade to add Supporter features
 3. Upload your ad image and link for approval
-4. Check out the Tips for Supporters guide to learn more and make the most of the experience.
+4. Check out the Tips for Supporters guide to learn more and make the most of the experience: ${TIPS_URL}
 
 We'd love to have your business join our community!`;
 
@@ -77,10 +80,15 @@ export default function InviteSupporterPage() {
             </ul>
             <p className="font-semibold">Getting started is easy:</p>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-              <li>Visit LocalKidsCalendar.com</li>
+              <li>Visit <a href={SITE_URL} className="text-mint-500 hover:underline">{SITE_URL.replace(/^https:\/\//, "")}</a></li>
               <li>Create a free account and upgrade to add Supporter features</li>
               <li>Upload your ad image and link for approval</li>
-              <li>Check out the <Link to="/tips-supporters" className="text-mint-500 hover:underline">Tips for Supporters</Link> guide to learn more and make the most of the experience.</li>
+              <li>
+                Check out the{" "}
+                <Link to="/tips-supporters" className="text-mint-500 hover:underline">Tips for Supporters</Link>
+                {" "}guide to learn more and make the most of the experience:{" "}
+                <a href={TIPS_URL} className="text-mint-500 hover:underline break-all">{TIPS_URL}</a>
+              </li>
             </ol>
             <p>We'd love to have your business join our community!</p>
           </div>
