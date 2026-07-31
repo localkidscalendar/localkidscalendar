@@ -100,7 +100,7 @@ export default function About() {
             className="not-prose my-1 flex overflow-hidden rounded-2xl border border-orange-500 bg-gradient-to-br from-peach-50 to-mint-50"
             aria-label="What LocalKidsCalendar is"
           >
-            <div className="-my-px -ml-px aspect-square w-[4.5rem] shrink-0 self-center overflow-hidden rounded-2xl border border-orange-500 bg-white sm:aspect-auto sm:h-auto sm:w-[5.25rem] sm:self-stretch">
+            <div className="-my-px -ml-px aspect-square w-[4.5rem] shrink-0 self-start overflow-hidden rounded-2xl border border-orange-500 bg-white sm:aspect-auto sm:h-auto sm:w-[5.25rem] sm:self-stretch">
               <img
                 src="/logo.png"
                 alt="LocalKidsCalendar logo"
