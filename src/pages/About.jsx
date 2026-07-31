@@ -107,13 +107,37 @@ export default function About() {
                 className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="min-w-0 flex-1 px-4 py-4 sm:px-6 sm:py-5">
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-mint-600">
-                In a nutshell
-              </p>
+            <div className="relative grid min-h-[7.5rem] min-w-0 flex-1 grid-rows-[1fr_auto_1fr] px-4 py-3 sm:min-h-[8.5rem] sm:px-6 sm:py-4">
+              <div className="flex items-center">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-mint-600">
+                  In a nutshell
+                </p>
+              </div>
               <p className="font-heading text-base font-semibold leading-snug text-foreground sm:text-lg">
                 It&apos;s a community-driven resource for parents to find local activities for their kids.
               </p>
+              <div className="flex items-end justify-end">
+                <nav
+                  className="text-[11px] font-semibold tracking-[0.14em] text-mint-600"
+                  aria-label="Tips by audience"
+                >
+                  <Link to="/tips-community-members" className="hover:underline">
+                    Community Members
+                  </Link>
+                  <span className="mx-1.5 text-mint-600/50" aria-hidden>
+                    |
+                  </span>
+                  <Link to="/tips-organizers" className="hover:underline">
+                    Organizers
+                  </Link>
+                  <span className="mx-1.5 text-mint-600/50" aria-hidden>
+                    |
+                  </span>
+                  <Link to="/tips-supporters" className="hover:underline">
+                    Supporters
+                  </Link>
+                </nav>
+              </div>
             </div>
           </aside>
 
