@@ -8,12 +8,16 @@ export const FLAG_REASONS = [
   { value: "other", label: "Other" },
 ];
 
+/** Ad creatives: no "Inaccurate" — flags target the Ad Asset, not zip placement details. */
+export const AD_FLAG_REASONS = FLAG_REASONS.filter((r) => r.value !== "inaccurate");
+
 /**
  * Shared flag UI for activities, comments, and ads.
  * Reason is required. Comments are always available; required when reason is Other.
  */
 export default function FlagReportForm({
   targetLabel = "item",
+  reasons = FLAG_REASONS,
   onSubmit,
   onCancel,
   compact = false,
@@ -50,7 +54,7 @@ export default function FlagReportForm({
         Why are you flagging this {targetLabel}?
       </p>
       <div className={`flex flex-wrap gap-2 ${compact ? "mb-2" : "mb-3"}`}>
-        {FLAG_REASONS.map((r) => (
+        {reasons.map((r) => (
           <Button
             key={r.value}
             type="button"

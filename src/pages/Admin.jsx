@@ -32,8 +32,8 @@ import AdminActivityPhotoReviewPanel from "@/components/admin/AdminActivityPhoto
 import ManualReviewPanel from "@/components/admin/ManualReviewPanel";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
 import {
-  disableAdAssetFromBanner,
-  reactivateAdAssetFromBanner,
+  disableAdAsset,
+  reactivateAdAsset,
   sendAdAssetDisabledEmail,
   markAdAssetDisableNotified,
 } from "@/lib/quarantineAdLibrary";
@@ -428,8 +428,8 @@ export default function Admin() {
   }, [flags]);
 
   useEffect(() => {
-    if (events.length > 0) loadDeletedItems();
-  }, [events]);
+    loadDeletedItems();
+  }, [events, flags]);
 
   useEffect(() => {
     loadFlaggingUsers();
@@ -459,20 +459,38 @@ export default function Admin() {
       }
 
       if (adIds.length) {
-        const { data: adRows } = await supabase
-          .from("banner_ads")
-          .select("id, business_name, status, zip_code, image_url, link_url")
+        // Flags target Ad Library assets; fall back to placements for any unmigrated rows.
+        const { data: assets } = await supabase
+          .from("ad_library")
+          .select("id, ad_name, moderation_status, image_url, link_url")
           .in("id", adIds);
-        (adRows || []).forEach((a) => {
+        (assets || []).forEach((a) => {
           titles[a.id] = {
             type: "ad",
-            title: a.business_name,
-            status: a.status,
-            zip_code: a.zip_code,
+            title: a.ad_name || "Ad Asset",
+            status: a.moderation_status,
             image_url: a.image_url,
             link_url: a.link_url,
           };
         });
+        const missing = adIds.filter((id) => !titles[id]);
+        if (missing.length) {
+          const { data: adRows } = await supabase
+            .from("banner_ads")
+            .select("id, business_name, status, zip_code, image_url, link_url, ad_library_id")
+            .in("id", missing);
+          (adRows || []).forEach((a) => {
+            titles[a.id] = {
+              type: "ad",
+              title: a.business_name,
+              status: a.status,
+              zip_code: a.zip_code,
+              image_url: a.image_url,
+              link_url: a.link_url,
+              asset_id: a.ad_library_id,
+            };
+          });
+        }
       }
       setEventMap(titles);
     } catch {}
@@ -484,7 +502,7 @@ export default function Admin() {
       const [{ data: multiFlagEvents }, { data: multiFlagComments }, { data: multiFlagAds }] = await Promise.all([
         supabase.from("events").select("*").gte("flag_count", 3).order("created_at", { ascending: false }).limit(50),
         supabase.from("comments").select("*").gte("flag_count", 3).order("created_at", { ascending: false }).limit(50),
-        supabase.from("banner_ads").select("*").gte("flag_count", 3).order("created_at", { ascending: false }).limit(50),
+        supabase.from("ad_library").select("*").gte("flag_count", 3).is("deleted_at", null).order("created_at", { ascending: false }).limit(50),
       ]);
       const activeFlagReports = (targetId, targetType) =>
         flags.filter(
@@ -522,72 +540,55 @@ export default function Admin() {
     );
 
   const syncTargetStatusWithFlagThreshold = async (table, targetId, targetType, nextCount, currentStatus) => {
-    const hiddenStatus = targetType === "ad" ? "flagged" : "archived";
+    if (targetType === "ad") {
+      if (nextCount >= 3) {
+        if (currentStatus !== "flagged") {
+          await disableAdAsset(
+            targetId,
+            "Ad creative flagged by 3+ community members and disabled across all zip placements."
+          );
+        }
+        return;
+      }
+      if (currentStatus === "flagged" && !isManuallyDeactivatedTarget(targetId, targetType)) {
+        await reactivateAdAsset(targetId);
+      }
+      return;
+    }
+
+    const hiddenStatus = "archived";
     const updates = { updated_at: new Date().toISOString() };
 
     if (nextCount >= 3) {
       if (currentStatus !== hiddenStatus) {
         updates.status = hiddenStatus;
         await supabase.from(table).update(updates).eq("id", targetId);
-        if (targetType === "ad") {
-          await disableAdAssetFromBanner(
-            targetId,
-            "Ad creative flagged by 3+ community members and disabled across all zip placements."
-          );
-        }
       }
       return;
     }
 
-    // Below threshold: undo auto-hide, but keep Admin Manual Deactivate / disabled Ad Asset in place
-    if (
-      (currentStatus === "archived" || currentStatus === "flagged") &&
-      !isManuallyDeactivatedTarget(targetId, targetType)
-    ) {
-      if (targetType === "ad") {
-        const { data: ad } = await supabase
-          .from("banner_ads")
-          .select("ad_library_id, image_url, link_url, user_id")
-          .eq("id", targetId)
-          .maybeSingle();
-        if (ad?.ad_library_id) {
-          const { data: asset } = await supabase
-            .from("ad_library")
-            .select("moderation_status")
-            .eq("id", ad.ad_library_id)
-            .maybeSingle();
-          if (asset?.moderation_status === "flagged") return;
-        } else if (ad?.user_id && ad?.image_url && ad?.link_url) {
-          const { data: assets } = await supabase
-            .from("ad_library")
-            .select("moderation_status")
-            .eq("user_id", ad.user_id)
-            .eq("image_url", ad.image_url)
-            .eq("link_url", ad.link_url)
-            .eq("moderation_status", "flagged")
-            .limit(1);
-          if (assets?.length) return;
-        }
-      }
+    // Below threshold: undo auto-hide, but keep Admin Manual Deactivate in place
+    if (currentStatus === "archived" && !isManuallyDeactivatedTarget(targetId, targetType)) {
       updates.status = "active";
       await supabase.from(table).update(updates).eq("id", targetId);
     }
   };
 
   const clearFlagFromTarget = async (report) => {
+    const isAd = report.target_type === "ad";
     const table =
       report.target_type === "event"
         ? "events"
         : report.target_type === "comment"
           ? "comments"
-          : report.target_type === "ad"
-            ? "banner_ads"
+          : isAd
+            ? "ad_library"
             : null;
     if (!table) return;
 
     const { data: row } = await supabase
       .from(table)
-      .select("flag_count, flagged_by, status")
+      .select(isAd ? "flag_count, flagged_by, moderation_status" : "flag_count, flagged_by, status")
       .eq("id", report.target_id)
       .maybeSingle();
     if (!row) return;
@@ -602,30 +603,39 @@ export default function Admin() {
       updated_at: new Date().toISOString(),
     }).eq("id", report.target_id);
 
+    if (isAd) {
+      await supabase.from("banner_ads").update({
+        flag_count: resolvedCount,
+        flagged_by: nextBy,
+        updated_at: new Date().toISOString(),
+      }).eq("ad_library_id", report.target_id);
+    }
+
     await syncTargetStatusWithFlagThreshold(
       table,
       report.target_id,
       report.target_type,
       resolvedCount,
-      row.status
+      isAd ? row.moderation_status : row.status
     );
   };
 
   const restoreFlagOnTarget = async (report) => {
     if (!report?.reporter_id) return;
+    const isAd = report.target_type === "ad";
     const table =
       report.target_type === "event"
         ? "events"
         : report.target_type === "comment"
           ? "comments"
-          : report.target_type === "ad"
-            ? "banner_ads"
+          : isAd
+            ? "ad_library"
             : null;
     if (!table) return;
 
     const { data: row } = await supabase
       .from(table)
-      .select("flag_count, flagged_by, status")
+      .select(isAd ? "flag_count, flagged_by, moderation_status" : "flag_count, flagged_by, status")
       .eq("id", report.target_id)
       .maybeSingle();
     if (!row) return;
@@ -642,12 +652,20 @@ export default function Admin() {
       updated_at: new Date().toISOString(),
     }).eq("id", report.target_id);
 
+    if (isAd) {
+      await supabase.from("banner_ads").update({
+        flag_count: resolvedCount,
+        flagged_by: nextBy,
+        updated_at: new Date().toISOString(),
+      }).eq("ad_library_id", report.target_id);
+    }
+
     await syncTargetStatusWithFlagThreshold(
       table,
       report.target_id,
       report.target_type,
       resolvedCount,
-      row.status
+      isAd ? row.moderation_status : row.status
     );
   };
 
@@ -995,7 +1013,7 @@ export default function Admin() {
   };
 
   const recordDeactivatedCaseAction = async (item, action) => {
-    const table = item.type === "event" ? "events" : item.type === "comment" ? "comments" : "banner_ads";
+    const table = item.type === "event" ? "events" : item.type === "comment" ? "comments" : "ad_library";
     const history = [
       ...getDeactivatedCaseHistory(item),
       {
@@ -1014,7 +1032,9 @@ export default function Admin() {
   };
 
   const isDeactivatedItemHidden = (item) =>
-    item.type === "ad" ? item.item.status === "flagged" : item.item.status === "archived";
+    item.type === "ad"
+      ? item.item.moderation_status === "flagged" || item.item.status === "flagged"
+      : item.item.status === "archived";
 
   const resolveDeactivatedContributor = (item) => {
     if (item.type === "event") {
@@ -1029,7 +1049,7 @@ export default function Admin() {
     if (item.type === "comment") {
       return item.item.author_name || "—";
     }
-    return item.item.business_name || item.flags?.[0]?.target_contributor_name || "—";
+    return item.item.ad_name || item.item.business_name || item.flags?.[0]?.target_contributor_name || "—";
   };
 
   const handleDeactivatedReactivate = async (item) => {
@@ -1037,7 +1057,7 @@ export default function Admin() {
     const targetId = item.item.id;
     let error;
     if (targetType === "ad") {
-      ({ error } = await reactivateAdAssetFromBanner(targetId));
+      ({ error } = await reactivateAdAsset(targetId));
     } else {
       const table = targetType === "event" ? "events" : "comments";
       const updates = { status: "active", updated_at: new Date().toISOString() };
@@ -1074,7 +1094,7 @@ export default function Admin() {
     let disableResult = null;
     if (item.type === "ad") {
       const reason = "Ad creative manually deactivated by Admin.";
-      ({ data: disableResult, error } = await disableAdAssetFromBanner(targetId, reason));
+      ({ data: disableResult, error } = await disableAdAsset(targetId, reason));
       if (!error && disableResult && !disableResult.already_disabled) {
         await sendAdAssetDisabledEmail({
           userId: disableResult.user_id,
@@ -1145,7 +1165,7 @@ export default function Admin() {
     let error;
     if (targetType === "ad") {
       const reason = "Ad creative manually deactivated by Admin.";
-      const { data: disableResult, error: disableError } = await disableAdAssetFromBanner(targetId, reason);
+      const { data: disableResult, error: disableError } = await disableAdAsset(targetId, reason);
       error = disableError;
       if (!error && disableResult && !disableResult.already_disabled) {
         await sendAdAssetDisabledEmail({
@@ -1190,7 +1210,7 @@ export default function Admin() {
   const handleReactivateFromFlag = async (flagId, targetId, targetType) => {
     let error;
     if (targetType === "ad") {
-      ({ error } = await reactivateAdAssetFromBanner(targetId));
+      ({ error } = await reactivateAdAsset(targetId));
     } else {
       const table = targetType === "event" ? "events" : "comments";
       const updates = { status: "active", updated_at: new Date().toISOString() };
@@ -1219,9 +1239,9 @@ export default function Admin() {
   const handleClearFlag = async (flagId) => {
     const report = flags.find((f) => f.id === flagId);
     if (!report) return;
-    if (!window.confirm("Clear this flag? It will be removed from the item’s flag count, but kept in the reporter’s flag history.")) return;
+    if (!window.confirm("Clear this flag? It will be removed from the item’s flag count, but the report stays for admin history.")) return;
 
-    // Keep the report for the user's My Flagged Content history; clear it from the target content
+    // Keep the report row for audit history; clear it from the target content counters
     await clearFlagFromTarget(report);
 
     const { error } = await recordFlagAdminAction(flagId, "flag_cleared");
@@ -1241,7 +1261,7 @@ export default function Admin() {
       toast({ title: "No flags to clear" });
       return;
     }
-    if (!window.confirm(`Clear all ${uncleared.length} flags on this ${label}? They will be removed from the item’s flag count, but kept in each reporter’s flag history.`)) return;
+    if (!window.confirm(`Clear all ${uncleared.length} flags on this ${label}? They will be removed from the item’s flag count, but reports stay for admin history.`)) return;
 
     for (const report of uncleared) {
       await clearFlagFromTarget(report);
@@ -1820,7 +1840,7 @@ export default function Admin() {
 
           {flagsSection === "flags-flagged-content" && (
             <>
-            <AdminSectionHeader title="Flagged Content (Activities, Comments, Ads)" icon={Flag} />
+            <AdminSectionHeader title="Flagged Content (Activities, Comments, Ad Assets)" icon={Flag} />
               <AdminPanelShell>
                 <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
                   <Input
@@ -2000,15 +2020,14 @@ export default function Admin() {
                                     )
                                   ) : (
                                     <p className="text-sm font-semibold truncate">
-                                      {targetMeta?.title || f.target_contributor_name || "Ad"}
-                                      {targetMeta?.zip_code ? ` · ${targetMeta.zip_code}` : ""}
+                                      {targetMeta?.title || f.target_contributor_name || "Ad Asset"}
                                     </p>
                                   )}
 
                                   <div className="text-xs text-muted-foreground space-y-0.5">
                                     <p>
                                       <span className="font-medium text-foreground/80">
-                                        {f.target_type === "comment" ? "Comment by" : f.target_type === "ad" ? "Business" : "Contributor"}:
+                                        {f.target_type === "comment" ? "Comment by" : f.target_type === "ad" ? "Ad Asset" : "Contributor"}:
                                       </span>{" "}
                                       {resolveContributorName(f)}
                                     </p>
@@ -2255,15 +2274,14 @@ export default function Admin() {
                                   )
                                 ) : (
                                   <p className="text-sm font-semibold truncate">
-                                    {item.item.business_name || "Ad"}
-                                    {item.item.zip_code ? ` · ${item.item.zip_code}` : ""}
+                                    {item.item.ad_name || item.item.business_name || "Ad Asset"}
                                   </p>
                                 )}
 
                                 <div className="text-xs text-muted-foreground space-y-0.5">
                                   <p>
                                     <span className="font-medium text-foreground/80">
-                                      {item.type === "comment" ? "Comment by" : item.type === "ad" ? "Business" : "Contributor"}:
+                                      {item.type === "comment" ? "Comment by" : item.type === "ad" ? "Ad Asset" : "Contributor"}:
                                     </span>{" "}
                                     {resolveDeactivatedContributor(item)}
                                   </p>
@@ -2333,7 +2351,7 @@ export default function Admin() {
                                     >
                                       <img
                                         src={item.item.image_url}
-                                        alt={item.item.business_name || "Ad creative"}
+                                        alt={item.item.ad_name || item.item.business_name || "Ad creative"}
                                         className="max-w-full max-h-full object-contain"
                                       />
                                     </a>
@@ -2579,8 +2597,7 @@ export default function Admin() {
                                               )
                                             ) : (
                                               <p className="text-sm font-semibold truncate">
-                                                {targetMeta?.title || f.target_contributor_name || "Ad"}
-                                                {targetMeta?.zip_code ? ` · ${targetMeta.zip_code}` : ""}
+                                                {targetMeta?.title || f.target_contributor_name || "Ad Asset"}
                                               </p>
                                             )}
 
@@ -2590,7 +2607,7 @@ export default function Admin() {
                                                   {f.target_type === "comment"
                                                     ? "Comment by"
                                                     : f.target_type === "ad"
-                                                      ? "Business"
+                                                      ? "Ad Asset"
                                                       : "Contributor"}
                                                   :
                                                 </span>{" "}

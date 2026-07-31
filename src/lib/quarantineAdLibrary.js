@@ -4,6 +4,19 @@ import { sendEmail } from "@/lib/sendEmail";
 import { apiUrl } from "@/lib/apiBase";
 
 /**
+ * Disable an Ad Library asset and cascade-flag all matching zip placements.
+ * Prefer this when the flag/report target is already an asset id.
+ */
+export async function disableAdAsset(assetId, reason = null) {
+  if (!assetId) return { data: null, error: new Error("Missing asset id") };
+  const { data, error } = await supabase.rpc("disable_ad_asset", {
+    p_asset_id: assetId,
+    p_reason: reason || null,
+  });
+  return { data, error };
+}
+
+/**
  * Disable the Ad Asset linked to a banner and cascade-flag all matching zip placements.
  * Returns the RPC payload (zip_codes, asset_ids, etc.).
  */
@@ -25,6 +38,17 @@ export async function quarantineAdLibraryForBanner(ad) {
 
 /**
  * Admin override: re-approve the asset and restore related flagged placements.
+ */
+export async function reactivateAdAsset(assetId) {
+  if (!assetId) return { data: null, error: new Error("Missing asset id") };
+  const { data, error } = await supabase.rpc("reactivate_ad_asset", {
+    p_asset_id: assetId,
+  });
+  return { data, error };
+}
+
+/**
+ * Admin override via a zip placement id (resolves to the linked Ad Asset).
  */
 export async function reactivateAdAssetFromBanner(bannerId) {
   if (!bannerId) return { data: null, error: new Error("Missing banner id") };

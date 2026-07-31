@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { ExternalLink, Heart, Flag } from "lucide-react";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
-import FlagReportForm from "@/components/shared/FlagReportForm";
+import FlagReportForm, { AD_FLAG_REASONS } from "@/components/shared/FlagReportForm";
 import { useToast } from "@/components/ui/use-toast";
 import { notifyAdAssetDisabled } from "@/lib/quarantineAdLibrary";
 import { alreadyFlaggedMessage, userHasFlaggedTarget } from "@/lib/flagReports";
@@ -29,11 +29,17 @@ export function SupporterAdPlaceholder() {
   );
 }
 
-export default function SupporterAdCard({ ad, user }) {
+function resolveAssetId(ad) {
+  return ad?.ad_library_id || null;
+}
+
+export default function SupporterAdCard({ ad, user, onAssetFlagged }) {
   const clickedRef = useRef(false);
   const { toast } = useToast();
   const [flagOpen, setFlagOpen] = useState(false);
   const [authPrompt, setAuthPrompt] = useState(false);
+  const isOwner = Boolean(user?.id && ad?.user_id && user.id === ad.user_id);
+  const assetId = resolveAssetId(ad);
 
   const trackClick = async () => {
     if (!clickedRef.current) {
@@ -57,13 +63,15 @@ export default function SupporterAdCard({ ad, user }) {
     e.preventDefault();
     e.stopPropagation();
     if (!user) { setAuthPrompt(true); return; }
+    if (isOwner) return;
     if (flagOpen) {
       setFlagOpen(false);
       return;
     }
+    const flagTargetId = assetId || ad.id;
     try {
-      if (await userHasFlaggedTarget("ad", ad.id, user.id)) {
-        toast({ title: alreadyFlaggedMessage("ad") });
+      if (await userHasFlaggedTarget("ad", flagTargetId, user.id)) {
+        toast({ title: alreadyFlaggedMessage("ad creative") });
         return;
       }
     } catch (err) {
@@ -77,7 +85,8 @@ export default function SupporterAdCard({ ad, user }) {
     try {
       const { data, error } = await supabase.rpc("submit_flag", {
         p_target_type: "ad",
-        p_target_id: ad.id,
+        // Prefer asset id; RPC still accepts placement id and remaps.
+        p_target_id: assetId || ad.id,
         p_reason: reason,
         p_details: details,
       });
@@ -85,15 +94,21 @@ export default function SupporterAdCard({ ad, user }) {
       toast({
         title: data?.archived
           ? "Ad creative flagged for review"
-          : "Ad flagged. Thank you for helping keep our community safe.",
+          : "Ad creative flagged. Thank you for helping keep our community safe.",
       });
       if (data?.archived && data?.needs_notify !== false) {
         void notifyAdAssetDisabled(ad.id);
       }
+      onAssetFlagged?.({
+        assetId: data?.asset_id || assetId,
+        bannerId: ad.id,
+        archived: Boolean(data?.archived),
+        flagCount: data?.flag_count,
+      });
     } catch (err) {
       const already = /already flagged/i.test(err.message || "");
       toast({
-        title: already ? alreadyFlaggedMessage("ad") : "Could not submit report",
+        title: already ? alreadyFlaggedMessage("ad creative") : "Could not submit report",
         description: already ? undefined : err.message,
         variant: already ? "default" : "destructive",
       });
@@ -129,14 +144,16 @@ export default function SupporterAdCard({ ad, user }) {
           <span className="text-xs text-gray-300">Supporter</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleFlagButtonClick}
-            title={user ? "Report this ad if it's inaccurate, inappropriate, or spam." : "Report this ad if it's inaccurate, inappropriate, or spam. Requires a registered, signed-in account."}
-            className={`text-gray-400 hover:text-red-400 transition-colors ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            <Flag className="w-3.5 h-3.5" />
-          </button>
+          {!isOwner && (
+            <button
+              type="button"
+              onClick={handleFlagButtonClick}
+              title={user ? "Report this ad creative if it's inappropriate or spam." : "Report this ad creative if it's inappropriate or spam. Requires a registered, signed-in account."}
+              className={`text-gray-400 hover:text-red-400 transition-colors ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              <Flag className="w-3.5 h-3.5" />
+            </button>
+          )}
           <a
             href={ad.link_url}
             target="_blank"
@@ -153,7 +170,8 @@ export default function SupporterAdCard({ ad, user }) {
       {flagOpen && (
         <div onClick={(e) => e.stopPropagation()}>
           <FlagReportForm
-            targetLabel="ad"
+            targetLabel="ad creative"
+            reasons={AD_FLAG_REASONS}
             compact
             onSubmit={handleSubmitFlag}
             onCancel={() => setFlagOpen(false)}
@@ -164,7 +182,7 @@ export default function SupporterAdCard({ ad, user }) {
       <AuthPromptModal
         open={authPrompt}
         onOpenChange={setAuthPrompt}
-        message="Sign in to report this ad if it's inaccurate, inappropriate, or spam."
+        message="Sign in to report this ad creative if it's inappropriate or spam."
       />
     </div>
   );

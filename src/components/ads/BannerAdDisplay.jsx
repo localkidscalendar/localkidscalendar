@@ -93,7 +93,21 @@ export default function BannerAdDisplay({ user, userLoading }) {
       <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
         {displayAds.map(({ type, ad }, i) =>
           type === "paid"
-            ? <SupporterAdCard key={ad.id} ad={ad} user={user} />
+            ? <SupporterAdCard
+                key={ad.id}
+                ad={ad}
+                user={user}
+                onAssetFlagged={({ archived }) => {
+                  if (!archived) return;
+                  setDisplayAds((prev) => prev.filter((item) => {
+                    if (item?.type !== "paid") return true;
+                    const a = item.ad;
+                    if (ad.ad_library_id && a?.ad_library_id === ad.ad_library_id) return false;
+                    if (a?.id === ad.id) return false;
+                    return true;
+                  }));
+                }}
+              />
             : <DefaultAdCard key={`default-${ad.id}-${i}`} ad={ad} />
         )}
       </div>

@@ -439,21 +439,23 @@ const categories = [
         title: "Flagging & Admin Disposition",
         keywords: ["flag", "3 flags", "manually_deactivated", "cascade"],
         overview:
-          "Registered users flag activities, comments, or ads (Inaccurate, Inappropriate, Spam, Other with required details). At 3 distinct flaggers, content auto-hides (or ads go flagged). Admin Flags reviews dispositions and history.",
+          "Registered users flag activities, comments, or ad creatives. Activities and comments use Inaccurate, Inappropriate, Spam, or Other (details required). Ad creatives use Inappropriate, Spam, or Other — not Inaccurate. At 3 distinct flaggers, activities/comments auto-archive; ad flags attach to the Ad Asset and disable that creative across all zip placements. Admin Flags reviews dispositions and history.",
         features: [
-          "Same reasons everywhere; Other requires text",
-          "Threshold: 3 different users → activity/comment status archived; ads go flagged",
+          "Shared reasons for activities/comments; ads omit Inaccurate; Other requires text",
+          "Threshold: 3 different users → activity/comment status archived; Ad Asset → moderation flagged (all placements)",
+          "Owners cannot flag their own activity, comment, or ad creative",
           "Admin → Flags is the primary place to Reactivate 3-flag cases (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
           "Admin: Manually Deactivate, Reactivate, Reviewed, Clear Flag / flags cleared",
-          "Ad asset cascade: disabling a creative can affect all zip placements using it",
+          "Ad asset cascade: disabling a creative affects all zip placements using it",
         ],
         technicalOverview:
-          "flag_reports + admin_action_history arrays. Admin → Flags → Flagged Content / Users Flagging. Ad quarantine helpers in quarantineAdLibrary.js + RPCs.",
+          "flag_reports target_id for ads is ad_library id. admin_action_history arrays. Admin → Flags → Flagged Content / Users Flagging. Ad quarantine helpers in quarantineAdLibrary.js + disable_ad_asset / submit_flag RPCs.",
         technicalFeatures: [
           "Dispositions include manually_deactivated, reactivated, reviewed, flags_cleared / flag_cleared",
           "Community 3-flag on ads can notify via notify-ad-asset-disabled (idempotent disable_notified_at)",
           "Admin → Flags → Flagged Content filters: All / Activities / Comments / Ads, plus a combinable 3+ toggle for 3+ Deactivation cards only",
           "Threshold filters in Admin Users Flagging: All / 3+ / 5+ / 10+",
+          "banner_ads.flag_count mirrors the asset for Ad Manager display",
         ],
       },
     ],
@@ -486,18 +488,20 @@ const categories = [
         id: "ad-library",
         title: "Ad Library & Asset Cascade",
         overview:
-          "Reusable approved creatives (image + link). In-use assets (assigned to active / pending / past-due zip ads) show a greyed, disabled trash control — delete only when unassigned. Flagging/disabling an asset can cascade across zip placements; Supporters are notified and can assign a different approved creative.",
+          "Reusable approved creatives (image + link). In-use assets (assigned to active / pending / past-due zip ads) show a greyed, disabled trash control — delete only when unassigned. Community flags and admin disables attach to the Ad Asset and cascade across every zip placement using that creative; Supporters are notified and can assign a different approved creative.",
         features: [
           "Library reuse at checkout/renewal",
           "Cannot delete assets used by live placements",
-          "Cascade disable across matching placements",
+          "Community flags accumulate on the asset across zips (not per placement)",
+          "Cascade disable across matching placements at 3 flags or admin action",
           "What next messaging points Supporter to Ad Manager",
         ],
         technicalOverview:
-          "ad_library + banner_ads.ad_library_id. quarantineAdLibrary.js / disable RPCs. Admin Ads + Flags.",
+          "ad_library.flag_count / flagged_by; flag_reports.target_id = asset id for ads. quarantineAdLibrary.js / disable_ad_asset RPCs. Admin Ads + Flags.",
         technicalFeatures: [
           "moderation_status on assets; ManualReviewPanel for manual_review queue",
           "notifyAdCreativeDisabledAdmin / email paths for admin vs community cascade",
+          "Placement flag_count mirrored from asset for Ad Manager Creative Flags meter",
         ],
       },
       {
@@ -520,10 +524,10 @@ const categories = [
         id: "advertising-rules",
         title: "Rules & Terms",
         overview:
-          "Family-appropriate standards; TOS agreement at checkout; community flagging can pull ads from rotation.",
+          "Family-appropriate standards; TOS agreement at checkout; community flagging attaches to Ad Assets and can pull that creative from every zip.",
         features: [
           "TOS on Advertiser Terms + checkout agreement fields",
-          "3-flag auto flagged status",
+          "3-flag auto disable on the Ad Asset (all placements)",
           "Clear unavailable messaging in Ad Manager",
         ],
         technicalOverview:

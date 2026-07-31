@@ -241,7 +241,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
           { label: "Impressions", value: impressions.toLocaleString() },
           { label: "Clicks", value: clicks.toLocaleString() },
           { label: "CTR", value: ctr },
-          { label: "Flags", value: `${ad.flag_count || 0} of 3` },
+          { label: "Creative Flags", value: `${ad.flag_count || 0} of 3` },
         ].map(({ label, value }) => (
           <div key={label} className="bg-muted/40 rounded-lg px-1.5 py-1.5 text-center">
             <p className="font-heading font-bold text-xs sm:text-sm leading-tight">{value}</p>

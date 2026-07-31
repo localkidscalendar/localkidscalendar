@@ -33,7 +33,7 @@ function rotatedShuffle(arr, seed) {
 }
 
 // Injects supporter ads into the event feed grid
-function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, onToggleSave, user }) {
+function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, onToggleSave, user, onAssetFlagged }) {
   const COLS = 3; // grid columns on lg
 
   // ads is { type: "paid"|"default", ad } — filter paid ads by zip, keep defaults always
@@ -54,7 +54,7 @@ function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, on
         {events.map((event) => <EventCard key={event.id} event={event} isSaved={savedEventIds.has(event.id)} onToggleSave={onToggleSave} />)}
         {rotatedAds.map(({ type, ad }) =>
           type === "paid"
-            ? <SupporterAdCard key={ad.id} ad={ad} user={user} />
+            ? <SupporterAdCard key={ad.id} ad={ad} user={user} onAssetFlagged={onAssetFlagged} />
             : <DefaultAdCard key={`d-${ad.id}`} ad={ad} />
         )}
       </div>
@@ -107,7 +107,7 @@ function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, on
         if (item.type === "event") return <EventCard key={`ev-${item.data.id}`} event={item.data} isSaved={savedEventIds.has(item.data.id)} onToggleSave={onToggleSave} />;
         const { type: adType, ad } = item.data;
         return adType === "paid"
-          ? <SupporterAdCard key={`ad-${ad.id}`} ad={ad} user={user} />
+          ? <SupporterAdCard key={`ad-${ad.id}`} ad={ad} user={user} onAssetFlagged={onAssetFlagged} />
           : <DefaultAdCard key={`def-${ad.id}-${i}`} ad={ad} />;
       })}
     </div>
@@ -448,6 +448,20 @@ export default function Home() {
   useEffect(() => {
     loadAds();
   }, [filters.zipCode]);
+
+  const handleAdAssetFlagged = ({ assetId, archived }) => {
+    if (!archived) return;
+    setActiveAds((prev) =>
+      prev.filter((item) => {
+        if (item?.type !== "paid") return true;
+        const a = item.ad;
+        if (assetId && a?.ad_library_id && a.ad_library_id === assetId) return false;
+        return true;
+      })
+    );
+    // Refetch so fillers / remaining creatives stay correct
+    loadAds();
+  };
 
   const loadAds = async () => {
     try {
@@ -871,7 +885,7 @@ export default function Home() {
             )}
           </div>
           {activeAds.length > 0 && (
-            <AdInjectedFeed events={[]} ads={activeAds} rotationIndex={adRotationIndex} zipCode={filters.zipCode} savedEventIds={savedEventIds} onToggleSave={toggleSave} user={user} />
+            <AdInjectedFeed events={[]} ads={activeAds} rotationIndex={adRotationIndex} zipCode={filters.zipCode} savedEventIds={savedEventIds} onToggleSave={toggleSave} user={user} onAssetFlagged={handleAdAssetFlagged} />
           )}
 
         </div> :
@@ -887,7 +901,7 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <AdInjectedFeed events={filteredEvents} ads={activeAds} rotationIndex={adRotationIndex} zipCode={filters.zipCode} savedEventIds={savedEventIds} onToggleSave={toggleSave} user={user} />
+            <AdInjectedFeed events={filteredEvents} ads={activeAds} rotationIndex={adRotationIndex} zipCode={filters.zipCode} savedEventIds={savedEventIds} onToggleSave={toggleSave} user={user} onAssetFlagged={handleAdAssetFlagged} />
           </>
         }
       </div>

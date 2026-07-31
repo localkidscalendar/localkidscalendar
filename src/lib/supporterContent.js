@@ -10,8 +10,8 @@ export const SUPPORTER_RULES = [
   { title: "No Competitor Targeting", text: "Ads may not directly disparage or negatively target competing businesses, organizations, or individuals." },
   { title: "Image Quality Standards", text: "Ad images must be high resolution, clear, and professional. Blurry, pixelated, or low-quality images that reflect poorly on the platform will not be approved. Best display fit for Supporter ads is 600 × 400 px (3:2 landscape). The site resizes and compresses photos before upload." },
   { title: "Compliance with Laws", text: "All ads must comply with applicable local, state, and federal laws, including truth-in-advertising standards, privacy laws, and any regulations relevant to your industry." },
-  { title: "Community Flagging", text: "Our community of parents can flag ads they feel are inappropriate. Ads flagged 3 or more times are automatically suspended pending review. Repeated violations will result in permanent removal without refund." },
-  { title: "Replacement Ads", text: "If your ad is removed due to flagging or violation, you must submit a compliant replacement before your spot can be restored. Replacement ads undergo manual review." },
+  { title: "Community Flagging", text: "Our community of parents can flag ad creatives they feel are inappropriate or spam. Flags attach to the Ad Asset (creative), not a single zip placement — so reports from any zip count together. An asset flagged by 3 or more distinct users is automatically disabled everywhere that creative is running, pending review. Repeated violations will result in permanent removal without refund." },
+  { title: "Replacement Ads", text: "If your ad creative is disabled due to flagging or violation, you must assign a compliant replacement asset before each affected zip spot can go live again. New replacement creatives undergo review." },
   { title: "No Refunds for Policy Violations", text: "Ads removed due to policy violations, community flags, or Terms of Service breaches are not eligible for refunds or credits, regardless of remaining plan time. This also applies if the Supporter is prohibited from the site for not adhering to the Our Community Rules or Our Supporter rules." },
 ];
 
@@ -71,7 +71,7 @@ export const TOS_SECTIONS = [
   },
   {
     title: "7. Ad Review & Moderation",
-    paragraphs: ["Submitted ads undergo automated content screening and may also be subject to manual review. We reserve the right to approve, reject, or request modifications to any ad. Ads flagged 3 or more times by community members are automatically suspended pending review. If a replacement is required (due to flagging or rejection), it must also pass review before your ad spot is restored. There is no credit or refund for time lost during review or suspension."],
+    paragraphs: ["Submitted ads undergo automated content screening and may also be subject to manual review. We reserve the right to approve, reject, or request modifications to any ad. Community flags attach to the Ad Asset (creative). An asset flagged by 3 or more distinct community members is automatically disabled across every zip placement using that creative, pending review. If a replacement is required (due to flagging or rejection), it must also pass review before your ad spot is restored. There is no credit or refund for time lost during review or suspension."],
   },
   {
     title: "8. Zip Code Availability",

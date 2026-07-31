@@ -217,7 +217,7 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
           <p className="text-xs text-muted-foreground mt-0.5">
             {onSelectAsset
               ? "Select an approved asset below. To add assets, use Add Asset or the Ad Library tab."
-              : "Upload creatives for automated review. Approved assets can be used for zip placements. Assets can’t be edited after upload — create a new one instead. Community flagging disables a creative across every zip using it."}
+              : "Upload creatives for automated review. Approved assets can be used for zip placements. Assets can’t be edited after upload — create a new one instead. Community flags attach to the asset (reports from any zip count together) and at 3 flags the creative is disabled everywhere it’s running."}
           </p>
         </div>
         {(!onSelectAsset || allowAddNew) && !showForm && (
