@@ -143,7 +143,7 @@ const categories = [
           "Supporter is not a role — it is profiles.is_advertiser on top of CM or Organizer",
         ],
         technicalOverview:
-          "profiles.role check constraint: admin | organizer | community_member | disabled. organizers table is 1:1 with user_id. Admin Users list shows the live profiles.role label.",
+          "profiles.role check constraint: admin | organizer | community_member | disabled. organizers table is 1:1 with user_id. Admin Users list shows the live profiles.role label, zip_code column, and search by name/email/zip.",
         technicalFeatures: [
           "role_before_disabled preserved on disable; restoreRoleFromProfile in authRoles.js",
           "Weekly digests intentionally skip organizer and admin recipients",

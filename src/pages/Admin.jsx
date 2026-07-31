@@ -1513,6 +1513,7 @@ export default function Admin() {
         || (u.first_name || "").toLowerCase().includes(search)
         || (u.last_name || "").toLowerCase().includes(search)
         || (u.email || "").toLowerCase().includes(search)
+        || (u.zip_code || "").toLowerCase().includes(search)
       );
     }
     let sorted = [...filtered];
@@ -1527,6 +1528,14 @@ export default function Admin() {
         const aEmail = a.email.toLowerCase();
         const bEmail = b.email.toLowerCase();
         return userSortOrder === "asc" ? aEmail.localeCompare(bEmail) : bEmail.localeCompare(aEmail);
+      });
+    } else if (userSortBy === "zip") {
+      sorted.sort((a, b) => {
+        const aZip = a.zip_code || "";
+        const bZip = b.zip_code || "";
+        return userSortOrder === "asc"
+          ? aZip.localeCompare(bZip, undefined, { numeric: true })
+          : bZip.localeCompare(aZip, undefined, { numeric: true });
       });
     } else {
       sorted.sort((a, b) => {
@@ -2755,7 +2764,7 @@ export default function Admin() {
               <AdminPanelShell>
                 <div className="pb-4 mb-4 border-b border-border">
                   <Input
-                    placeholder="Search users by name or email..."
+                    placeholder="Search users by name, email, or zip..."
                     value={userSearch}
                     onChange={(e) => { setUserSearch(e.target.value); setUsersPage(1); }}
                     className="rounded-lg h-8 text-sm"
@@ -2785,6 +2794,16 @@ export default function Admin() {
                         >
                           Email {userSortBy === "email" && (userSortOrder === "asc" ? "↑" : "↓")}
                         </th>
+                        <th
+                          className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer hover:bg-muted/70"
+                          onClick={() => {
+                            if (userSortBy === "zip") { setUserSortOrder(userSortOrder === "asc" ? "desc" : "asc"); }
+                            else { setUserSortBy("zip"); setUserSortOrder("asc"); }
+                            setUsersPage(1);
+                          }}
+                        >
+                          Zip {userSortBy === "zip" && (userSortOrder === "asc" ? "↑" : "↓")}
+                        </th>
                         <th className="text-left px-4 py-3 font-medium text-muted-foreground">Role</th>
                         <th
                           className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer hover:bg-muted/70"
@@ -2811,6 +2830,7 @@ export default function Admin() {
                           <tr key={u.id} className="hover:bg-muted/30">
                             <td className="px-4 py-3">{displayName}</td>
                             <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
+                            <td className="px-4 py-3 text-muted-foreground tabular-nums">{u.zip_code || "—"}</td>
                             <td className="px-4 py-3">
                               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted capitalize">
                                 {u.role === "community_member" ? "Community Member" : u.role === "organizer" ? "Organizer" : u.role === "admin" ? "Admin" : u.role === "disabled" ? "Disabled" : "Needs Setup"}
