@@ -95,42 +95,42 @@ export default function About() {
         <div className="prose prose-sm max-w-none text-muted-foreground space-y-4 leading-relaxed">
           <p>LocalKidsCalendar.com is a free, community-powered hub, built by parents, for parents. We believe that every child deserves access to enriching local experiences — from summer camps and after-school classes to sports leagues and weekend events — and that finding those opportunities should be easy, fast, and free.</p>
 
-          {/* Pull-quote “nutshell” — logo flush left with matching rounded orange frame */}
+          {/* Pull-quote “nutshell” — stacked on mobile; desktop keeps the centered overlay layout */}
           <aside
             className="not-prose my-1 flex overflow-hidden rounded-2xl border border-orange-500 bg-gradient-to-br from-peach-50 to-mint-50"
             aria-label="What LocalKidsCalendar is"
           >
-            <div className="-my-px -ml-px w-[4.75rem] shrink-0 self-stretch overflow-hidden rounded-2xl border border-orange-500 bg-white sm:w-[5.25rem]">
+            <div className="-my-px -ml-px aspect-square w-[4.5rem] shrink-0 self-center overflow-hidden rounded-2xl border border-orange-500 bg-white sm:aspect-auto sm:h-auto sm:w-[5.25rem] sm:self-stretch">
               <img
                 src="/logo.png"
                 alt="LocalKidsCalendar logo"
                 className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="relative flex min-w-0 flex-1 items-center px-4 py-4 pb-6 sm:px-6 sm:py-5 sm:pb-7">
-              <p className="absolute left-4 top-[22%] -translate-y-1/2 text-[11px] font-semibold uppercase tracking-[0.14em] text-mint-600 sm:left-6">
+            <div className="relative flex min-w-0 flex-1 flex-col justify-center gap-1.5 px-3 py-3 sm:block sm:gap-0 sm:px-6 sm:py-5 sm:pb-7">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-mint-600 sm:absolute sm:left-6 sm:top-[22%] sm:-translate-y-1/2">
                 In a nutshell
               </p>
-              <p className="font-heading text-base font-semibold leading-snug text-foreground sm:text-lg">
+              <p className="font-heading text-sm font-semibold leading-snug text-foreground sm:text-lg">
                 It&apos;s a community-driven resource for parents to find local activities for their kids.
               </p>
               <nav
-                className="absolute bottom-2.5 right-3 text-right text-[11px] font-semibold tracking-[0.14em] text-mint-600 sm:right-5"
+                className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-semibold tracking-[0.08em] text-mint-600 sm:absolute sm:bottom-2.5 sm:right-5 sm:justify-end sm:text-[11px] sm:tracking-[0.14em]"
                 aria-label="Tips by audience"
               >
-                <Link to="/tips-community-members" className="hover:underline">
+                <Link to="/tips-community-members" className="whitespace-nowrap hover:underline">
                   Community Members
                 </Link>
-                <span className="mx-1.5 text-mint-600/50" aria-hidden>
+                <span className="text-mint-600/50" aria-hidden>
                   |
                 </span>
-                <Link to="/tips-organizers" className="hover:underline">
+                <Link to="/tips-organizers" className="whitespace-nowrap hover:underline">
                   Organizers
                 </Link>
-                <span className="mx-1.5 text-mint-600/50" aria-hidden>
+                <span className="text-mint-600/50" aria-hidden>
                   |
                 </span>
-                <Link to="/tips-supporters" className="hover:underline">
+                <Link to="/tips-supporters" className="whitespace-nowrap hover:underline">
                   Supporters
                 </Link>
               </nav>
