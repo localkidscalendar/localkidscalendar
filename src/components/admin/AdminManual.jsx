@@ -452,7 +452,8 @@ const categories = [
         technicalFeatures: [
           "Dispositions include manually_deactivated, reactivated, reviewed, flags_cleared / flag_cleared",
           "Community 3-flag on ads can notify via notify-ad-asset-disabled (idempotent disable_notified_at)",
-          "Threshold filters in Admin: All / 3+ / 5+ / 10+",
+          "Admin → Flags → Flagged Content filters: All / Activities / Comments / Ads, plus a combinable 3+ toggle for 3+ Deactivation cards only",
+          "Threshold filters in Admin Users Flagging: All / 3+ / 5+ / 10+",
         ],
       },
     ],

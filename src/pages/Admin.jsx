@@ -226,6 +226,7 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState("activities");
   const [flagSearch, setFlagSearch] = useState("");
   const [flagTypeFilter, setFlagTypeFilter] = useState("all"); // all | event | comment | ad
+  const [flag3PlusOnly, setFlag3PlusOnly] = useState(false); // 3+ Deactivation cards only
   const [expandedFlagHistory, setExpandedFlagHistory] = useState(() => new Set());
   const [flaggingUserSearch, setFlaggingUserSearch] = useState("");
   const [flaggingMinFlags, setFlaggingMinFlags] = useState("all");
@@ -1383,6 +1384,10 @@ export default function Admin() {
 
     let list = [...flagEntries, ...deactivationEntries];
 
+    if (flag3PlusOnly) {
+      list = list.filter((entry) => entry.kind === "deactivation");
+    }
+
     if (flagTypeFilter !== "all") {
       list = list.filter((entry) => entry.targetType === flagTypeFilter);
     }
@@ -1441,7 +1446,7 @@ export default function Admin() {
 
     list.sort((a, b) => new Date(b.sortAt || 0) - new Date(a.sortAt || 0));
     return list;
-  }, [flags, deletedItems, flagTypeFilter, flagSearch, eventMap, users, organizerMap, events]);
+  }, [flags, deletedItems, flagTypeFilter, flag3PlusOnly, flagSearch, eventMap, users, organizerMap, events]);
 
   const openFlagCount = useMemo(() => {
     const openSingles = flags.filter(isFlagOpen).length;
@@ -1844,10 +1849,27 @@ export default function Admin() {
                         {opt.label}
                       </button>
                     ))}
+                    <span className="w-px self-stretch bg-border mx-0.5" aria-hidden />
+                    <button
+                      type="button"
+                      onClick={() => { setFlag3PlusOnly((v) => !v); setFlaggedContentPage(1); }}
+                      title="Show only 3+ Deactivation cases (combinable with Activities / Comments / Ads)"
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                        flag3PlusOnly
+                          ? "border-peach-300 bg-peach-50 text-peach-700"
+                          : "border-border bg-white text-muted-foreground hover:bg-peach-50 hover:border-peach-200"
+                      }`}
+                    >
+                      3+
+                    </button>
                   </div>
                 </div>
                 {flaggedFeedItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-12">No flags reported</p>
+                  <p className="text-sm text-muted-foreground text-center py-12">
+                    {flagSearch.trim() || flagTypeFilter !== "all" || flag3PlusOnly
+                      ? "No flags match your search or filters"
+                      : "No flags reported"}
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     {flaggedFeedItems
