@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useOutletContext, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
-import { ChevronDown, ChevronUp, Search, UserPlus, Shield, HelpCircle } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, UserPlus, Shield, HelpCircle, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import GrowingCommunitySection from "@/components/about/GrowingCommunitySection";
 
@@ -99,6 +99,35 @@ export default function About() {
             className="w-36 h-36 object-contain float-left mr-4 mb-2 border border-gray-300 rounded-xl"
           />
           <p>LocalKidsCalendar.com is a free, community-powered hub, built by parents, for parents. We believe that every child deserves access to enriching local experiences — from summer camps and after-school classes to sports leagues and weekend events — and that finding those opportunities should be easy, fast, and free.</p>
+
+          {/* Pull-quote “nutshell” — clears the floated logo so it reads as its own beat */}
+          <aside
+            className="not-prose clear-both relative my-1 overflow-hidden rounded-2xl border border-mint-200 bg-gradient-to-br from-mint-50 via-white to-peach-50/60 px-5 py-4 sm:px-6 sm:py-5"
+            aria-label="What LocalKidsCalendar is"
+          >
+            <div
+              className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-mint-100/70"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute -bottom-10 right-8 h-24 w-24 rounded-full bg-peach-100/50"
+              aria-hidden
+            />
+            <div className="relative flex items-start gap-3.5 sm:gap-4">
+              <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-mint-500 text-white shadow-sm shadow-mint-500/25">
+                <MapPin className="h-5 w-5" aria-hidden />
+              </div>
+              <div className="min-w-0 pt-0.5">
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-mint-600">
+                  In a nutshell
+                </p>
+                <p className="font-heading text-base font-semibold leading-snug text-foreground sm:text-lg">
+                  It&apos;s a community-driven resource for parents to find local activities for their kids.
+                </p>
+              </div>
+            </div>
+          </aside>
+
           <p>Our platform brings together local families and activity organizers in one central place. Whether you're a parent searching for the perfect soccer camp or a dance studio looking to reach more local families, LocalKidsCalendar.com is your community's home base.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 mt-4">
