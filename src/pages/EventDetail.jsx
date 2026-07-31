@@ -12,8 +12,8 @@ import { CalendarDays, MapPin, Users, Clock, Globe, DollarSign, Share2, Heart, F
 import moment from "moment";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import HistoryBackLink from "@/components/shared/HistoryBackLink";
-import FlagReportForm from "@/components/shared/FlagReportForm";
-import { alreadyFlaggedMessage, userHasFlaggedTarget } from "@/lib/flagReports";
+import FlagReportForm, { FlagWithdrawDialog } from "@/components/shared/FlagReportForm";
+import { alreadyFlaggedMessage, userHasFlaggedTarget, withdrawFlag } from "@/lib/flagReports";
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -28,11 +28,13 @@ export default function EventDetail() {
   const [saved, setSaved] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [flagOpen, setFlagOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [posterUser, setPosterUser] = useState(null);
   const [posterOrganizer, setPosterOrganizer] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [authPrompt, setAuthPrompt] = useState(null); // string message or null
   const [flaggingCommentId, setFlaggingCommentId] = useState(null);
+  const [withdrawCommentId, setWithdrawCommentId] = useState(null);
 
   useEffect(() => {
     loadEvent();
@@ -237,8 +239,8 @@ export default function EventDetail() {
         description: already ? undefined : err.message,
         variant: already ? "default" : "destructive",
       });
+      throw err;
     }
-    setFlagOpen(false);
   };
 
   const handleFlagComment = async (commentId, { reason, details }) => {
@@ -264,8 +266,30 @@ export default function EventDetail() {
         description: already ? undefined : err.message,
         variant: already ? "default" : "destructive",
       });
+      throw err;
     }
-    setFlaggingCommentId(null);
+  };
+
+  const handleWithdrawEventFlag = async () => {
+    const { error } = await withdrawFlag("event", id);
+    if (error) {
+      toast({ title: "Could not remove flag", description: error.message, variant: "destructive" });
+      throw error;
+    }
+    toast({ title: "Your flag was removed" });
+    loadEvent();
+  };
+
+  const handleWithdrawCommentFlag = async () => {
+    if (!withdrawCommentId) return;
+    const { error } = await withdrawFlag("comment", withdrawCommentId);
+    if (error) {
+      toast({ title: "Could not remove flag", description: error.message, variant: "destructive" });
+      throw error;
+    }
+    toast({ title: "Your flag was removed" });
+    setWithdrawCommentId(null);
+    loadComments();
   };
 
   const openActivityFlagForm = async () => {
@@ -273,13 +297,9 @@ export default function EventDetail() {
       setAuthPrompt("Sign in to report this activity if it's inaccurate, inappropriate, or spam.");
       return;
     }
-    if (flagOpen) {
-      setFlagOpen(false);
-      return;
-    }
     try {
       if (await userHasFlaggedTarget("event", id, user.id)) {
-        toast({ title: alreadyFlaggedMessage("activity") });
+        setWithdrawOpen(true);
         return;
       }
     } catch (err) {
@@ -294,13 +314,9 @@ export default function EventDetail() {
       setAuthPrompt("Sign in to report this comment if it's inaccurate, inappropriate, or spam.");
       return;
     }
-    if (flaggingCommentId === commentId) {
-      setFlaggingCommentId(null);
-      return;
-    }
     try {
       if (await userHasFlaggedTarget("comment", commentId, user.id)) {
-        toast({ title: alreadyFlaggedMessage("comment") });
+        setWithdrawCommentId(commentId);
         return;
       }
     } catch (err) {
@@ -435,17 +451,6 @@ export default function EventDetail() {
               <h1 className="font-heading font-bold text-2xl sm:text-3xl">{event.title}</h1>
             </div>
           </div>
-
-          {/* Flag form */}
-          {flagOpen && !isOwner && (
-            <div className="mb-4">
-              <FlagReportForm
-                targetLabel="activity"
-                onSubmit={handleFlagEvent}
-                onCancel={() => setFlagOpen(false)}
-              />
-            </div>
-          )}
 
           {/* Owner management panel */}
           {isOwner && (
@@ -637,16 +642,6 @@ export default function EventDetail() {
                     </div>
                     <p className="text-sm">{c.content}</p>
                   </div>
-                  {flaggingCommentId === c.id && user?.id !== c.created_by_id && (
-                    <div className="mt-2">
-                      <FlagReportForm
-                        targetLabel="comment"
-                        compact
-                        onSubmit={(payload) => handleFlagComment(c.id, payload)}
-                        onCancel={() => setFlaggingCommentId(null)}
-                      />
-                    </div>
-                  )}
                 </div>
               ))}
               {comments.length === 0 && (
@@ -657,6 +652,30 @@ export default function EventDetail() {
         </div>
       </div>
 
+      <FlagReportForm
+        open={flagOpen && !isOwner}
+        onOpenChange={setFlagOpen}
+        targetLabel="activity"
+        onSubmit={handleFlagEvent}
+      />
+      <FlagWithdrawDialog
+        open={withdrawOpen}
+        onOpenChange={setWithdrawOpen}
+        targetLabel="activity"
+        onConfirm={handleWithdrawEventFlag}
+      />
+      <FlagReportForm
+        open={Boolean(flaggingCommentId)}
+        onOpenChange={(open) => { if (!open) setFlaggingCommentId(null); }}
+        targetLabel="comment"
+        onSubmit={(payload) => handleFlagComment(flaggingCommentId, payload)}
+      />
+      <FlagWithdrawDialog
+        open={Boolean(withdrawCommentId)}
+        onOpenChange={(open) => { if (!open) setWithdrawCommentId(null); }}
+        targetLabel="comment"
+        onConfirm={handleWithdrawCommentFlag}
+      />
       <ShareModal open={shareOpen} onOpenChange={setShareOpen} url={window.location.href} title={event.title} />
       <AuthPromptModal open={!!authPrompt} onOpenChange={(o) => { if (!o) setAuthPrompt(null); }} message={authPrompt} />
     </div>

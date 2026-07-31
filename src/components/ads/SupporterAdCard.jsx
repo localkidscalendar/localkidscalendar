@@ -2,10 +2,10 @@ import React, { useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { ExternalLink, Heart, Flag } from "lucide-react";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
-import FlagReportForm, { AD_FLAG_REASONS } from "@/components/shared/FlagReportForm";
+import FlagReportForm, { AD_FLAG_REASONS, FlagWithdrawDialog } from "@/components/shared/FlagReportForm";
 import { useToast } from "@/components/ui/use-toast";
 import { notifyAdAssetDisabled } from "@/lib/quarantineAdLibrary";
-import { alreadyFlaggedMessage, userHasFlaggedTarget } from "@/lib/flagReports";
+import { alreadyFlaggedMessage, userHasFlaggedTarget, withdrawFlag } from "@/lib/flagReports";
 
 export function SupporterAdPlaceholder() {
   // Image area + footer match paid SupporterAdCard (h-48 + black bar ≈ default filler h-56).
@@ -37,9 +37,11 @@ export default function SupporterAdCard({ ad, user, onAssetFlagged }) {
   const clickedRef = useRef(false);
   const { toast } = useToast();
   const [flagOpen, setFlagOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [authPrompt, setAuthPrompt] = useState(false);
   const isOwner = Boolean(user?.id && ad?.user_id && user.id === ad.user_id);
   const assetId = resolveAssetId(ad);
+  const flagTargetId = assetId || ad.id;
 
   const trackClick = async () => {
     if (!clickedRef.current) {
@@ -64,14 +66,9 @@ export default function SupporterAdCard({ ad, user, onAssetFlagged }) {
     e.stopPropagation();
     if (!user) { setAuthPrompt(true); return; }
     if (isOwner) return;
-    if (flagOpen) {
-      setFlagOpen(false);
-      return;
-    }
-    const flagTargetId = assetId || ad.id;
     try {
       if (await userHasFlaggedTarget("ad", flagTargetId, user.id)) {
-        toast({ title: alreadyFlaggedMessage("ad creative") });
+        setWithdrawOpen(true);
         return;
       }
     } catch (err) {
@@ -86,7 +83,7 @@ export default function SupporterAdCard({ ad, user, onAssetFlagged }) {
       const { data, error } = await supabase.rpc("submit_flag", {
         p_target_type: "ad",
         // Prefer asset id; RPC still accepts placement id and remaps.
-        p_target_id: assetId || ad.id,
+        p_target_id: flagTargetId,
         p_reason: reason,
         p_details: details,
       });
@@ -112,8 +109,24 @@ export default function SupporterAdCard({ ad, user, onAssetFlagged }) {
         description: already ? undefined : err.message,
         variant: already ? "default" : "destructive",
       });
+      throw err;
     }
-    setFlagOpen(false);
+  };
+
+  const handleWithdrawFlag = async () => {
+    const { data, error } = await withdrawFlag("ad", flagTargetId);
+    if (error) {
+      toast({ title: "Could not remove flag", description: error.message, variant: "destructive" });
+      throw error;
+    }
+    toast({ title: "Your flag was removed" });
+    onAssetFlagged?.({
+      assetId: data?.asset_id || assetId,
+      bannerId: ad.id,
+      archived: false,
+      flagCount: data?.flag_count,
+      withdrawn: true,
+    });
   };
 
   return (
@@ -167,17 +180,19 @@ export default function SupporterAdCard({ ad, user, onAssetFlagged }) {
         </div>
       </div>
 
-      {flagOpen && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <FlagReportForm
-            targetLabel="ad creative"
-            reasons={AD_FLAG_REASONS}
-            compact
-            onSubmit={handleSubmitFlag}
-            onCancel={() => setFlagOpen(false)}
-          />
-        </div>
-      )}
+      <FlagReportForm
+        open={flagOpen}
+        onOpenChange={setFlagOpen}
+        targetLabel="ad creative"
+        reasons={AD_FLAG_REASONS}
+        onSubmit={handleSubmitFlag}
+      />
+      <FlagWithdrawDialog
+        open={withdrawOpen}
+        onOpenChange={setWithdrawOpen}
+        targetLabel="ad creative"
+        onConfirm={handleWithdrawFlag}
+      />
 
       <AuthPromptModal
         open={authPrompt}

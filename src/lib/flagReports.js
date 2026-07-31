@@ -20,3 +20,14 @@ export async function userHasFlaggedTarget(targetType, targetId, userId) {
 export function alreadyFlaggedMessage(targetLabel = "item") {
   return `You already flagged this ${targetLabel}`;
 }
+
+/**
+ * Withdraw the signed-in user's flag for a target (deletes report + updates counters).
+ */
+export async function withdrawFlag(targetType, targetId) {
+  const { data, error } = await supabase.rpc("withdraw_flag", {
+    p_target_type: targetType,
+    p_target_id: targetId,
+  });
+  return { data, error };
+}

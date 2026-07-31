@@ -441,7 +441,9 @@ const categories = [
         overview:
           "Registered users flag activities, comments, or ad creatives. Activities and comments use Inaccurate, Inappropriate, Spam, or Other (details required). Ad creatives use Inappropriate, Spam, or Other — not Inaccurate. At 3 distinct flaggers, activities/comments auto-archive; ad flags attach to the Ad Asset and disable that creative across all zip placements. Admin Flags reviews dispositions and history.",
         features: [
+          "Flag reason prompt opens as a centered modal (not an inline strip)",
           "Shared reasons for activities/comments; ads omit Inaccurate; Other requires text",
+          "Tapping Flag again after reporting offers Remove Flag (withdraw_flag) or Keep Flag",
           "Threshold: 3 different users → activity/comment status archived; Ad Asset → moderation flagged (all placements)",
           "Owners cannot flag their own activity, comment, or ad creative",
           "Admin → Flags is the primary place to Reactivate 3-flag cases (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
@@ -449,9 +451,10 @@ const categories = [
           "Ad asset cascade: disabling a creative affects all zip placements using it",
         ],
         technicalOverview:
-          "flag_reports target_id for ads is ad_library id. admin_action_history arrays. Admin → Flags → Flagged Content / Users Flagging. Ad quarantine helpers in quarantineAdLibrary.js + disable_ad_asset / submit_flag RPCs.",
+          "flag_reports target_id for ads is ad_library id. admin_action_history arrays. Admin → Flags → Flagged Content / Users Flagging. Ad quarantine helpers in quarantineAdLibrary.js + submit_flag / withdraw_flag / disable_ad_asset RPCs.",
         technicalFeatures: [
           "Dispositions include manually_deactivated, reactivated, reviewed, flags_cleared / flag_cleared",
+          "User withdraw deletes their report and decrements counters; may restore auto-hidden content below 3 (not Admin manual deactivate)",
           "Community 3-flag on ads can notify via notify-ad-asset-disabled (idempotent disable_notified_at)",
           "Admin → Flags → Flagged Content filters: All / Activities / Comments / Ads, plus a combinable 3+ toggle for 3+ Deactivation cards only",
           "Threshold filters in Admin Users Flagging: All / 3+ / 5+ / 10+",
