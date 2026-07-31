@@ -4,7 +4,7 @@ import {
   verifyDigestUnsubToken,
 } from "./_lib/emailGuards.js";
 
-const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.vercel.app";
+const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.com";
 
 async function turnOffDigestForUser(admin, userId, email) {
   await admin

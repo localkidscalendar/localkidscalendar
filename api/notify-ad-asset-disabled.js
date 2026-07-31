@@ -5,7 +5,7 @@ import {
 } from "./_lib/stripeHelpers.js";
 import { sendViaResend } from "./_lib/resendSend.js";
 
-const APP_URL = getEnv("APP_URL", "VITE_APP_URL") || "https://localkidscalendar.vercel.app";
+const APP_URL = getEnv("APP_URL", "VITE_APP_URL") || "https://localkidscalendar.com";
 const AD_MANAGER_URL = `${APP_URL.replace(/\/$/, "")}/ad-manager`;
 
 function formatZipList(zipCodes) {

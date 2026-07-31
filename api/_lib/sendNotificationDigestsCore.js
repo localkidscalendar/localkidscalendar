@@ -10,7 +10,7 @@ import {
   sleep,
 } from "./emailGuards.js";
 
-const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.vercel.app";
+const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.com";
 const LOGO_URL = `${APP_URL}/logo.png`;
 const SEND_DELAY_MS = 50;
 

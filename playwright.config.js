@@ -5,7 +5,7 @@ import { defineConfig, devices } from "@playwright/test";
  * Local preview: PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npm run test:e2e
  *   (requires a production build with VITE_SUPABASE_* available to Vite)
  */
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || "https://localkidscalendar.vercel.app";
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || "https://localkidscalendar.com";
 const isLocal = /localhost|127\.0\.0\.1/.test(baseURL);
 
 export default defineConfig({

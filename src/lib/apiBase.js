@@ -1,7 +1,7 @@
 /**
  * Resolve API routes. Serverless functions live on the Vercel deployment.
- * Custom domains (and local Vite) may not serve /api/*, so fall back to the
- * known Vercel app host unless VITE_API_BASE_URL overrides it.
+ * Same-origin on the production hosts (custom domain + *.vercel.app). Local Vite
+ * (and other hosts) fall back to the primary domain unless VITE_API_BASE_URL is set.
  */
 export function apiUrl(path) {
   const normalized = path.startsWith("/") ? path : `/${path}`;
@@ -10,8 +10,14 @@ export function apiUrl(path) {
 
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
-    if (host.endsWith(".vercel.app")) return normalized;
+    if (
+      host.endsWith(".vercel.app")
+      || host === "localkidscalendar.com"
+      || host === "www.localkidscalendar.com"
+    ) {
+      return normalized;
+    }
   }
 
-  return `https://localkidscalendar.vercel.app${normalized}`;
+  return `https://localkidscalendar.com${normalized}`;
 }

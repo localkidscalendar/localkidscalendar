@@ -1,4 +1,4 @@
-const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.vercel.app";
+const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.com";
 
 function formatPacific(date) {
   try {

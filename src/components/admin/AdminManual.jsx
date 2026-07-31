@@ -34,10 +34,11 @@ const categories = [
         technicalOverview:
           "Client uses @/lib/supabaseClient.js. Privileged server work uses SUPABASE_SERVICE_ROLE_KEY via createAdminClient() in api/_lib/stripeHelpers.js. Crons are declared in vercel.json and authenticated with CRON_SECRET (or x-vercel-cron).",
         technicalFeatures: [
-          "Env (Vite): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY; optional VITE_API_BASE_URL / VITE_APP_URL",
-          "Env (server): SUPABASE_*, RESEND_*, STRIPE_*, OPENAI_API_KEY, CRON_SECRET, EMAIL_SENDING_ENABLED, RESEND_WEBHOOK_SECRET",
+          "Env (Vite): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY; optional VITE_API_BASE_URL / VITE_APP_URL (production site https://localkidscalendar.com; *.vercel.app still works)",
+          "Env (server): SUPABASE_*, RESEND_*, STRIPE_*, OPENAI_API_KEY, CRON_SECRET, EMAIL_SENDING_ENABLED, RESEND_WEBHOOK_SECRET, APP_URL/VITE_APP_URL for email links",
           "Migrations live under supabase/migrations/; production SQL is often applied via the Supabase SQL Editor",
           "Legacy base44/ folder may still exist in the repo but is not the live path for Admin/email/ads",
+          "After connecting the custom domain: set Supabase Auth Site URL + Redirect URLs, Google OAuth origins, Vercel VITE_APP_URL/APP_URL, and Resend domain verification",
         ],
       },
       {

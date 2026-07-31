@@ -1,6 +1,6 @@
 import { toTitleCaseLabel } from "@/lib/titleCase";
 
-const APP_URL = "https://localkidscalendar.vercel.app";
+const APP_URL = "https://localkidscalendar.com";
 
 /** Site brand tokens mirrored for HTML emails (inline CSS only). */
 const EMAIL_BRAND = {

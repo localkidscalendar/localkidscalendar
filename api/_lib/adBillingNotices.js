@@ -3,7 +3,7 @@ import { sendViaResend } from "./resendSend.js";
 export const GRACE_PERIOD_DAYS = 7;
 export const RENEWAL_REMINDER_DAYS = 21;
 
-const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.vercel.app";
+const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.com";
 const AD_MANAGER_URL = `${APP_URL}/ad-manager`;
 
 function formatLongDate(date) {

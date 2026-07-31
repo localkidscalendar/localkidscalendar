@@ -14,7 +14,7 @@
 
 ## Connected
 
-- [x] Vercel project: https://localkidscalendar.vercel.app (team `local-kids-calendar`)
+- [x] Vercel project: https://localkidscalendar.com (team `local-kids-calendar`)
 - [x] GitHub repo linked for deploys
 - [ ] Supabase API keys in `.env.local` and Vercel env
 - [ ] Core SQL schema applied in Supabase

@@ -7,7 +7,7 @@ import HistoryBackLink from "@/components/shared/HistoryBackLink";
 
 const MEMO_SUBJECT = "I think your business would be a great Supporter for LocalKidsCalendar.com";
 
-const SITE_URL = "https://localkidscalendar.vercel.app";
+const SITE_URL = "https://localkidscalendar.com";
 const TIPS_URL = `${SITE_URL}/tips-supporters`;
 
 const MEMO_BODY_SMS = `Hi! I think your business would be a great Supporter for LocalKidsCalendar.com — a free, community-powered hub where local families discover kids' camps, classes, sports, and events. It's a great way to reach local parents. Check it out: ${SITE_URL} — Tips: ${TIPS_URL}`;

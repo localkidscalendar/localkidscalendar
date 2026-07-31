@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { getEnv } from "./stripeHelpers.js";
 
-const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.vercel.app";
+const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.com";
 
 /** Master env kill switch for ALL Resend sends. Default: enabled. */
 export function isEmailSendingEnabled() {
