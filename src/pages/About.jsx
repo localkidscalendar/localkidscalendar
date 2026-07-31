@@ -77,7 +77,12 @@ export default function About() {
     }
   };
 
-  const categories = ["All", ...Array.from(new Set(faqs.map((f) => f.category).filter(Boolean)))];
+  const categories = [
+    "All",
+    ...Array.from(new Set(faqs.map((f) => f.category).filter(Boolean))).sort((a, b) =>
+      String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
+    ),
+  ];
   const filtered = faqs
     .filter((f) => activeCategory === "All" || f.category === activeCategory)
     .filter((f) => {
