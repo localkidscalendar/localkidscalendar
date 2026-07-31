@@ -100,44 +100,40 @@ export default function About() {
             className="not-prose my-1 flex overflow-hidden rounded-2xl border border-orange-500 bg-gradient-to-br from-peach-50 to-mint-50"
             aria-label="What LocalKidsCalendar is"
           >
-            <div className="-my-px -ml-px w-[4.75rem] shrink-0 self-stretch overflow-hidden rounded-2xl border border-orange-500 bg-white sm:w-24">
+            <div className="-my-px -ml-px aspect-square w-auto shrink-0 self-stretch overflow-hidden rounded-2xl border border-orange-500 bg-white">
               <img
                 src="/logo.png"
                 alt="LocalKidsCalendar logo"
                 className="h-full w-full object-cover object-center"
               />
             </div>
-            <div className="relative grid min-h-[7.5rem] min-w-0 flex-1 grid-rows-[1fr_auto_1fr] px-4 py-3 sm:min-h-[8.5rem] sm:px-6 sm:py-4">
-              <div className="flex items-center">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-mint-600">
-                  In a nutshell
-                </p>
-              </div>
+            <div className="relative flex min-w-0 flex-1 items-center px-4 py-4 pb-6 sm:px-6 sm:py-5 sm:pb-7">
+              <p className="absolute left-4 top-[22%] -translate-y-1/2 text-[11px] font-semibold uppercase tracking-[0.14em] text-mint-600 sm:left-6">
+                In a nutshell
+              </p>
               <p className="font-heading text-base font-semibold leading-snug text-foreground sm:text-lg">
                 It&apos;s a community-driven resource for parents to find local activities for their kids.
               </p>
-              <div className="flex items-end justify-end">
-                <nav
-                  className="text-[11px] font-semibold tracking-[0.14em] text-mint-600"
-                  aria-label="Tips by audience"
-                >
-                  <Link to="/tips-community-members" className="hover:underline">
-                    Community Members
-                  </Link>
-                  <span className="mx-1.5 text-mint-600/50" aria-hidden>
-                    |
-                  </span>
-                  <Link to="/tips-organizers" className="hover:underline">
-                    Organizers
-                  </Link>
-                  <span className="mx-1.5 text-mint-600/50" aria-hidden>
-                    |
-                  </span>
-                  <Link to="/tips-supporters" className="hover:underline">
-                    Supporters
-                  </Link>
-                </nav>
-              </div>
+              <nav
+                className="absolute bottom-2.5 right-3 text-right text-[11px] font-semibold tracking-[0.14em] text-mint-600 sm:right-5"
+                aria-label="Tips by audience"
+              >
+                <Link to="/tips-community-members" className="hover:underline">
+                  Community Members
+                </Link>
+                <span className="mx-1.5 text-mint-600/50" aria-hidden>
+                  |
+                </span>
+                <Link to="/tips-organizers" className="hover:underline">
+                  Organizers
+                </Link>
+                <span className="mx-1.5 text-mint-600/50" aria-hidden>
+                  |
+                </span>
+                <Link to="/tips-supporters" className="hover:underline">
+                  Supporters
+                </Link>
+              </nav>
             </div>
           </aside>
 
