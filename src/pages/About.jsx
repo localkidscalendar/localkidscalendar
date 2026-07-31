@@ -95,12 +95,12 @@ export default function About() {
         <div className="prose prose-sm max-w-none text-muted-foreground space-y-4 leading-relaxed">
           <p>LocalKidsCalendar.com is a free, community-powered hub, built by parents, for parents. We believe that every child deserves access to enriching local experiences — from summer camps and after-school classes to sports leagues and weekend events — and that finding those opportunities should be easy, fast, and free.</p>
 
-          {/* Pull-quote “nutshell” — logo flush on the left edge */}
+          {/* Pull-quote “nutshell” — logo flush left with matching rounded orange frame */}
           <aside
             className="not-prose my-1 flex overflow-hidden rounded-2xl border border-orange-500 bg-gradient-to-br from-peach-50 to-mint-50"
             aria-label="What LocalKidsCalendar is"
           >
-            <div className="w-[4.75rem] shrink-0 self-stretch border-r border-orange-500 bg-white sm:w-24">
+            <div className="-my-px -ml-px w-[4.75rem] shrink-0 self-stretch overflow-hidden rounded-2xl border border-orange-500 bg-white sm:w-24">
               <img
                 src="/logo.png"
                 alt="LocalKidsCalendar logo"
