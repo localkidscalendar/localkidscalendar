@@ -95,25 +95,25 @@ export default function About() {
         <div className="prose prose-sm max-w-none text-muted-foreground space-y-4 leading-relaxed">
           <p>LocalKidsCalendar.com is a free, community-powered hub, built by parents, for parents. We believe that every child deserves access to enriching local experiences — from summer camps and after-school classes to sports leagues and weekend events — and that finding those opportunities should be easy, fast, and free.</p>
 
-          {/* Pull-quote “nutshell” — logo marks the one-liner beat */}
+          {/* Pull-quote “nutshell” — logo flush on the left edge */}
           <aside
-            className="not-prose relative my-1 overflow-hidden rounded-2xl border border-orange-500 bg-gradient-to-br from-peach-50 to-mint-50 px-5 py-4 sm:px-6 sm:py-5"
+            className="not-prose my-1 flex overflow-hidden rounded-2xl border border-orange-500 bg-gradient-to-br from-peach-50 to-mint-50"
             aria-label="What LocalKidsCalendar is"
           >
-            <div className="relative flex items-start gap-3.5 sm:gap-4">
+            <div className="w-[4.75rem] shrink-0 self-stretch border-r border-orange-500 bg-white sm:w-24">
               <img
                 src="/logo.png"
                 alt="LocalKidsCalendar logo"
-                className="mt-0.5 h-14 w-14 shrink-0 rounded-xl border border-mint-200 bg-white object-contain p-1 shadow-sm sm:h-16 sm:w-16"
+                className="h-full w-full object-cover object-center"
               />
-              <div className="min-w-0 pt-0.5">
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-mint-600">
-                  In a nutshell
-                </p>
-                <p className="font-heading text-base font-semibold leading-snug text-foreground sm:text-lg">
-                  It&apos;s a community-driven resource for parents to find local activities for their kids.
-                </p>
-              </div>
+            </div>
+            <div className="min-w-0 flex-1 px-4 py-4 sm:px-6 sm:py-5">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-mint-600">
+                In a nutshell
+              </p>
+              <p className="font-heading text-base font-semibold leading-snug text-foreground sm:text-lg">
+                It&apos;s a community-driven resource for parents to find local activities for their kids.
+              </p>
             </div>
           </aside>
 
