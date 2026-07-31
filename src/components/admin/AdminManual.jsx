@@ -469,6 +469,7 @@ const categories = [
         features: [
           "Monthly / annual pricing",
           "Homepage + digest placement",
+          "Homepage feed rotates ad positions about every 30s when multiple ads are present; rotation pauses while the user scrolls",
           "Configurable slots; one per Supporter per zip",
           "AI + URL review on Ad Assets",
         ],
@@ -477,6 +478,7 @@ const categories = [
         technicalFeatures: [
           "Statuses: pending_payment, pending_review, active, past_due, rejected, expired, cancelled, flagged, …",
           "Filler ads fill empty slots (admin_default_ads)",
+          "Home.jsx adRotationIndex interval; paused on window scroll until ~1.2s idle (does not increment impressions)",
         ],
       },
       {

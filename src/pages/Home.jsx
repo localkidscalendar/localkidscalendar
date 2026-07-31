@@ -385,7 +385,9 @@ export default function Home() {
 
   const [activeAds, setActiveAds] = useState([]);
   const [adRotationIndex, setAdRotationIndex] = useState(0);
+  const [adRotationPaused, setAdRotationPaused] = useState(false);
   const adRotationRef = useRef(null);
+  const scrollPauseTimerRef = useRef(null);
 
   const [showDistancePicker, setShowDistancePicker] = useState(false);
   // Draft while editing zip in the picker — never clear the committed zip mid-edit
@@ -490,16 +492,32 @@ export default function Home() {
     }
   };
 
-  // Rotate ad positions every 30 seconds
+  // Pause Home ad rotation while the user is scrolling; resume ~1.2s after they stop.
+  useEffect(() => {
+    const onScroll = () => {
+      setAdRotationPaused(true);
+      clearTimeout(scrollPauseTimerRef.current);
+      scrollPauseTimerRef.current = setTimeout(() => {
+        setAdRotationPaused(false);
+      }, 1200);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      clearTimeout(scrollPauseTimerRef.current);
+    };
+  }, []);
+
+  // Rotate ad positions every 30 seconds (paused during scroll)
   useEffect(() => {
     clearInterval(adRotationRef.current);
-    if (activeAds.length > 1) {
+    if (activeAds.length > 1 && !adRotationPaused) {
       adRotationRef.current = setInterval(() => {
         setAdRotationIndex((prev) => (prev + 1) % activeAds.length);
       }, 30000);
     }
     return () => clearInterval(adRotationRef.current);
-  }, [activeAds]);
+  }, [activeAds, adRotationPaused]);
 
   const loadFavorites = async () => {
     try {
