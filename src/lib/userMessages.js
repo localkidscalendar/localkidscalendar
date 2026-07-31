@@ -242,3 +242,31 @@ export async function notifyBecameSupporter(userId) {
   });
   return { id: data || null, error };
 }
+
+/**
+ * Admin: notify content owner that flags were cleared or content was reinstated.
+ * p_event: "cleared" | "reactivated"
+ */
+export async function notifyOwnerFlagLifecycle({
+  userId,
+  targetType,
+  targetId,
+  event,
+  flagCount = 0,
+  itemLabel = null,
+}) {
+  if (!userId || !targetType || !targetId || !event) {
+    return { id: null, error: new Error("Missing notifyOwnerFlagLifecycle args") };
+  }
+  const { data, error } = await supabase.rpc("admin_notify_owner_flag_lifecycle", {
+    p_owner_id: userId,
+    p_target_type: targetType,
+    p_target_id: targetId,
+    p_event: event,
+    p_flag_count: flagCount,
+    p_reason: null,
+    p_details: null,
+    p_item_label: itemLabel,
+  });
+  return { id: data || null, error };
+}

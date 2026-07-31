@@ -41,6 +41,7 @@ import {
   notifyActivityRemovedAdmin,
   notifyAdCreativeDisabledAdmin,
   notifyBecameSupporter,
+  notifyOwnerFlagLifecycle,
 } from "@/lib/userMessages";
 import moment from "moment";
 
@@ -1052,6 +1053,32 @@ export default function Admin() {
     return item.item.ad_name || item.item.business_name || item.flags?.[0]?.target_contributor_name || "—";
   };
 
+  const resolveOwnerIdForFlagItem = (item) => {
+    if (!item?.item) return null;
+    if (item.type === "event" || item.type === "comment") return item.item.created_by_id || null;
+    return item.item.user_id || null;
+  };
+
+  const resolveItemLabelForFlagItem = (item) => {
+    if (!item?.item) return null;
+    if (item.type === "event") return item.item.title || null;
+    if (item.type === "ad") return item.item.ad_name || item.item.business_name || null;
+    return null;
+  };
+
+  const notifyOwnerAfterFlagAdminAction = async (item, event) => {
+    const userId = resolveOwnerIdForFlagItem(item);
+    if (!userId) return;
+    await notifyOwnerFlagLifecycle({
+      userId,
+      targetType: item.type,
+      targetId: item.item.id,
+      event,
+      flagCount: Number(item.item.flag_count || 0),
+      itemLabel: resolveItemLabelForFlagItem(item),
+    });
+  };
+
   const handleDeactivatedReactivate = async (item) => {
     const targetType = item.type;
     const targetId = item.item.id;
@@ -1074,6 +1101,7 @@ export default function Admin() {
       loadAll();
       return;
     }
+    await notifyOwnerAfterFlagAdminAction(item, "reactivated");
     toast({
       title: targetType === "ad" ? "Ad creative restored" : "Item reactivated",
       description: targetType === "ad" ? "The creative and related zip placements are active again." : undefined,
@@ -1229,6 +1257,28 @@ export default function Admin() {
         return;
       }
     }
+
+    const isAd = targetType === "ad";
+    const table = targetType === "event" ? "events" : targetType === "comment" ? "comments" : "ad_library";
+    const { data: row } = await supabase
+      .from(table)
+      .select(isAd ? "flag_count, user_id, ad_name" : "flag_count, created_by_id, title")
+      .eq("id", targetId)
+      .maybeSingle();
+    if (row) {
+      const ownerId = isAd ? row.user_id : row.created_by_id;
+      if (ownerId) {
+        await notifyOwnerFlagLifecycle({
+          userId: ownerId,
+          targetType,
+          targetId,
+          event: "reactivated",
+          flagCount: Number(row.flag_count || 0),
+          itemLabel: isAd ? row.ad_name : row.title || null,
+        });
+      }
+    }
+
     toast({
       title: targetType === "ad" ? "Ad creative restored" : "Item reactivated",
       description: targetType === "ad" ? "The creative and related zip placements are active again." : undefined,
@@ -1248,6 +1298,28 @@ export default function Admin() {
     if (error) {
       toast({ title: "Failed to clear flag", description: error.message, variant: "destructive" });
       return;
+    }
+
+    // Notify owner with remaining count after this clear
+    const isAd = report.target_type === "ad";
+    const table = report.target_type === "event" ? "events" : report.target_type === "comment" ? "comments" : "ad_library";
+    const { data: row } = await supabase
+      .from(table)
+      .select(isAd ? "flag_count, user_id, ad_name" : "flag_count, created_by_id, title, content")
+      .eq("id", report.target_id)
+      .maybeSingle();
+    if (row) {
+      const ownerId = isAd ? row.user_id : row.created_by_id;
+      if (ownerId) {
+        await notifyOwnerFlagLifecycle({
+          userId: ownerId,
+          targetType: report.target_type,
+          targetId: report.target_id,
+          event: "cleared",
+          flagCount: Number(row.flag_count || 0),
+          itemLabel: isAd ? row.ad_name : report.target_type === "event" ? row.title : null,
+        });
+      }
     }
 
     toast({ title: "Flag cleared" });
@@ -1278,6 +1350,18 @@ export default function Admin() {
       toast({ title: "Flags cleared, but failed to record case history", description: caseError.message, variant: "destructive" });
       loadAll();
       return;
+    }
+
+    const clearOwnerId = resolveOwnerIdForFlagItem(item);
+    if (clearOwnerId) {
+      await notifyOwnerFlagLifecycle({
+        userId: clearOwnerId,
+        targetType: item.type,
+        targetId: item.item.id,
+        event: "cleared",
+        flagCount: 0,
+        itemLabel: resolveItemLabelForFlagItem(item),
+      });
     }
 
     toast({ title: "Flags cleared" });

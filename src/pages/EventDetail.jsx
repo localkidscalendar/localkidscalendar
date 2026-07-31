@@ -8,7 +8,7 @@ import CategoryBadge from "@/components/shared/CategoryBadge";
 import ContactProtected from "@/components/shared/ContactProtected";
 import ShareModal from "@/components/shared/ShareModal";
 import HelpTip from "@/components/shared/HelpTip";
-import { CalendarDays, MapPin, Users, Clock, Globe, DollarSign, Share2, Heart, Flag, MessageSquare, Bookmark, CalendarPlus, AlertCircle, Send, Loader2, Star, X, Edit, Copy, ShieldCheck, CheckCircle2, Trash2, RotateCcw } from "lucide-react";
+import { CalendarDays, MapPin, Users, Globe, DollarSign, Share2, Heart, Flag, MessageSquare, Bookmark, CalendarPlus, AlertCircle, Send, Loader2, Edit, Copy, ShieldCheck, CheckCircle2, Trash2, RotateCcw } from "lucide-react";
 import moment from "moment";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import HistoryBackLink from "@/components/shared/HistoryBackLink";
@@ -35,6 +35,9 @@ export default function EventDetail() {
   const [authPrompt, setAuthPrompt] = useState(null); // string message or null
   const [flaggingCommentId, setFlaggingCommentId] = useState(null);
   const [withdrawCommentId, setWithdrawCommentId] = useState(null);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
+  const [savingCommentId, setSavingCommentId] = useState(null);
 
   useEffect(() => {
     loadEvent();
@@ -210,6 +213,58 @@ export default function EventDetail() {
       toast({ title: "Could not post comment", description: err.message, variant: "destructive" });
     }
     setSubmittingComment(false);
+  };
+
+  const startEditComment = (comment) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentText(comment.content || "");
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentText("");
+  };
+
+  const handleSaveComment = async (commentId) => {
+    const text = editingCommentText.trim();
+    if (!text) {
+      toast({ title: "Comment can’t be empty", variant: "destructive" });
+      return;
+    }
+    setSavingCommentId(commentId);
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .update({ content: text, updated_at: new Date().toISOString() })
+        .eq("id", commentId)
+        .eq("created_by_id", user.id);
+      if (error) throw error;
+      toast({ title: "Comment updated" });
+      cancelEditComment();
+      loadComments();
+    } catch (err) {
+      toast({ title: "Could not update comment", description: err.message, variant: "destructive" });
+    }
+    setSavingCommentId(null);
+  };
+
+  const handleDeleteComment = async (comment) => {
+    if (!window.confirm("Delete this comment? It will be removed from the activity.")) return;
+    setSavingCommentId(comment.id);
+    try {
+      const { error } = await supabase
+        .from("comments")
+        .update({ status: "deleted", updated_at: new Date().toISOString() })
+        .eq("id", comment.id)
+        .eq("created_by_id", user.id);
+      if (error) throw error;
+      toast({ title: "Comment deleted" });
+      if (editingCommentId === comment.id) cancelEditComment();
+      loadComments();
+    } catch (err) {
+      toast({ title: "Could not delete comment", description: err.message, variant: "destructive" });
+    }
+    setSavingCommentId(null);
   };
 
   const handleFlagEvent = async ({ reason, details }) => {
@@ -602,7 +657,7 @@ export default function EventDetail() {
           <div>
             <h3 className="font-heading font-semibold text-sm text-muted-foreground mb-3 flex items-center gap-1">
               <MessageSquare className="w-4 h-4" /> Comments ({comments.length})
-              <HelpTip text="Comments are visible to everyone. Sign in to post a comment. Flagged by 3 users = auto-removed." />
+              <HelpTip text="Comments are visible to everyone. Sign in to post. You can edit or delete your own comments. Flagged by 3 users = auto-removed." />
             </h3>
 
             {user ? (
@@ -620,30 +675,89 @@ export default function EventDetail() {
             )}
 
             <div className="space-y-3">
-              {comments.map((c) => (
+              {comments.map((c) => {
+                const isAuthor = Boolean(user?.id && c.created_by_id === user.id);
+                const isEditing = editingCommentId === c.id;
+                const busy = savingCommentId === c.id;
+                return (
                 <div key={c.id}>
                   <div className="bg-muted/50 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-1 gap-2">
                       <span className="text-xs font-medium">{c.author_name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{moment(c.created_date).fromNow()}</span>
-                        {user?.id !== c.created_by_id && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className={`h-6 w-6 text-muted-foreground hover:text-destructive ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
-                          onClick={() => openCommentFlagForm(c.id)}
-                          title={user ? "Report this comment if it's inaccurate, inappropriate, or spam." : "Report this comment if it's inaccurate, inappropriate, or spam. Requires a registered, signed-in account."}
-                        >
-                          <Flag className="w-3 h-3" />
-                        </Button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-xs text-muted-foreground">{moment(c.created_date || c.created_at).fromNow()}</span>
+                        {isAuthor ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-mint-600"
+                              onClick={() => (isEditing ? cancelEditComment() : startEditComment(c))}
+                              title={isEditing ? "Cancel edit" : "Edit comment"}
+                              disabled={busy}
+                            >
+                              <Edit className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleDeleteComment(c)}
+                              title="Delete comment"
+                              disabled={busy}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-6 w-6 text-muted-foreground hover:text-destructive ${!user ? "opacity-50 cursor-not-allowed" : ""}`}
+                            onClick={() => openCommentFlagForm(c.id)}
+                            title={user ? "Report this comment if it's inaccurate, inappropriate, or spam." : "Report this comment if it's inaccurate, inappropriate, or spam. Requires a registered, signed-in account."}
+                          >
+                            <Flag className="w-3 h-3" />
+                          </Button>
                         )}
                       </div>
                     </div>
-                    <p className="text-sm">{c.content}</p>
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={editingCommentText}
+                          onChange={(e) => setEditingCommentText(e.target.value)}
+                          className="rounded-xl text-sm min-h-[60px]"
+                          rows={2}
+                          disabled={busy}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white"
+                            onClick={() => handleSaveComment(c.id)}
+                            disabled={busy}
+                          >
+                            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-xl h-7 text-xs"
+                            onClick={cancelEditComment}
+                            disabled={busy}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm">{c.content}</p>
+                    )}
                   </div>
                 </div>
-              ))}
+              );
+              })}
               {comments.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">No comments yet. {!user && "Sign in to be the first to comment."}</p>
               )}

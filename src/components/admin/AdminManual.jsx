@@ -373,16 +373,18 @@ const categories = [
         id: "comments",
         title: "Comments on Activities",
         overview:
-          "Signed-in users comment on Event Detail. Comments can be flagged and auto-archived at the same 3-flag threshold as activities.",
+          "Signed-in users comment on Event Detail. Authors can edit or soft-delete their own comments. Comments can be flagged and auto-archived at the same 3-flag threshold as activities.",
         features: [
           "Thread on Event Detail",
+          "Authors can Edit or Delete their own comments",
           "Flag with the same reason set as activities",
-          "Auto-hide at 3 distinct flaggers; author gets an in-app notice with no action button (comments are not listed under My Posts)",
+          "Auto-hide at 3 distinct flaggers; author gets inbox notices for each flag / withdraw / admin clear or reinstate",
         ],
         technicalOverview:
-          "comments table with flag_count / flagged_by / status. Shown in Admin → Flags with events and ads.",
+          "comments table with flag_count / flagged_by / status. Owner update/delete via RLS. Shown in Admin → Flags with events and ads.",
         technicalFeatures: [
-          "status active | deleted | archived",
+          "status active | deleted | archived (author delete uses deleted)",
+          "Flag lifecycle notices via notify_owner_flag_lifecycle",
         ],
       },
       {
@@ -444,6 +446,7 @@ const categories = [
           "Flag reason prompt opens as a centered modal (not an inline strip)",
           "Shared reasons for activities/comments; ads omit Inaccurate; Other requires text",
           "Tapping Flag again after reporting offers Remove Flag (withdraw_flag) or Keep Flag",
+          "Owner inbox notices for flag 1/2/3 (with reason), reporter withdraw, Admin Clear Flags, and Admin Reactivate",
           "Threshold: 3 different users → activity/comment status archived; Ad Asset → moderation flagged (all placements)",
           "Owners cannot flag their own activity, comment, or ad creative",
           "Admin → Flags is the primary place to Reactivate 3-flag cases (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
@@ -451,11 +454,12 @@ const categories = [
           "Ad asset cascade: disabling a creative affects all zip placements using it",
         ],
         technicalOverview:
-          "flag_reports target_id for ads is ad_library id. admin_action_history arrays. Admin → Flags → Flagged Content / Users Flagging. Ad quarantine helpers in quarantineAdLibrary.js + submit_flag / withdraw_flag / disable_ad_asset RPCs.",
+          "flag_reports target_id for ads is ad_library id. notify_owner_flag_lifecycle + admin_notify_owner_flag_lifecycle. Ad quarantine helpers in quarantineAdLibrary.js + submit_flag / withdraw_flag / disable_ad_asset RPCs.",
         technicalFeatures: [
           "Dispositions include manually_deactivated, reactivated, reviewed, flags_cleared / flag_cleared",
           "User withdraw deletes their report and decrements counters; may restore auto-hidden content below 3 (not Admin manual deactivate)",
-          "Community 3-flag on ads can notify via notify-ad-asset-disabled (idempotent disable_notified_at)",
+          "3+ hide trigger still notifies activity savers; owner 3+ message comes from submit_flag (avoids duplicates)",
+          "Community 3-flag on ads can still email via notify-ad-asset-disabled (idempotent disable_notified_at)",
           "Admin → Flags → Flagged Content filters: All / Activities / Comments / Ads, plus a combinable 3+ toggle for 3+ Deactivation cards only",
           "Threshold filters in Admin Users Flagging: All / 3+ / 5+ / 10+",
           "banner_ads.flag_count mirrors the asset for Ad Manager display",
@@ -786,7 +790,7 @@ const categories = [
         id: "automated-notices",
         title: "Automated In-App Notices",
         overview:
-          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, flags). Previewed under Admin → Previews → Automated Messages without sending. Comment auto-remove notices have no action button (nowhere useful for the author to go).",
+          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, flag lifecycle). Previewed under Admin → Previews → Automated Messages without sending. Comment flag notices have no action button (edit/delete happens on the activity page).",
         features: [
           "Catalog-driven copy",
           "Preview with sample data",
