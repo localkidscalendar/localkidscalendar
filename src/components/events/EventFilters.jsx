@@ -56,7 +56,13 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   const [appliedSnapshot, setAppliedSnapshot] = useState(null);
   const [preApplySnapshot, setPreApplySnapshot] = useState(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Draft so clearing digits mid-edit does not empty the committed Home zip (which opens ZipRequiredModal).
+  const [zipDraft, setZipDraft] = useState(filters.zipCode || "");
   const { toast } = useToast();
+
+  useEffect(() => {
+    setZipDraft(filters.zipCode || "");
+  }, [filters.zipCode]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -332,8 +338,22 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
               Zip Code
             </label>
             <div className="flex gap-2">
-              <Input placeholder={detectedZip || "e.g. 90210"} value={filters.zipCode || ""} onChange={(e) => updateFilter("zipCode", e.target.value)}
-                className="rounded-xl text-sm" maxLength={5} />
+              <Input
+                placeholder={detectedZip || "e.g. 90210"}
+                value={zipDraft}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => {
+                  const next = e.target.value.replace(/\D/g, "").slice(0, 5);
+                  setZipDraft(next);
+                  if (next.length === 5) updateFilter("zipCode", next);
+                }}
+                onBlur={() => {
+                  if (zipDraft.length !== 5) setZipDraft(filters.zipCode || "");
+                }}
+                className="rounded-xl text-sm"
+                maxLength={5}
+                inputMode="numeric"
+              />
               <select
                 value={filters.radiusMiles || 15}
                 onChange={(e) => updateFilter("radiusMiles", Number(e.target.value))}

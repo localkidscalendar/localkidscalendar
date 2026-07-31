@@ -388,6 +388,9 @@ export default function Home() {
   const adRotationRef = useRef(null);
 
   const [showDistancePicker, setShowDistancePicker] = useState(false);
+  // Draft while editing zip in the picker — never clear the committed zip mid-edit
+  // (empty filters.zipCode unmounts Home and shows ZipRequiredModal).
+  const [zipDraft, setZipDraft] = useState("");
   const [filterCenter, setFilterCenter] = useState(null); // {lat, lng} for the entered filter zip
   const [zipCoordsMap, setZipCoordsMap] = useState({}); // zip_code -> {lat, lng} for events
 
@@ -721,7 +724,13 @@ export default function Home() {
         {filters.zipCode &&
         <div className="inline-flex items-center gap-2 flex-wrap justify-center mt-3">
             <button
-            onClick={() => setShowDistancePicker((prev) => !prev)}
+            onClick={() => {
+              setShowDistancePicker((prev) => {
+                const next = !prev;
+                if (next) setZipDraft(filters.zipCode || "");
+                return next;
+              });
+            }}
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground bg-mint-50 px-3 py-1.5 rounded-full border border-mint-200 hover:border-mint-300 transition-colors">
               <MapPin className="w-3.5 h-3.5 text-mint-500" />
               <span>Showing activities in <strong>{filters.zipCode}</strong> + <strong>{filters.radiusMiles} miles</strong></span>
@@ -730,8 +739,21 @@ export default function Home() {
           <div className="inline-flex items-center gap-1.5 bg-white border border-border rounded-full px-3 py-1.5">
               <span className="text-xs text-muted-foreground">Zip:</span>
               <input
-              value={filters.zipCode || ""}
-              onChange={(e) => setCurrentZip(e.target.value.replace(/\D/g, "").slice(0, 5), filters.radiusMiles, { manual: true })}
+              value={zipDraft}
+              onFocus={(e) => {
+                setZipDraft(filters.zipCode || "");
+                e.target.select();
+              }}
+              onChange={(e) => {
+                const next = e.target.value.replace(/\D/g, "").slice(0, 5);
+                setZipDraft(next);
+                if (next.length === 5) {
+                  setCurrentZip(next, filters.radiusMiles, { manual: true });
+                }
+              }}
+              onBlur={() => {
+                if (zipDraft.length !== 5) setZipDraft(filters.zipCode || "");
+              }}
               maxLength={5}
               inputMode="numeric"
               className="w-14 text-sm font-medium text-foreground bg-transparent border-none outline-none" />
