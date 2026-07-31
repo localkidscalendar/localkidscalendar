@@ -97,7 +97,7 @@ export default function About() {
 
           {/* Pull-quote “nutshell” — logo marks the one-liner beat */}
           <aside
-            className="not-prose relative my-1 overflow-hidden rounded-2xl border border-mint-200 bg-gradient-to-br from-mint-50 via-white to-peach-50/60 px-5 py-4 sm:px-6 sm:py-5"
+            className="not-prose relative my-1 overflow-hidden rounded-2xl border border-orange-500 bg-gradient-to-br from-peach-50 to-mint-50 px-5 py-4 sm:px-6 sm:py-5"
             aria-label="What LocalKidsCalendar is"
           >
             <div
