@@ -422,14 +422,15 @@ const categories = [
         overview:
           "Public list of registered organizers with profile details and favorite actions for signed-in users.",
         features: [
-          "Browse organizers",
+          "Browse organizers near your Home zip + distance",
           "Org name, description, links, logo when set",
           "Favorite from directory",
         ],
         technicalOverview:
-          "Organizers.jsx reads organizers (+ related events proximity rules as implemented).",
+          "Organizers.jsx filters the directory by the same session zip + radius as Home (Haversine via Zippopotam). An organizer appears if they have an active activity in range and/or their profile zip is in range.",
         technicalFeatures: [
           "Unique organizers.user_id",
+          "Reads session_zip_current + session_radius; falls back to exact zip only when geocoding is unavailable",
         ],
       },
       {

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Search, Building2, Loader2, UserPlus } from "lucide-react";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import OrganizerCard from "@/components/organizers/OrganizerCard";
+import { DEFAULT_RADIUS_MILES, normalizeRadiusMiles } from "@/lib/locationDefaults";
 
 // Haversine distance in miles between two lat/lng points
 function haversineDistance(lat1, lng1, lat2, lng2) {
@@ -27,6 +28,20 @@ async function geocodeZip(zip) {
   return null;
 }
 
+function eventCoords(event, zipCoordsMap) {
+  const lat = Number(event.latitude);
+  const lng = Number(event.longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  const zip = (event.zip_code || "").trim();
+  if (zip && zipCoordsMap[zip]) return zipCoordsMap[zip];
+  return null;
+}
+
+function withinRadius(center, coords, radiusMiles) {
+  if (!center || !coords) return false;
+  return haversineDistance(center.lat, center.lng, coords.lat, coords.lng) <= radiusMiles;
+}
+
 export default function Organizers() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
@@ -37,14 +52,14 @@ export default function Organizers() {
   const [favoriteRecords, setFavoriteRecords] = useState([]);
   const [authPrompt, setAuthPrompt] = useState(false);
   const [locationZip, setLocationZip] = useState("");
-  const [locationRadius, setLocationRadius] = useState(15);
+  const [locationRadius, setLocationRadius] = useState(DEFAULT_RADIUS_MILES);
 
   useEffect(() => {
     try {
       const zip = sessionStorage.getItem("session_zip_current");
       const radius = sessionStorage.getItem("session_radius");
       if (zip) setLocationZip(zip);
-      if (radius) setLocationRadius(Number(radius));
+      if (radius) setLocationRadius(normalizeRadiusMiles(radius));
     } catch {}
     loadOrganizers();
     if (user) loadFavorites();
@@ -107,11 +122,13 @@ export default function Organizers() {
       if (eventError) throw eventError;
 
       const zip = (() => {
-        try { return sessionStorage.getItem("session_zip_current") || ""; } catch { return ""; }
+        try { return (sessionStorage.getItem("session_zip_current") || "").trim(); } catch { return ""; }
       })();
       const radius = (() => {
-        try { return Number(sessionStorage.getItem("session_radius")) || 15; } catch { return 15; }
+        try { return normalizeRadiusMiles(sessionStorage.getItem("session_radius"), DEFAULT_RADIUS_MILES); } catch { return DEFAULT_RADIUS_MILES; }
       })();
+      setLocationZip(zip);
+      setLocationRadius(radius);
 
       if (!zip) {
         setOrganizers(records || []);
@@ -119,34 +136,61 @@ export default function Organizers() {
         return;
       }
 
+      const orgList = records || [];
+      const eventList = events || [];
+      const orgUserIds = orgList.map((o) => o.user_id).filter(Boolean);
+
+      // Profile zips for organizers (same session zip + distance as Home)
+      let profileById = {};
+      if (orgUserIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, zip_code")
+          .in("id", orgUserIds);
+        profileById = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+      }
+
       const filterCenter = await geocodeZip(zip);
-      const uniqueEventZips = [...new Set((events || []).map((e) => e.zip_code).filter((z) => z && z.length >= 5))];
-      const eventZipCoords = {};
-      await Promise.all(uniqueEventZips.map(async (z) => {
+      const zipsToGeocode = new Set([
+        ...eventList.map((e) => (e.zip_code || "").trim()).filter((z) => z.length >= 5),
+        ...Object.values(profileById).map((p) => (p.zip_code || "").trim()).filter((z) => z.length >= 5),
+      ]);
+      const zipCoordsMap = {};
+      await Promise.all([...zipsToGeocode].map(async (z) => {
         const coords = await geocodeZip(z);
-        if (coords) eventZipCoords[z] = coords;
+        if (coords) zipCoordsMap[z] = coords;
       }));
 
       const nearbyOrganizerIds = new Set();
-      (events || []).forEach((e) => {
+
+      // Organizers with an active activity in range (same rules as Home activity geo)
+      eventList.forEach((e) => {
         if (!e.created_by_id) return;
+        const coords = eventCoords(e, zipCoordsMap);
         let inRange = false;
-        if (filterCenter) {
-          const coords = (e.latitude && e.longitude) ? { lat: e.latitude, lng: e.longitude } : eventZipCoords[e.zip_code];
-          if (coords) {
-            inRange = haversineDistance(filterCenter.lat, filterCenter.lng, coords.lat, coords.lng) <= radius;
-          } else {
-            inRange = e.zip_code === zip;
-          }
+        if (filterCenter && coords) {
+          inRange = withinRadius(filterCenter, coords, radius);
         } else {
-          inRange = e.zip_code === zip;
+          inRange = (e.zip_code || "").trim() === zip;
         }
         if (inRange) nearbyOrganizerIds.add(e.created_by_id);
       });
 
-      const nearby = (records || []).filter((o) => nearbyOrganizerIds.has(o.user_id));
-      // If nobody is nearby yet (common during early testing), still show all organizers.
-      setOrganizers(nearby.length > 0 ? nearby : (records || []));
+      // Also include organizers whose profile zip is in range
+      orgList.forEach((o) => {
+        if (!o.user_id || nearbyOrganizerIds.has(o.user_id)) return;
+        const profileZip = (profileById[o.user_id]?.zip_code || "").trim();
+        if (!profileZip) return;
+        if (filterCenter && zipCoordsMap[profileZip]) {
+          if (withinRadius(filterCenter, zipCoordsMap[profileZip], radius)) {
+            nearbyOrganizerIds.add(o.user_id);
+          }
+        } else if (profileZip === zip) {
+          nearbyOrganizerIds.add(o.user_id);
+        }
+      });
+
+      setOrganizers(orgList.filter((o) => nearbyOrganizerIds.has(o.user_id)));
     } catch {
       setOrganizers([]);
     }
@@ -190,12 +234,15 @@ export default function Organizers() {
         <div className="flex items-center gap-2 mb-1">
           <Building2 className="w-5 h-5 text-peach-500" />
           <h2 className="font-heading font-bold text-xl">
-            {locationZip ? `Current Organizers Near ${locationZip}` : "Current Organizers In Your Area"}
+            {locationZip
+              ? `Current Organizers Near ${locationZip} + ${locationRadius} miles`
+              : "Current Organizers In Your Area"}
           </h2>
         </div>
         {locationZip ? (
           <p className="text-xs text-muted-foreground mb-4">
-            Showing Organizers for zip code <strong>{locationZip}</strong>. This matches your <a href="/" className="text-mint-500 hover:underline">activity search area</a>.
+            Showing Organizers within <strong>{locationRadius} miles</strong> of <strong>{locationZip}</strong>. This matches your{" "}
+            <a href="/" className="text-mint-500 hover:underline">activity search area</a>.
           </p>
         ) : (
           <p className="text-xs text-muted-foreground mb-4">
