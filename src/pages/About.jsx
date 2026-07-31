@@ -100,11 +100,11 @@ export default function About() {
             className="not-prose my-1 flex overflow-hidden rounded-2xl border border-orange-500 bg-gradient-to-br from-peach-50 to-mint-50"
             aria-label="What LocalKidsCalendar is"
           >
-            <div className="-my-px -ml-px aspect-square w-[4.5rem] shrink-0 self-start overflow-hidden rounded-2xl border border-orange-500 bg-white sm:aspect-auto sm:h-auto sm:w-[5.25rem] sm:self-stretch">
+            <div className="-my-px -ml-px flex w-[4.5rem] shrink-0 items-center justify-center self-stretch overflow-hidden rounded-2xl border border-orange-500 bg-white sm:w-[5.25rem]">
               <img
                 src="/logo.png"
                 alt="LocalKidsCalendar logo"
-                className="h-full w-full object-cover object-center"
+                className="h-[4.5rem] w-[4.5rem] object-contain sm:h-[5.25rem] sm:w-[5.25rem]"
               />
             </div>
             <div className="relative flex min-w-0 flex-1 flex-col justify-center gap-1.5 px-3 py-3 sm:block sm:gap-0 sm:px-6 sm:py-5 sm:pb-7">
