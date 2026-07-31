@@ -111,7 +111,7 @@ export default function About() {
             <div className="relative flex items-start gap-3.5 sm:gap-4">
               <img
                 src="/logo.png"
-                alt=""
+                alt="LocalKidsCalendar logo"
                 className="mt-0.5 h-14 w-14 shrink-0 rounded-xl border border-mint-200 bg-white object-contain p-1 shadow-sm sm:h-16 sm:w-16"
               />
               <div className="min-w-0 pt-0.5">
