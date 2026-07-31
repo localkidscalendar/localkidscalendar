@@ -65,7 +65,7 @@ export function AutomatedMessagesPreview() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Automated inbox notices. Expand a row to see exactly what users receive. Tags show Email and/or Message.
+        Automated inbox notices (welcome, billing, creative review, and community-flag lifecycle). Expand a row to see exactly what users receive. Tags show Email and/or Message.
       </p>
       <div className="space-y-2">
         {items.map((n) => {

@@ -106,7 +106,7 @@ export const EMAIL_TEMPLATE_META = [
     value: "ad_removed_flagged",
     label: "Advertiser - Ad Creative Disabled (Community Flags)",
     audience: "Advertiser (Supporter)",
-    when: "An Ad Asset is disabled after 3+ community flags",
+    when: "An Ad Asset is disabled after 3 community flags (inbox notice includes reason; email also sent)",
   },
   {
     value: "subscription_payment_failed",

@@ -213,18 +213,19 @@ const categories = [
         title: "In-App Messages Inbox",
         keywords: ["inbox", "user_messages", "welcome"],
         overview:
-          "One-way inbox for site notices: welcome messages, billing/plan notices, photo/ad decisions, flag outcomes, and Admin mass messages. Users can mark read and soft-delete. Many items include optional action buttons (e.g. open Ad Manager).",
+          "One-way inbox for site notices: welcome messages, billing/plan notices, photo/ad decisions, the full community-flag lifecycle (each flag with reason, reporter withdraw, Admin clear/reactivate, and 3+ removal), and Admin mass messages. Users can mark read and soft-delete. Many items include optional action buttons (e.g. open Ad Manager or My Activity Posts).",
         features: [
           "Unread count in nav / Account tab",
           "System + Admin-authored messages",
+          "Flag lifecycle notices for activities, comments, and Ad Assets",
           "Optional action label + in-app path",
           "Soft-delete from the user’s view",
         ],
         technicalOverview:
-          "user_messages table + helpers in userMessages.js / userMessagesCatalog.js. Welcome onboarding inserts on new profile. Admin Previews → Automated Messages shows catalog samples.",
+          "user_messages table + helpers in userMessages.js / userMessagesCatalog.js. Flag notices via notify_owner_flag_lifecycle (submit_flag / withdraw_flag) and admin_notify_owner_flag_lifecycle (Admin Flags). Welcome onboarding inserts on new profile. Admin Previews → Automated Messages shows the full catalog.",
         technicalFeatures: [
           "Mass messages fan out copies then can be retracted (soft-delete copies + remove archive row)",
-          "Some flows are inbox-only (e.g. renewal-soon); others also send Resend email (payment failed, waitlist offer)",
+          "Some flows are inbox-only (e.g. renewal-soon, most flag notices); others also send Resend email (payment failed, waitlist offer, ad disabled at 3+)",
         ],
       },
       {
@@ -441,12 +442,13 @@ const categories = [
         title: "Flagging & Admin Disposition",
         keywords: ["flag", "3 flags", "manually_deactivated", "cascade"],
         overview:
-          "Registered users flag activities, comments, or ad creatives. Activities and comments use Inaccurate, Inappropriate, Spam, or Other (details required). Ad creatives use Inappropriate, Spam, or Other — not Inaccurate. At 3 distinct flaggers, activities/comments auto-archive; ad flags attach to the Ad Asset and disable that creative across all zip placements. Admin Flags reviews dispositions and history.",
+          "Registered users flag activities, comments, or ad creatives from a centered reason modal. Activities and comments use Inaccurate, Inappropriate, Spam, or Other (details required). Ad creatives use Inappropriate, Spam, or Other — not Inaccurate. Owners get an inbox notice on every flag (with reason and N of 3), on reporter withdraw, and when Admin clears flags or reactivates. At 3 distinct flaggers, activities/comments auto-archive; ad flags attach to the Ad Asset and disable that creative across all zip placements. Admin Flags reviews dispositions and history.",
         features: [
           "Flag reason prompt opens as a centered modal (not an inline strip)",
           "Shared reasons for activities/comments; ads omit Inaccurate; Other requires text",
           "Tapping Flag again after reporting offers Remove Flag (withdraw_flag) or Keep Flag",
           "Owner inbox notices for flag 1/2/3 (with reason), reporter withdraw, Admin Clear Flags, and Admin Reactivate",
+          "Preview all flag notice copy under Admin → Previews → Automated Messages",
           "Threshold: 3 different users → activity/comment status archived; Ad Asset → moderation flagged (all placements)",
           "Owners cannot flag their own activity, comment, or ad creative",
           "Admin → Flags is the primary place to Reactivate 3-flag cases (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
@@ -790,16 +792,18 @@ const categories = [
         id: "automated-notices",
         title: "Automated In-App Notices",
         overview:
-          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, flag lifecycle). Previewed under Admin → Previews → Automated Messages without sending. Comment flag notices have no action button (edit/delete happens on the activity page).",
+          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, and the full community-flag lifecycle). Previewed under Admin → Previews → Automated Messages without sending. Comment flag notices have no action button (authors edit/delete on the activity page).",
         features: [
-          "Catalog-driven copy",
-          "Preview with sample data",
-          "Triggered by DB events, webhooks, or Admin actions",
+          "Catalog-driven copy in userMessagesCatalog.js",
+          "Flag lifecycle: flagged (1/2), removed at 3, flag withdrawn, Admin flags cleared, Admin reinstated — for activities, comments, and Ad Assets",
+          "Preview with sample data (no send)",
+          "Triggered by submit_flag / withdraw_flag, Admin Flags actions, DB events, or webhooks",
         ],
         technicalOverview:
-          "userMessagesCatalog.js + insert helpers. PreviewsPanels.jsx.",
+          "userMessagesCatalog.js powers Admin → Previews → Automated Messages. Live inserts via create_user_message / notify_owner_flag_lifecycle / admin_notify_owner_flag_lifecycle and related helpers.",
         technicalFeatures: [
           "Welcome trigger on new profiles migration",
+          "Ad 3+ disable still emails via notify-ad-asset-disabled; inbox copy aligned in catalog",
         ],
       },
     ],
@@ -964,16 +968,17 @@ const categories = [
         id: "admin-previews",
         title: "Previews Tab",
         overview:
-          "Safe previews of outbound-looking content: email HTML templates, automated message catalog, and site notices — without blasting users.",
+          "Safe previews of outbound-looking content: email HTML templates, the automated message catalog (including flag lifecycle notices), and site notices — without blasting users.",
         features: [
           "Emails tester (send sample to the signed-in admin only)",
-          "Automated Messages catalog",
+          "Automated Messages catalog — welcome, billing, creative review, and flag lifecycle (flagged / withdrawn / cleared / reinstated / removed)",
           "Site Notices preview",
         ],
         technicalOverview:
-          "PreviewsPanels + SiteEmailsTester + SiteNoticesPreview under Admin → Previews.",
+          "PreviewsPanels (Emails + Automated Messages from EMAIL_TEMPLATE_META / AUTOMATED_NOTICE_CATALOG) + SiteEmailsTester + SiteNoticesPreview under Admin → Previews.",
         technicalFeatures: [
           "Email send uses /api/send-email admin auth",
+          "Automated Messages list is catalog-driven — new notice keys appear automatically after catalog updates",
         ],
       },
     ],
