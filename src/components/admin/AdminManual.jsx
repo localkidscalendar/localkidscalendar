@@ -420,7 +420,7 @@ const categories = [
         id: "organizer-directory",
         title: "Organizer Directory",
         overview:
-          "Public list of registered organizers with profile details and favorite actions for signed-in users.",
+          "Public list of registered organizers near your Home zip + distance, with profile details and favorite actions for signed-in users.",
         features: [
           "Browse organizers near your Home zip + distance",
           "Org name, description, links, logo when set",
