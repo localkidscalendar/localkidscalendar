@@ -100,14 +100,6 @@ export default function About() {
             className="not-prose relative my-1 overflow-hidden rounded-2xl border border-orange-500 bg-gradient-to-br from-peach-50 to-mint-50 px-5 py-4 sm:px-6 sm:py-5"
             aria-label="What LocalKidsCalendar is"
           >
-            <div
-              className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-mint-100/70"
-              aria-hidden
-            />
-            <div
-              className="pointer-events-none absolute -bottom-10 right-8 h-24 w-24 rounded-full bg-peach-100/50"
-              aria-hidden
-            />
             <div className="relative flex items-start gap-3.5 sm:gap-4">
               <img
                 src="/logo.png"
