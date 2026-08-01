@@ -81,6 +81,7 @@ export default async function handler(req, res) {
         disabled_note: note,
         disabled_at: now,
         disabled_by: authUser.id,
+        suspended_at: null,
         updated_at: now,
       })
       .eq("id", userId);
@@ -157,12 +158,32 @@ export default async function handler(req, res) {
     }
     const commentsHidden = (hiddenComments || []).length;
 
+    // Notify users who favorited this organizer/poster (directory hide is role-based)
+    let favoritersNotified = 0;
+    try {
+      const { data: favCount, error: favError } = await admin.rpc(
+        "notify_favoriters_organizer_removed",
+        {
+          p_poster_user_id: userId,
+          p_reason: "Removed after the organizer's account was disabled.",
+        }
+      );
+      if (favError) {
+        console.error("admin-disable-user: favoriter notify failed:", favError.message);
+      } else {
+        favoritersNotified = Number(favCount) || 0;
+      }
+    } catch (err) {
+      console.error("admin-disable-user: favoriter notify failed:", err.message);
+    }
+
     const isSupporter = Boolean(target.is_advertiser);
     const summary = {
       prior_role: priorRole,
       is_supporter: isSupporter,
       activities_hidden: activitiesHidden,
       comments_hidden: commentsHidden,
+      favoriters_notified: favoritersNotified,
       ads_cancelled: 0,
       stripe_non_renew: 0,
       waitlist_released: 0,

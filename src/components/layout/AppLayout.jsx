@@ -5,7 +5,7 @@ import Footer from "./Footer";
 import BannerAdDisplay from "@/components/ads/BannerAdDisplay";
 import BetaBanner from "@/components/beta/BetaBanner";
 import { useAuth } from "@/lib/AuthContext";
-import { isAccountDisabled, isProfileComplete } from "@/lib/authRoles";
+import { isAccountDisabled, isAccountSuspended, isProfileComplete } from "@/lib/authRoles";
 
 /** Paths disabled users may open without being forced to the status page. */
 const DISABLED_ALLOWED_PREFIXES = [
@@ -44,6 +44,12 @@ function isPathAllowedWhileIncomplete(pathname) {
   );
 }
 
+/** Suspended users may browse like guests + open My Account (messages). */
+function isPathAllowedWhileSuspended(pathname) {
+  if (pathname === "/account" || pathname.startsWith("/account/")) return true;
+  return isPathAllowedWhileDisabled(pathname);
+}
+
 export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -56,6 +62,7 @@ export default function AppLayout() {
     authChecked,
   } = useAuth();
   const showAd = location.pathname !== "/" && location.pathname !== "/supporters";
+  const suspended = isAccountSuspended(user);
 
   useEffect(() => {
     if (!authChecked || userLoading) return;
@@ -63,6 +70,14 @@ export default function AppLayout() {
     if (isPathAllowedWhileDisabled(location.pathname)) return;
     navigate("/account-disabled", { replace: true });
   }, [authChecked, userLoading, user, location.pathname, navigate]);
+
+  // Suspended: treat as guest for most routes; keep /account (messages) and browse.
+  useEffect(() => {
+    if (!authChecked || userLoading) return;
+    if (!suspended) return;
+    if (isPathAllowedWhileSuspended(location.pathname)) return;
+    navigate("/account?tab=messages", { replace: true });
+  }, [authChecked, userLoading, suspended, location.pathname, navigate]);
 
   // Signed-in but unfinished signup → same Register profile form (not Account).
   useEffect(() => {
@@ -72,7 +87,7 @@ export default function AppLayout() {
     navigate("/register?complete=1", { replace: true });
   }, [authChecked, userLoading, user, location.pathname, navigate]);
 
-  // Feature surfaces treat disabled accounts as signed out.
+  // Feature surfaces treat disabled/suspended accounts as signed out.
   const featureUser = registeredUser;
 
   return (

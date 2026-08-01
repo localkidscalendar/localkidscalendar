@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Menu, User, LogOut, Settings, Plus, Share2, BarChart3 } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
+import { isAccountSuspended } from "@/lib/authRoles";
 import ShareModal from "@/components/shared/ShareModal";
 import {
   countUnreadMessages,
@@ -38,9 +39,11 @@ export default function Navbar({ user, sessionUser = null }) {
   const isContributor = user && ["community_member", "organizer", "admin"].includes(user.role);
   const isAdmin = user?.role === "admin" || user?.is_owner;
   const disabledSession = sessionUser?.role === "disabled" && !user;
+  const suspendedSession = Boolean(!user && isAccountSuspended(sessionUser));
+  const messageUserId = user?.id || (suspendedSession ? sessionUser?.id : null);
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!messageUserId) {
       setUnreadCount(0);
       return undefined;
     }
@@ -48,7 +51,7 @@ export default function Navbar({ user, sessionUser = null }) {
     let cancelled = false;
 
     const refresh = async () => {
-      const { count } = await countUnreadMessages(user.id);
+      const { count } = await countUnreadMessages(messageUserId);
       if (!cancelled) {
         setUnreadCount(count);
         publishUnreadMessagesCount(count);
@@ -76,11 +79,15 @@ export default function Navbar({ user, sessionUser = null }) {
       window.removeEventListener(UNREAD_MESSAGES_EVENT, onUnreadEvent);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [user?.id, location.pathname]);
+  }, [messageUserId, location.pathname]);
 
   const handleSignInClick = () => {
     if (disabledSession) {
       navigate("/account-disabled");
+      return;
+    }
+    if (suspendedSession) {
+      navigate("/account?tab=messages");
       return;
     }
     navigate("/login");
@@ -183,6 +190,21 @@ export default function Navbar({ user, sessionUser = null }) {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </>
+              ) : suspendedSession ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs border-peach-200 text-peach-700 relative"
+                    onClick={() => navigate("/account?tab=messages")}
+                  >
+                    My Messages
+                    <UnreadBadge count={unreadCount} className="ml-1.5" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="rounded-xl text-destructive" onClick={handleLogout}>
+                    Sign Out
+                  </Button>
+                </div>
               ) : (
                 <div className="flex items-center gap-2">
                   {disabledSession && (
@@ -230,6 +252,11 @@ export default function Navbar({ user, sessionUser = null }) {
                     {isAdmin && (
                       <Link to="/admin" onClick={() => setMobileOpen(false)} className="px-4 py-3 text-sm font-medium rounded-xl hover:bg-muted transition-colors">
                         Admin
+                      </Link>
+                    )}
+                    {!user && suspendedSession && (
+                      <Link to="/account?tab=messages" onClick={() => setMobileOpen(false)} className="px-4 py-3 text-sm font-medium rounded-xl hover:bg-muted transition-colors text-peach-700">
+                        My Messages
                       </Link>
                     )}
                     {!user && disabledSession && (

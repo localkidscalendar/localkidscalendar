@@ -5,14 +5,22 @@ export function isAccountDisabled(user) {
   return Boolean(user && user.role === "disabled");
 }
 
+/** Community 3+ user-flag freeze — not the same as Admin disable. */
+export function isAccountSuspended(user) {
+  return Boolean(user && user.role !== "disabled" && user.suspended_at);
+}
+
 export function isRegisteredUser(user) {
-  return Boolean(user && REGISTERED_ROLES.includes(user.role));
+  if (!user || !REGISTERED_ROLES.includes(user.role)) return false;
+  if (user.suspended_at) return false;
+  return true;
 }
 
 /** Profile has finished signup (zip required). Admins / disabled skip this gate. */
 export function isProfileComplete(user) {
   if (!user) return false;
   if (user.role === "admin" || user.role === "disabled") return true;
+  if (user.suspended_at) return true;
   return Boolean(String(user.zip_code || "").trim());
 }
 

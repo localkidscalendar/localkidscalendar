@@ -13,6 +13,7 @@ import moment from "moment";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import HistoryBackLink from "@/components/shared/HistoryBackLink";
 import FlagReportForm, { FlagWithdrawDialog } from "@/components/shared/FlagReportForm";
+import UserFlagControl from "@/components/shared/UserFlagControl";
 import { alreadyFlaggedMessage, userHasFlaggedTarget, withdrawFlag } from "@/lib/flagReports";
 
 export default function EventDetail() {
@@ -614,7 +615,7 @@ export default function EventDetail() {
           <div className="bg-mint-50/50 rounded-xl p-4 mb-6">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">This activity was posted by:</p>
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 {event.posted_by_role === "organizer" ? (
                   <>
                     {(posterOrganizer?.org_logo || event.org_logo) ? (
@@ -624,7 +625,7 @@ export default function EventDetail() {
                         {(posterOrganizer?.org_name || event.org_name || "O")[0]}
                       </div>
                     )}
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium text-sm">{posterOrganizer?.org_name || event.org_name} <span className="text-xs text-mint-500 font-medium">(Organizer)</span></p>
                       {(posterOrganizer?.org_description || event.org_description) && <p className="text-xs text-muted-foreground">{posterOrganizer?.org_description || event.org_description}</p>}
                       <p className="text-xs text-muted-foreground">Posted {moment(event.created_date).format("MMMM D, YYYY")}</p>
@@ -635,21 +636,31 @@ export default function EventDetail() {
                     <div className="w-10 h-10 rounded-full bg-mint-200 flex items-center justify-center font-bold text-mint-600">
                       {event.poster_display_name?.[0] || "?"}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium text-sm">{event.poster_display_name || "Community Member"} <span className="text-xs text-muted-foreground">(Community Member)</span></p>
                       <p className="text-xs text-muted-foreground">Posted {moment(event.created_date).format("MMMM D, YYYY")}</p>
                     </div>
                   </>
                 )}
               </div>
-              <button
-                onClick={handleToggleFavorite}
-                title={isFavorite ? "Remove from favorites" : "Favorite this poster"}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${isFavorite ? "bg-red-50 border-red-200 text-red-500 hover:bg-red-100" : "bg-white border-border text-muted-foreground hover:border-mint-300 hover:text-mint-500"}`}
-              >
-                <Heart className={`w-4 h-4 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
-                {isFavorite ? "Favorited" : "Favorite"}
-              </button>
+              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                <button
+                  onClick={handleToggleFavorite}
+                  title={isFavorite ? "Remove from favorites" : "Favorite this poster"}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${isFavorite ? "bg-red-50 border-red-200 text-red-500 hover:bg-red-100" : "bg-white border-border text-muted-foreground hover:border-mint-300 hover:text-mint-500"}`}
+                >
+                  <Heart className={`w-4 h-4 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
+                  {isFavorite ? "Favorited" : "Favorite"}
+                </button>
+                {user && event.created_by_id && (
+                  <UserFlagControl
+                    targetUserId={event.created_by_id}
+                    currentUserId={user.id}
+                    label={event.posted_by_role === "organizer" ? "organizer" : "community member"}
+                    variant="button"
+                  />
+                )}
+              </div>
             </div>
           </div>
 

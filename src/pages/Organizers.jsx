@@ -131,7 +131,17 @@ export default function Organizers() {
       setLocationRadius(radius);
 
       if (!zip) {
-        setOrganizers(records || []);
+        // Still hide Admin-disabled accounts when showing the unfiltered directory
+        let earlyProfiles = {};
+        const earlyIds = (records || []).map((o) => o.user_id).filter(Boolean);
+        if (earlyIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, role")
+            .in("id", earlyIds);
+          earlyProfiles = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+        }
+        setOrganizers((records || []).filter((o) => earlyProfiles[o.user_id]?.role !== "disabled"));
         setLoading(false);
         return;
       }
@@ -145,10 +155,16 @@ export default function Organizers() {
       if (orgUserIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("id, zip_code")
+          .select("id, zip_code, role")
           .in("id", orgUserIds);
         profileById = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
       }
+
+      // Hide organizers whose accounts are Admin-disabled (suspended still appear)
+      const visibleOrgList = orgList.filter((o) => {
+        const role = profileById[o.user_id]?.role;
+        return role !== "disabled";
+      });
 
       const filterCenter = await geocodeZip(zip);
       const zipsToGeocode = new Set([
@@ -177,7 +193,7 @@ export default function Organizers() {
       });
 
       // Also include organizers whose profile zip is in range
-      orgList.forEach((o) => {
+      visibleOrgList.forEach((o) => {
         if (!o.user_id || nearbyOrganizerIds.has(o.user_id)) return;
         const profileZip = (profileById[o.user_id]?.zip_code || "").trim();
         if (!profileZip) return;
@@ -190,7 +206,7 @@ export default function Organizers() {
         }
       });
 
-      setOrganizers(orgList.filter((o) => nearbyOrganizerIds.has(o.user_id)));
+      setOrganizers(visibleOrgList.filter((o) => nearbyOrganizerIds.has(o.user_id)));
     } catch {
       setOrganizers([]);
     }
@@ -268,7 +284,13 @@ export default function Organizers() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((org) => (
-              <OrganizerCard key={org.id} org={org} isFavorite={favoriteIds.has(org.id)} onToggleFavorite={toggleFavorite} />
+              <OrganizerCard
+                key={org.id}
+                org={org}
+                isFavorite={favoriteIds.has(org.id)}
+                onToggleFavorite={toggleFavorite}
+                currentUserId={user?.id || null}
+              />
             ))}
           </div>
         )}

@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, Trash2, Eye, BarChart3, Mail, Image, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, HelpCircle, MessageSquare, RotateCcw, Check, Undo2, ChevronDown, ChevronUp } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, Trash2, Eye, BarChart3, Mail, Image, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, HelpCircle, MessageSquare, RotateCcw, Check, Undo2, ChevronDown, ChevronUp, ExternalLink, Link2, MoreHorizontal } from "lucide-react";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 import AdminNoteConfirmDialog from "@/components/admin/AdminNoteConfirmDialog";
 import { restoreRoleFromProfile } from "@/lib/authRoles";
+import ImagePreviewModal from "@/components/ads/ImagePreviewModal";
 
 import FAQManagerV2 from "@/components/admin/FAQManager";
 import SiteNoticesPreview from "@/components/admin/SiteNoticesPreview";
@@ -42,6 +44,7 @@ import {
   notifyAdCreativeDisabledAdmin,
   notifyBecameSupporter,
   notifyOwnerFlagLifecycle,
+  notifyOwnerUserFlagLifecycle,
 } from "@/lib/userMessages";
 import moment from "moment";
 
@@ -86,20 +89,56 @@ const MASS_MESSAGE_SECTIONS = [
 
 const FLAGS_SECTIONS = [
   { id: "flags-flagged-content", label: "Flagged Content" },
-  { id: "flags-users-flagging", label: "Users Flagging Content" },
+  { id: "flags-flagged-users", label: "Flagged Users" },
+  { id: "flags-users-flagging", label: "Flagging Activity" },
 ];
+
+const FLAGGED_USER_ROLE_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "community_member", label: "Community Members" },
+  { id: "organizer", label: "Organizers" },
+  { id: "3plus", label: "3+" },
+];
+
+const USER_FLAG_REASON_LABELS = {
+  misrepresented_user: "Misrepresented User",
+  disregard_rules: "Disregard for Our Community Rules",
+  other: "Other",
+};
+
+function userFlagReasonLabel(reason) {
+  return USER_FLAG_REASON_LABELS[reason] || (reason ? String(reason).replace(/_/g, " ") : "—");
+}
+
+const CONTENT_FLAG_REASON_LABELS = {
+  inaccurate: "Inaccurate",
+  inappropriate: "Inappropriate",
+  spam: "Spam",
+  other: "Other",
+};
+
+function contentFlagReasonLabel(reason) {
+  return CONTENT_FLAG_REASON_LABELS[reason] || (reason ? String(reason).replace(/_/g, " ") : "—");
+}
 
 const USER_SECTIONS = [
-  { id: "users-zip-reports", label: "Zip Code Reports" },
   { id: "users-list", label: "List of Users" },
   { id: "users-reactivation", label: "Reactivation Requests" },
+  { id: "users-zip-reports", label: "Zip Code Reports" },
 ];
 
-const FLAGGING_MIN_OPTIONS = [
-  { id: "all", label: "All", min: 0 },
-  { id: "3", label: "3+ Flags", min: 3 },
-  { id: "5", label: "5+ Flags", min: 5 },
-  { id: "10", label: "10+ Flags", min: 10 },
+const USER_LIST_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "admin", label: "Admins" },
+  { id: "community_member", label: "Community Members" },
+  { id: "organizer", label: "Organizers" },
+  { id: "supporter", label: "Supporters" },
+];
+
+const FLAGGING_ACTIVITY_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "flagging", label: "Flagging" },
+  { id: "being_flagged", label: "Being Flagged" },
 ];
 
 const KNOWN_MESSAGE_SUBJECTS = new Set(MESSAGE_TYPE_BOXES.flatMap((box) => box.subjects));
@@ -222,6 +261,8 @@ export default function Admin() {
   const [eventSortOrder, setEventSortOrder] = useState("desc");
   const [expandedEventNotes, setExpandedEventNotes] = useState(() => new Set());
   const [userSearch, setUserSearch] = useState("");
+  const [userSearchExactEmail, setUserSearchExactEmail] = useState(false);
+  const [userListFilter, setUserListFilter] = useState("all");
   const [userSortBy, setUserSortBy] = useState("joined");
   const [userSortOrder, setUserSortOrder] = useState("desc");
   const [activeTab, setActiveTab] = useState("activities");
@@ -229,9 +270,17 @@ export default function Admin() {
   const [flagTypeFilter, setFlagTypeFilter] = useState("all"); // all | event | comment | ad
   const [flag3PlusOnly, setFlag3PlusOnly] = useState(false); // 3+ Deactivation cards only
   const [expandedFlagHistory, setExpandedFlagHistory] = useState(() => new Set());
+  const [flaggedUserSearch, setFlaggedUserSearch] = useState("");
+  const [flaggedUserRoleFilter, setFlaggedUserRoleFilter] = useState("all");
+  const [flaggedUsersPage, setFlaggedUsersPage] = useState(1);
   const [flaggingUserSearch, setFlaggingUserSearch] = useState("");
-  const [flaggingMinFlags, setFlaggingMinFlags] = useState("all");
-  const [expandedFlaggingUsers, setExpandedFlaggingUsers] = useState(() => new Set());
+  const [flaggingActivityFilter, setFlaggingActivityFilter] = useState("all"); // all | flagging | being_flagged
+  // users-list: contributions / flagged / flagging expand panel key per user
+  const [userContentPanelById, setUserContentPanelById] = useState({});
+  const [expandedUserComments, setExpandedUserComments] = useState(() => new Set());
+  const [expandedItemFlags, setExpandedItemFlags] = useState(() => new Set());
+  const [userContentById, setUserContentById] = useState({});
+  const [userContentPreviewUrl, setUserContentPreviewUrl] = useState(null);
   const [disabledUsers, setDisabledUsers] = useState(new Set());
   const [organizerMap, setOrganizerMap] = useState({});
   const [reactivationRequests, setReactivationRequests] = useState([]);
@@ -324,6 +373,102 @@ export default function Admin() {
       const map = {};
       orgList.forEach((o) => { if (o.user_id) map[o.user_id] = o.org_name; });
       setOrganizerMap(map);
+
+      // Per-user contribution index for Admin → Users → Content column
+      const userIds = usersList.map((u) => u.id).filter(Boolean);
+      const emptyContent = () => ({
+        events: [],
+        comments: [],
+        ads: [],
+        activityFlagTotal: 0,
+        commentFlagTotal: 0,
+        adFlagTotal: 0,
+        userFlagCount: 0,
+        hasContent: false,
+      });
+      const contentMap = Object.fromEntries(userIds.map((id) => [id, emptyContent()]));
+      usersList.forEach((u) => {
+        if (contentMap[u.id]) contentMap[u.id].userFlagCount = Number(u.user_flag_count || 0);
+      });
+
+      if (userIds.length > 0) {
+        const chunk = (arr, size) => {
+          const out = [];
+          for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+          return out;
+        };
+        try {
+          for (const ids of chunk(userIds, 100)) {
+            const [userEvtsRes, userCommentsRes, userAdsRes] = await Promise.all([
+              supabase
+                .from("events")
+                .select("id, title, zip_code, flag_count, status, created_by_id")
+                .in("created_by_id", ids)
+                .limit(500),
+              supabase
+                .from("comments")
+                .select("id, content, flag_count, status, created_by_id, event_id")
+                .in("created_by_id", ids)
+                .neq("status", "deleted")
+                .limit(500),
+              supabase
+                .from("ad_library")
+                .select("id, ad_name, flag_count, link_url, image_url, user_id, moderation_status")
+                .in("user_id", ids)
+                .is("deleted_at", null)
+                .limit(500),
+            ]);
+            for (const e of userEvtsRes.data || []) {
+              const bucket = contentMap[e.created_by_id];
+              if (!bucket) continue;
+              bucket.events.push(e);
+              bucket.activityFlagTotal += Number(e.flag_count || 0);
+            }
+            for (const c of userCommentsRes.data || []) {
+              const bucket = contentMap[c.created_by_id];
+              if (!bucket) continue;
+              bucket.comments.push(c);
+              bucket.commentFlagTotal += Number(c.flag_count || 0);
+            }
+            const adsRows = userAdsRes.data || [];
+            const adLibIds = adsRows.map((a) => a.id).filter(Boolean);
+            const zipByAdId = {};
+            if (adLibIds.length > 0) {
+              const { data: placements } = await supabase
+                .from("banner_ads")
+                .select("ad_library_id, zip_code")
+                .in("ad_library_id", adLibIds);
+              for (const p of placements || []) {
+                if (!p.ad_library_id || !p.zip_code) continue;
+                if (!zipByAdId[p.ad_library_id]) zipByAdId[p.ad_library_id] = [];
+                if (!zipByAdId[p.ad_library_id].includes(p.zip_code)) {
+                  zipByAdId[p.ad_library_id].push(p.zip_code);
+                }
+              }
+            }
+            for (const a of adsRows) {
+              const bucket = contentMap[a.user_id];
+              if (!bucket) continue;
+              const zips = zipByAdId[a.id] || [];
+              bucket.ads.push({
+                ...a,
+                zip_code: zips[0] || null,
+                zip_codes: zips,
+              });
+              bucket.adFlagTotal += Number(a.flag_count || 0);
+            }
+          }
+        } catch (contentErr) {
+          console.error("Admin user content index failed", contentErr);
+        }
+      }
+
+      Object.values(contentMap).forEach((bucket) => {
+        bucket.hasContent =
+          bucket.events.length > 0 || bucket.comments.length > 0 || bucket.ads.length > 0;
+      });
+      setUserContentById(contentMap);
+
       setStats({
         totalEvents: evts.filter((e) => e.status === "active").length,
         totalUsers: usersList.length,
@@ -422,7 +567,6 @@ export default function Admin() {
 
   const [eventMap, setEventMap] = useState({});
   const [deletedItems, setDeletedItems] = useState([]);
-  const [flaggingUsers, setFlaggingUsers] = useState([]);
 
   useEffect(() => {
     if (flags.length > 0) loadEventTitles();
@@ -432,10 +576,6 @@ export default function Admin() {
     loadDeletedItems();
   }, [events, flags]);
 
-  useEffect(() => {
-    loadFlaggingUsers();
-  }, [flags, users, organizerMap]);
-
   const loadEventTitles = async () => {
     try {
       const eventIds = [...new Set(flags.filter((f) => f.target_type === "event").map((f) => f.target_id))];
@@ -444,8 +584,10 @@ export default function Admin() {
       const titles = {};
 
       if (eventIds.length) {
-        const { data } = await supabase.from("events").select("id, title, status").in("id", eventIds);
-        (data || []).forEach((e) => { titles[e.id] = { type: "event", title: e.title, status: e.status }; });
+        const { data } = await supabase.from("events").select("id, title, zip_code, status").in("id", eventIds);
+        (data || []).forEach((e) => {
+          titles[e.id] = { type: "event", title: e.title, zip_code: e.zip_code, status: e.status };
+        });
       }
 
       if (commentIds.length) {
@@ -453,8 +595,8 @@ export default function Admin() {
         for (const c of comments || []) {
           titles[c.id] = { type: "comment", content: c.content, event_id: c.event_id, status: c.status };
           if (c.event_id && !titles[c.event_id]) {
-            const { data: e } = await supabase.from("events").select("id, title, status").eq("id", c.event_id).maybeSingle();
-            if (e) titles[e.id] = { type: "event", title: e.title, status: e.status };
+            const { data: e } = await supabase.from("events").select("id, title, zip_code, status").eq("id", c.event_id).maybeSingle();
+            if (e) titles[e.id] = { type: "event", title: e.title, zip_code: e.zip_code, status: e.status };
           }
         }
       }
@@ -474,6 +616,17 @@ export default function Admin() {
             link_url: a.link_url,
           };
         });
+        const { data: placements } = await supabase
+          .from("banner_ads")
+          .select("ad_library_id, zip_code")
+          .in("ad_library_id", adIds);
+        for (const p of placements || []) {
+          if (!p.ad_library_id || !titles[p.ad_library_id] || !p.zip_code) continue;
+          const existing = titles[p.ad_library_id].zip_codes || [];
+          if (!existing.includes(p.zip_code)) existing.push(p.zip_code);
+          titles[p.ad_library_id].zip_codes = existing;
+          titles[p.ad_library_id].zip_code = existing[0] || null;
+        }
         const missing = adIds.filter((id) => !titles[id]);
         if (missing.length) {
           const { data: adRows } = await supabase
@@ -682,35 +835,6 @@ export default function Admin() {
     );
   };
 
-  const loadFlaggingUsers = async () => {
-    try {
-      // Count all flags filed by each user (for abuse review); include cleared reports
-      const tally = {};
-      flags.forEach((f) => {
-        if (!f.reporter_id) return;
-        if (!tally[f.reporter_id]) {
-          tally[f.reporter_id] = { id: f.reporter_id, name: null, count: 0, flagIds: [] };
-        }
-        tally[f.reporter_id].count += 1;
-        tally[f.reporter_id].flagIds.push(f.id);
-        if (f.reporter_name) tally[f.reporter_id].name = tally[f.reporter_id].name || f.reporter_name;
-      });
-      const result = Object.values(tally).map((t) => {
-        const profile = users.find((u) => u.id === t.id);
-        const name =
-          organizerMap[t.id]
-          || t.name
-          || profile?.full_name
-          || (profile ? [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() : "")
-          || profile?.email
-          || "Unknown";
-        const email = profile?.email || "";
-        return { ...t, name, email };
-      }).sort((a, b) => b.count - a.count);
-      setFlaggingUsers(result);
-    } catch {}
-  };
-
   const handleAdStatus = async (id, status) => {
     const { error } = await supabase.from("banner_ads").update({
       status,
@@ -760,6 +884,15 @@ export default function Admin() {
     setFlagsSection("flags-flagged-content");
     setFlaggedContentPage(1);
     setActiveTab("flags");
+  };
+
+  const openUserInUsersList = (email) => {
+    const value = (email || "").trim();
+    setUserSearch(value);
+    setUserSearchExactEmail(Boolean(value));
+    setUsersSection("users-list");
+    setUsersPage(1);
+    setActiveTab("users");
   };
 
   const toggleEventNotes = (eventId) => {
@@ -980,16 +1113,19 @@ export default function Admin() {
   const getDeactivatedCaseHistory = (item) =>
     Array.isArray(item?.item?.flag_case_admin_history) ? item.item.flag_case_admin_history : [];
 
+  const getUserFlagCaseHistory = (profile) =>
+    Array.isArray(profile?.user_flag_case_admin_history) ? profile.user_flag_case_admin_history : [];
+
   const REOPEN_FLAG_ACTIONS = new Set(["reactivated", "overridden", "flag_reactivated", "unreviewed"]);
 
-  const buildFlagDispositionUpdate = (report, action) => {
+  const buildFlagDispositionUpdate = (report, action, scope = "flagged_content") => {
     const history = [
       ...getFlagHistory(report),
       {
         action,
         at: new Date().toISOString(),
         by: adminName(),
-        scope: "flagged_content",
+        scope,
       },
     ];
 
@@ -1005,11 +1141,11 @@ export default function Admin() {
     return updates;
   };
 
-  const recordFlagAdminAction = async (flagId, action) => {
+  const recordFlagAdminAction = async (flagId, action, scope = "flagged_content") => {
     const report = flags.find((f) => f.id === flagId);
     if (!report) return { error: { message: "Flag report not found" } };
 
-    const updates = buildFlagDispositionUpdate(report, action);
+    const updates = buildFlagDispositionUpdate(report, action, scope);
     const primary = await supabase.from("flag_reports").update(updates).eq("id", flagId);
     if (!primary.error) return primary;
 
@@ -1029,6 +1165,167 @@ export default function Admin() {
       });
     }
     return secondary;
+  };
+
+  const recordUserFlagCaseAction = async (profileId, actionOrActions) => {
+    const profile = users.find((u) => u.id === profileId);
+    if (!profile) return { error: { message: "User not found" } };
+    const actions = Array.isArray(actionOrActions) ? actionOrActions : [actionOrActions];
+    const now = new Date().toISOString();
+    const history = [
+      ...getUserFlagCaseHistory(profile),
+      ...actions.map((action) => ({
+        action,
+        at: now,
+        by: adminName(),
+        scope: "flagged_user",
+      })),
+    ];
+    const lastAction = actions[actions.length - 1];
+    const updates = {
+      user_flag_case_admin_history: history,
+      user_flag_case_admin_action: lastAction === "unreviewed" ? null : lastAction,
+      updated_at: now,
+    };
+    const result = await supabase.from("profiles").update(updates).eq("id", profileId);
+    if (!result.error) {
+      setUsers((prev) => prev.map((u) => (
+        u.id === profileId
+          ? {
+            ...u,
+            user_flag_case_admin_history: history,
+            user_flag_case_admin_action: updates.user_flag_case_admin_action,
+          }
+          : u
+      )));
+    }
+    return result;
+  };
+
+  const syncUserFlagCounters = async (profileId, { excludeFlagId = null } = {}) => {
+    const remaining = flags.filter(
+      (f) =>
+        f.target_type === "user" &&
+        f.target_id === profileId &&
+        f.id !== excludeFlagId &&
+        f.admin_action !== "flag_cleared"
+    );
+    const nextBy = remaining.map((f) => String(f.reporter_id)).filter(Boolean);
+    const nextCount = nextBy.length;
+    const profile = users.find((u) => u.id === profileId);
+    const wasSuspended = Boolean(profile?.suspended_at);
+    const updates = {
+      user_flag_count: nextCount,
+      user_flagged_by: nextBy,
+      updated_at: new Date().toISOString(),
+    };
+    if (nextCount < 3 && wasSuspended) {
+      updates.suspended_at = null;
+    }
+    const { error } = await supabase.from("profiles").update(updates).eq("id", profileId);
+    if (!error) {
+      setUsers((prev) => prev.map((u) => (u.id === profileId ? { ...u, ...updates } : u)));
+    }
+    return { error, nextCount, unsuspended: nextCount < 3 && wasSuspended };
+  };
+
+  const handleClearUserFlag = async (flagId) => {
+    const report = flags.find((f) => f.id === flagId);
+    if (!report || report.target_type !== "user") return;
+    if (!window.confirm("Clear this user flag? It will be removed from the account’s flag count, but the report stays for admin history.")) return;
+
+    const { error } = await recordFlagAdminAction(flagId, "flag_cleared", "flagged_user");
+    if (error) {
+      toast({ title: "Failed to clear flag", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    const { error: syncError, nextCount } = await syncUserFlagCounters(report.target_id, {
+      excludeFlagId: flagId,
+    });
+    if (syncError) {
+      toast({ title: "Flag cleared, but failed to update count", description: syncError.message, variant: "destructive" });
+      loadAll();
+      return;
+    }
+
+    await notifyOwnerUserFlagLifecycle({
+      userId: report.target_id,
+      event: "partial_cleared",
+      flagCount: nextCount,
+    });
+
+    toast({ title: "Flag cleared" });
+    loadAll();
+  };
+
+  const handleClearUserFlags = async (card) => {
+    const uncleared = (card.flags || []).filter((f) => f.admin_action !== "flag_cleared");
+    if (uncleared.length === 0) {
+      toast({ title: "No flags to clear" });
+      return;
+    }
+    if (!window.confirm(
+      `Clear all ${uncleared.length} flags on this user? They will be removed from the account’s flag count, but reports stay for admin history. Further flags could suspend the account again.`
+    )) return;
+
+    for (const report of uncleared) {
+      const { error } = await recordFlagAdminAction(report.id, "flag_cleared", "flagged_user");
+      if (error) {
+        toast({ title: "Failed to clear flags", description: error.message, variant: "destructive" });
+        loadAll();
+        return;
+      }
+    }
+
+    const now = new Date().toISOString();
+    const { error: profileError } = await supabase.from("profiles").update({
+      user_flag_count: 0,
+      user_flagged_by: [],
+      suspended_at: null,
+      updated_at: now,
+    }).eq("id", card.userId);
+    if (profileError) {
+      toast({ title: "Flags cleared, but failed to reset account counters", description: profileError.message, variant: "destructive" });
+      loadAll();
+      return;
+    }
+
+    const { error: caseError } = await recordUserFlagCaseAction(card.userId, ["flags_cleared", "reviewed"]);
+    if (caseError) {
+      toast({ title: "Flags cleared, but failed to record case history", description: caseError.message, variant: "destructive" });
+      loadAll();
+      return;
+    }
+
+    await notifyOwnerUserFlagLifecycle({
+      userId: card.userId,
+      event: "cleared",
+      flagCount: 0,
+    });
+
+    toast({ title: "Flags cleared", description: "Account reinstated and marked as reviewed." });
+    loadAll();
+  };
+
+  const handleUserFlagReviewed = async (card) => {
+    const { error } = await recordUserFlagCaseAction(card.userId, "reviewed");
+    if (error) {
+      toast({ title: "Failed to mark reviewed", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Marked as reviewed" });
+    loadAll();
+  };
+
+  const handleUserFlagMarkUnreviewed = async (card) => {
+    const { error } = await recordUserFlagCaseAction(card.userId, "unreviewed");
+    if (error) {
+      toast({ title: "Failed to mark unreviewed", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Marked as unreviewed" });
+    loadAll();
   };
 
   const recordDeactivatedCaseAction = async (item, actionOrActions) => {
@@ -1525,7 +1822,8 @@ export default function Admin() {
   };
 
   const flaggedFeedItems = useMemo(() => {
-    const flagEntries = flags.map((f) => ({
+    const contentFlags = flags.filter((f) => f.target_type !== "user");
+    const flagEntries = contentFlags.map((f) => ({
       kind: "flag",
       id: `flag-${f.id}`,
       sortAt: f.created_at || f.created_date,
@@ -1607,36 +1905,282 @@ export default function Admin() {
     return list;
   }, [flags, deletedItems, flagTypeFilter, flag3PlusOnly, flagSearch, eventMap, users, organizerMap, events]);
 
+  const flaggedUserCards = useMemo(() => {
+    const byUser = {};
+    flags
+      .filter((f) => f.target_type === "user")
+      .forEach((f) => {
+        if (!byUser[f.target_id]) byUser[f.target_id] = [];
+        byUser[f.target_id].push(f);
+      });
+
+    let list = Object.entries(byUser).map(([userId, userFlags]) => {
+      const profile = users.find((u) => u.id === userId);
+      const sortedFlags = [...userFlags].sort(
+        (a, b) =>
+          new Date(b.created_at || b.created_date || 0) - new Date(a.created_at || a.created_date || 0)
+      );
+      const uncleared = sortedFlags.filter((f) => f.admin_action !== "flag_cleared");
+      const flagCount = Number(profile?.user_flag_count ?? uncleared.length);
+      const displayName =
+        organizerMap[userId]
+        || profile?.full_name
+        || (profile ? [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() : "")
+        || sortedFlags[0]?.target_contributor_name
+        || profile?.email
+        || "Unknown";
+      const role = profile?.role || "community_member";
+      const suspended = Boolean(profile?.suspended_at) && role !== "disabled";
+      const caseAction = profile?.user_flag_case_admin_action || null;
+      return {
+        userId,
+        profile,
+        flags: sortedFlags,
+        uncleared,
+        flagCount,
+        displayName,
+        email: profile?.email || "",
+        role,
+        suspended,
+        caseAction,
+        sortAt: sortedFlags[0]?.created_at || sortedFlags[0]?.created_date || profile?.suspended_at,
+      };
+    });
+
+    if (flaggedUserRoleFilter === "community_member") {
+      list = list.filter((c) => c.role === "community_member");
+    } else if (flaggedUserRoleFilter === "organizer") {
+      list = list.filter((c) => c.role === "organizer" || Boolean(organizerMap[c.userId]));
+    } else if (flaggedUserRoleFilter === "3plus") {
+      list = list.filter((c) => c.flagCount >= 3 || c.suspended || c.uncleared.length >= 3);
+    }
+
+    if (flaggedUserSearch.trim()) {
+      const q = flaggedUserSearch.trim().toLowerCase();
+      list = list.filter((c) => {
+        const historyText = getUserFlagCaseHistory(c.profile)
+          .map((e) => `${adminActionLabel[e?.action] || e?.action || ""} ${e?.by || ""}`)
+          .join(" ");
+        const hay = [
+          c.displayName,
+          c.email,
+          c.role,
+          adminActionLabel[c.caseAction] || "",
+          historyText,
+          ...c.flags.flatMap((f) => [
+            resolveReporterName(f),
+            userFlagReasonLabel(f.reason),
+            f.details,
+            f.reporter_name,
+          ]),
+          c.suspended ? "suspended" : "",
+        ].join(" ").toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    list.sort((a, b) => {
+      if (a.suspended !== b.suspended) return a.suspended ? -1 : 1;
+      if ((b.flagCount || 0) !== (a.flagCount || 0)) return (b.flagCount || 0) - (a.flagCount || 0);
+      return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+    });
+    return list;
+  }, [flags, users, organizerMap, flaggedUserRoleFilter, flaggedUserSearch]);
+
   const openFlagCount = useMemo(() => {
-    const openSingles = flags.filter(isFlagOpen).length;
+    const openSingles = flags.filter((f) => f.target_type !== "user" && isFlagOpen(f)).length;
+    const openUserCases = flaggedUserCards.filter((c) => {
+      if (c.role === "disabled") return false;
+      if (c.caseAction === "reviewed" || c.caseAction === "flags_cleared") return false;
+      return c.suspended || c.uncleared.length > 0;
+    }).length;
     const openDeactivations = deletedItems.filter((item) => {
       const action = item.item.flag_case_admin_action || null;
       const hidden = isDeactivatedItemHidden(item);
       return hidden && action !== "reviewed" && action !== "flags_cleared";
     }).length;
-    return openSingles + openDeactivations;
-  }, [flags, deletedItems]);
+    return openSingles + openDeactivations + openUserCases;
+  }, [flags, deletedItems, flaggedUserCards]);
 
-  const filteredFlaggingUsers = useMemo(() => {
-    const minOpt = FLAGGING_MIN_OPTIONS.find((o) => o.id === flaggingMinFlags) || FLAGGING_MIN_OPTIONS[0];
-    let list = flaggingUsers.filter((u) => u.count >= minOpt.min);
+  const flaggingActivityRows = useMemo(() => {
+    const ownerByKey = {};
+    for (const e of events) {
+      if (e?.id && e?.created_by_id) ownerByKey[`event:${e.id}`] = e.created_by_id;
+    }
+    for (const a of ads) {
+      if (a?.user_id) {
+        if (a.ad_library_id) ownerByKey[`ad:${a.ad_library_id}`] = a.user_id;
+        if (a.id) ownerByKey[`ad:${a.id}`] = a.user_id;
+      }
+    }
+    for (const [userId, content] of Object.entries(userContentById || {})) {
+      for (const e of content.events || []) {
+        if (e?.id) ownerByKey[`event:${e.id}`] = userId;
+      }
+      for (const c of content.comments || []) {
+        if (c?.id) ownerByKey[`comment:${c.id}`] = userId;
+      }
+      for (const a of content.ads || []) {
+        if (a?.id) ownerByKey[`ad:${a.id}`] = userId;
+      }
+    }
+
+    const filedCounts = {};
+    const receivedCounts = {};
+    for (const f of flags) {
+      if (f.reporter_id) {
+        filedCounts[f.reporter_id] = (filedCounts[f.reporter_id] || 0) + 1;
+      }
+      if (f.target_type === "user" && f.target_id) {
+        receivedCounts[f.target_id] = (receivedCounts[f.target_id] || 0) + 1;
+      } else if (f.target_type && f.target_id) {
+        const ownerId = ownerByKey[`${f.target_type}:${f.target_id}`];
+        if (ownerId) receivedCounts[ownerId] = (receivedCounts[ownerId] || 0) + 1;
+      }
+    }
+
+    const resolveRowUser = (userId, fallbackName = null) => {
+      const profile = users.find((u) => u.id === userId);
+      const name =
+        organizerMap[userId]
+        || fallbackName
+        || profile?.full_name
+        || (profile ? [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() : "")
+        || profile?.email
+        || "Unknown";
+      return {
+        userId,
+        name,
+        email: profile?.email || "",
+        isDisabled: disabledUsers.has(userId) || profile?.role === "disabled",
+      };
+    };
+
+    const rows = [];
+    for (const [userId, count] of Object.entries(filedCounts)) {
+      if (count <= 0) continue;
+      rows.push({
+        key: `flagging:${userId}`,
+        kind: "flagging",
+        count,
+        ...resolveRowUser(userId),
+      });
+    }
+    for (const [userId, count] of Object.entries(receivedCounts)) {
+      if (count <= 0) continue;
+      rows.push({
+        key: `being_flagged:${userId}`,
+        kind: "being_flagged",
+        count,
+        ...resolveRowUser(userId),
+      });
+    }
+
+    rows.sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      if (a.userId === b.userId) return a.kind === "flagging" ? -1 : 1;
+      return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
+    });
+    return rows;
+  }, [flags, users, events, ads, userContentById, organizerMap, disabledUsers]);
+
+  const filteredFlaggingActivityRows = useMemo(() => {
+    let list = flaggingActivityRows;
+    if (flaggingActivityFilter === "flagging") {
+      list = list.filter((r) => r.kind === "flagging");
+    } else if (flaggingActivityFilter === "being_flagged") {
+      list = list.filter((r) => r.kind === "being_flagged");
+    }
     if (flaggingUserSearch.trim()) {
       const q = flaggingUserSearch.trim().toLowerCase();
-      list = list.filter((u) => {
-        const hay = [u.name, u.email, String(u.count)].join(" ").toLowerCase();
+      list = list.filter((r) => {
+        const hay = [r.name, r.email, String(r.count), r.kind].join(" ").toLowerCase();
         return hay.includes(q);
       });
     }
     return list;
-  }, [flaggingUsers, flaggingUserSearch, flaggingMinFlags]);
+  }, [flaggingActivityRows, flaggingActivityFilter, flaggingUserSearch]);
 
-  const flagsFiledByUser = (userId) =>
+  const flagsFiledByUserIncludingUsers = (userId) =>
     flags
       .filter((f) => f.reporter_id === userId)
       .sort(
         (a, b) =>
           new Date(b.created_at || b.created_date || 0) - new Date(a.created_at || a.created_date || 0)
       );
+
+  const flagsReceivedByUser = (userId) =>
+    flags
+      .filter((f) => f.target_type === "user" && f.target_id === userId)
+      .sort(
+        (a, b) =>
+          new Date(b.created_at || b.created_date || 0) - new Date(a.created_at || a.created_date || 0)
+      );
+
+  const flagsOnTarget = (targetType, targetId) =>
+    flags
+      .filter((f) => f.target_type === targetType && f.target_id === targetId)
+      .sort(
+        (a, b) =>
+          new Date(b.created_at || b.created_date || 0) - new Date(a.created_at || a.created_date || 0)
+      );
+
+  const groupFlagsByTarget = (list) => {
+    const map = new Map();
+    for (const f of list) {
+      if (!f.target_id) continue;
+      if (!map.has(f.target_id)) map.set(f.target_id, []);
+      map.get(f.target_id).push(f);
+    }
+    return Array.from(map.entries()).map(([targetId, group]) => ({
+      targetId,
+      flags: group.sort(
+        (a, b) =>
+          new Date(b.created_at || b.created_date || 0) - new Date(a.created_at || a.created_date || 0)
+      ),
+    }));
+  };
+
+  const toggleUserContentPanel = (userId, panel) => {
+    setUserContentPanelById((prev) => ({
+      ...prev,
+      [userId]: prev[userId] === panel ? null : panel,
+    }));
+  };
+
+  const toggleItemFlagsExpand = (key) => {
+    setExpandedItemFlags((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const formatAdZipLabel = (item) => {
+    const zips = item?.zip_codes?.length
+      ? item.zip_codes
+      : (item?.zip_code ? [item.zip_code] : []);
+    if (!zips.length) return null;
+    return zips.length <= 2 ? zips.join(", ") : `${zips[0]} +${zips.length - 1}`;
+  };
+
+  const flaggingStatsByUserId = useMemo(() => {
+    const map = {};
+    for (const f of flags) {
+      if (!f.reporter_id) continue;
+      if (!map[f.reporter_id]) {
+        map[f.reporter_id] = { activities: 0, comments: 0, ads: 0, users: 0, total: 0 };
+      }
+      const bucket = map[f.reporter_id];
+      if (f.target_type === "event") bucket.activities += 1;
+      else if (f.target_type === "comment") bucket.comments += 1;
+      else if (f.target_type === "ad") bucket.ads += 1;
+      else if (f.target_type === "user") bucket.users += 1;
+      bucket.total += 1;
+    }
+    return map;
+  }, [flags]);
 
   const filteredAndSortedEvents = useMemo(() => {
     let filtered = events;
@@ -1671,14 +2215,27 @@ export default function Admin() {
   const filteredAndSortedUsers = useMemo(() => {
     let filtered = users;
     if (userSearch.trim()) {
-      const search = userSearch.toLowerCase();
-      filtered = users.filter((u) =>
-        (u.full_name || "").toLowerCase().includes(search)
-        || (u.first_name || "").toLowerCase().includes(search)
-        || (u.last_name || "").toLowerCase().includes(search)
-        || (u.email || "").toLowerCase().includes(search)
-        || (u.zip_code || "").toLowerCase().includes(search)
-      );
+      const search = userSearch.trim().toLowerCase();
+      if (userSearchExactEmail) {
+        filtered = users.filter((u) => (u.email || "").toLowerCase() === search);
+      } else {
+        filtered = users.filter((u) =>
+          (u.full_name || "").toLowerCase().includes(search)
+          || (u.first_name || "").toLowerCase().includes(search)
+          || (u.last_name || "").toLowerCase().includes(search)
+          || (u.email || "").toLowerCase().includes(search)
+          || (u.zip_code || "").toLowerCase().includes(search)
+        );
+      }
+    }
+    if (userListFilter === "admin") {
+      filtered = filtered.filter((u) => u.role === "admin");
+    } else if (userListFilter === "community_member") {
+      filtered = filtered.filter((u) => u.role === "community_member");
+    } else if (userListFilter === "organizer") {
+      filtered = filtered.filter((u) => u.role === "organizer" || Boolean(organizerMap[u.id]));
+    } else if (userListFilter === "supporter") {
+      filtered = filtered.filter((u) => Boolean(u.is_advertiser));
     }
     let sorted = [...filtered];
     if (userSortBy === "name") {
@@ -1709,7 +2266,7 @@ export default function Admin() {
       });
     }
     return sorted;
-  }, [users, userSearch, userSortBy, userSortOrder]);
+  }, [users, userSearch, userSearchExactEmail, userListFilter, organizerMap, userSortBy, userSortOrder]);
 
   const filteredReactivationRequests = useMemo(() => {
     let list = [...reactivationRequests];
@@ -2527,9 +3084,287 @@ export default function Admin() {
             </>
           )}
 
+          {flagsSection === "flags-flagged-users" && (
+            <>
+              <AdminSectionHeader title="Flagged Users" icon={Users} />
+              <AdminPanelShell>
+                <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <Input
+                    placeholder="Search flagged users…"
+                    value={flaggedUserSearch}
+                    onChange={(e) => { setFlaggedUserSearch(e.target.value); setFlaggedUsersPage(1); }}
+                    className="rounded-lg h-8 text-sm sm:max-w-xs"
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {FLAGGED_USER_ROLE_FILTERS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => { setFlaggedUserRoleFilter(opt.id); setFlaggedUsersPage(1); }}
+                        className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                          flaggedUserRoleFilter === opt.id
+                            ? opt.id === "3plus"
+                              ? "border-peach-300 bg-peach-50 text-peach-700"
+                              : "border-mint-300 bg-mint-50 text-mint-700"
+                            : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {flaggedUserCards.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-12">
+                    {flaggedUserSearch.trim() || flaggedUserRoleFilter !== "all"
+                      ? "No flagged users match your search or filters"
+                      : "No users flagged"}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {flaggedUserCards
+                      .slice((flaggedUsersPage - 1) * PAGE_SIZE, flaggedUsersPage * PAGE_SIZE)
+                      .map((card) => {
+                        const isDisabled = card.role === "disabled" || disabledUsers.has(card.userId);
+                        const needsReview = card.suspended || card.flagCount >= 3 || card.uncleared.length >= 3;
+                        const caseAction = card.caseAction;
+                        const history = getUserFlagCaseHistory(card.profile);
+                        const historyKey = `user-case-${card.userId}`;
+                        const historyOpen = expandedFlagHistory.has(historyKey);
+                        const roleLabel =
+                          card.role === "organizer"
+                            ? "Organizer"
+                            : card.role === "admin"
+                              ? "Admin"
+                              : card.role === "disabled"
+                                ? "Disabled"
+                                : "Community Member";
+                        const highlighted = needsReview && caseAction !== "reviewed" && caseAction !== "flags_cleared" && !isDisabled;
+
+                        return (
+                          <div
+                            key={card.userId}
+                            className={`rounded-xl border p-3 shadow-sm ${
+                              highlighted
+                                ? "border-peach-300 bg-peach-50/50"
+                                : "border-border bg-white"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold truncate">{card.displayName}</p>
+                                {card.email ? (
+                                  <p className="text-xs text-muted-foreground truncate">{card.email}</p>
+                                ) : null}
+                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted capitalize">
+                                    {roleLabel}
+                                  </span>
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      card.flagCount >= 3
+                                        ? "bg-destructive/10 text-destructive"
+                                        : "bg-peach-50 text-peach-500"
+                                    }`}
+                                  >
+                                    {card.flagCount} Flag{card.flagCount === 1 ? "" : "s"}
+                                  </span>
+                                  {card.suspended && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                      Suspended
+                                    </span>
+                                  )}
+                                  {isDisabled && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">
+                                      Disabled
+                                    </span>
+                                  )}
+                                  {caseAction && (
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      caseAction === "flags_cleared"
+                                        ? "bg-gray-100 text-gray-600"
+                                        : caseAction === "manually_deactivated"
+                                          ? "bg-red-100 text-red-600"
+                                          : "bg-mint-100 text-mint-700"
+                                    }`}>
+                                      {adminActionLabel[caseAction] || "Reviewed"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground shrink-0 text-right leading-5">
+                                {formatFlagSubmittedAt(card.sortAt)}
+                              </p>
+                            </div>
+
+                            <div className="text-xs text-muted-foreground space-y-2 mb-3">
+                              <p className="font-medium text-foreground/80">Flags ({card.flags.length}):</p>
+                              {card.flags.map((f) => {
+                                const reportAction = f.admin_action || (f.reviewed ? "reviewed" : null);
+                                const reportOpen = isFlagOpen(f);
+                                return (
+                                  <div
+                                    key={f.id}
+                                    className={`rounded-lg border p-2.5 ${
+                                      reportOpen ? "border-peach-200 bg-peach-50/40" : "border-border/70 bg-white/80"
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0 space-y-0.5">
+                                        <p>
+                                          <span className="font-medium text-foreground/80">Flagged By:</span>{" "}
+                                          {resolveReporterName(f)}
+                                        </p>
+                                        <p>
+                                          <span className="font-medium text-foreground/80">Reason:</span>{" "}
+                                          {userFlagReasonLabel(f.reason)}
+                                        </p>
+                                        {f.details && (
+                                          <p>
+                                            <span className="font-medium text-foreground/80">Details:</span> {f.details}
+                                          </p>
+                                        )}
+                                        <p className="text-[11px] text-muted-foreground">
+                                          {formatFlagSubmittedAt(f.created_date || f.created_at)}
+                                        </p>
+                                      </div>
+                                      {reportAction && (
+                                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                          reportAction === "flag_cleared"
+                                            ? "bg-gray-100 text-gray-600"
+                                            : "bg-mint-100 text-mint-700"
+                                        }`}>
+                                          {adminActionLabel[reportAction] || "Reviewed"}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {reportOpen && !isDisabled && (
+                                      <div className="flex flex-wrap gap-1.5 mt-2">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="rounded-lg text-xs h-7 text-gray-600 border-gray-200"
+                                          onClick={() => handleClearUserFlag(f.id)}
+                                        >
+                                          Clear Flag
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {history.length > 0 && (
+                                <div className="pt-1">
+                                  <button
+                                    type="button"
+                                    className="text-xs font-medium text-mint-600 hover:underline"
+                                    onClick={() => {
+                                      setExpandedFlagHistory((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(historyKey)) next.delete(historyKey);
+                                        else next.add(historyKey);
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    {historyOpen ? "Hide Admin History" : `Admin History (${history.length})`}
+                                  </button>
+                                  {historyOpen && (
+                                    <div className="mt-1 space-y-0.5 pl-0.5">
+                                      {history.map((histEntry, idx) => (
+                                        <p key={`${historyKey}-hist-${idx}`}>
+                                          • {formatAdminHistoryEntry(histEntry)}
+                                        </p>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-1.5">
+                              {isDisabled ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="rounded-lg text-xs h-7 text-mint-500 border-mint-200"
+                                  onClick={() => handleReactivateUser(card.userId)}
+                                >
+                                  Reactivate User
+                                </Button>
+                              ) : caseAction === "reviewed" || caseAction === "flags_cleared" ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
+                                  onClick={() => handleUserFlagMarkUnreviewed(card)}
+                                >
+                                  Mark Unreviewed
+                                </Button>
+                              ) : (
+                                <>
+                                  {needsReview && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="rounded-lg text-xs h-7 text-gray-600 border-gray-200"
+                                        onClick={() => handleClearUserFlags(card)}
+                                      >
+                                        Clear Flags
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="rounded-lg text-xs h-7 text-destructive border-destructive/20"
+                                        onClick={() =>
+                                          openDisableUserDialog(
+                                            card.userId,
+                                            card.displayName,
+                                            card.profile?.is_advertiser
+                                          )
+                                        }
+                                      >
+                                        Manual Disable
+                                      </Button>
+                                    </>
+                                  )}
+                                  {card.uncleared.length > 0 && !needsReview && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="rounded-lg text-xs h-7 text-gray-600 border-gray-200"
+                                      onClick={() => handleClearUserFlags(card)}
+                                    >
+                                      Clear Flags
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
+                                    onClick={() => handleUserFlagReviewed(card)}
+                                  >
+                                    Reviewed
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {flaggedUserCards.length > PAGE_SIZE && (
+                      <Paginator total={flaggedUserCards.length} page={flaggedUsersPage} onPage={setFlaggedUsersPage} />
+                    )}
+                  </div>
+                )}
+              </AdminPanelShell>
+            </>
+          )}
+
           {flagsSection === "flags-users-flagging" && (
             <>
-            <AdminSectionHeader title="Users Flagging Content" icon={Users} />
+              <AdminSectionHeader title="Flagging Activity" icon={Users} />
               <AdminPanelShell>
                 <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
                   <Input
@@ -2539,13 +3374,13 @@ export default function Admin() {
                     className="rounded-lg h-8 text-sm sm:max-w-xs"
                   />
                   <div className="flex flex-wrap gap-1.5">
-                    {FLAGGING_MIN_OPTIONS.map((opt) => (
+                    {FLAGGING_ACTIVITY_FILTERS.map((opt) => (
                       <button
                         key={opt.id}
                         type="button"
-                        onClick={() => { setFlaggingMinFlags(opt.id); setFlaggingUsersPage(1); }}
+                        onClick={() => { setFlaggingActivityFilter(opt.id); setFlaggingUsersPage(1); }}
                         className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
-                          flaggingMinFlags === opt.id
+                          flaggingActivityFilter === opt.id
                             ? "border-mint-300 bg-mint-50 text-mint-700"
                             : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
                         }`}
@@ -2555,303 +3390,71 @@ export default function Admin() {
                     ))}
                   </div>
                 </div>
-                {filteredFlaggingUsers.length === 0 ? (
+                {filteredFlaggingActivityRows.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-12">
-                    {flaggingUsers.length === 0 ? "No users with flags yet" : "No users match your search or filter"}
+                    {flaggingActivityRows.length === 0
+                      ? "No flagging activity yet"
+                      : "No users match your search or filter"}
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {filteredFlaggingUsers
+                    {filteredFlaggingActivityRows
                       .slice((flaggingUsersPage - 1) * PAGE_SIZE, flaggingUsersPage * PAGE_SIZE)
-                      .map((u) => {
-                        const profile = users.find((p) => p.id === u.id);
-                        const isDisabled = disabledUsers.has(u.id) || profile?.role === "disabled";
-                        const expanded = expandedFlaggingUsers.has(u.id);
-                        const userFlags = expanded ? flagsFiledByUser(u.id) : [];
-
+                      .map((row) => {
+                        const isFlagging = row.kind === "flagging";
                         return (
                           <div
-                            key={u.id}
+                            key={row.key}
                             className={`rounded-xl border p-3 shadow-sm ${
-                              u.count >= 5 ? "border-peach-200 bg-peach-50/40" : "border-border bg-white"
+                              isFlagging
+                                ? "border-border bg-white"
+                                : "border-peach-200 bg-peach-50/30"
                             }`}
                           >
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold truncate">{u.name || "Unknown"}</p>
-                                {u.email ? (
-                                  <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
+                              <div className="min-w-0 space-y-1">
+                                {row.email ? (
+                                  <button
+                                    type="button"
+                                    className="text-sm font-semibold text-mint-600 hover:underline truncate text-left max-w-full"
+                                    onClick={() => openUserInUsersList(row.email)}
+                                    title={`Open in List of Users (${row.email})`}
+                                  >
+                                    {row.name || "Unknown"}
+                                  </button>
+                                ) : (
+                                  <p className="text-sm font-semibold truncate">{row.name || "Unknown"}</p>
+                                )}
+                                {row.email ? (
+                                  <p className="text-xs text-muted-foreground truncate">{row.email}</p>
                                 ) : null}
-                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span
                                     className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                      u.count >= 5
-                                        ? "bg-destructive/10 text-destructive"
-                                        : "bg-peach-50 text-peach-500"
+                                      isFlagging
+                                        ? "bg-mint-100 text-mint-700"
+                                        : "bg-peach-100 text-peach-600"
                                     }`}
                                   >
-                                    {u.count} Flag{u.count === 1 ? "" : "s"}
+                                    {isFlagging ? "Flagging" : "Being Flagged"}
                                   </span>
-                                  {isDisabled && (
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted tabular-nums">
+                                    {row.count} Flag{row.count === 1 ? "" : "s"}
+                                  </span>
+                                  {row.isDisabled && (
                                     <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">
                                       Disabled
                                     </span>
                                   )}
                                 </div>
                               </div>
-                              <div className="flex flex-wrap gap-1.5 shrink-0">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-lg text-xs h-7"
-                                  onClick={() => {
-                                    setExpandedFlaggingUsers((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(u.id)) next.delete(u.id);
-                                      else next.add(u.id);
-                                      return next;
-                                    });
-                                  }}
-                                >
-                                  {expanded ? (
-                                    <>
-                                      <ChevronUp className="w-3.5 h-3.5 mr-1" />
-                                      Hide Flagged Items
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ChevronDown className="w-3.5 h-3.5 mr-1" />
-                                      View Flagged Items
-                                    </>
-                                  )}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className={`rounded-lg text-xs h-7 ${
-                                    isDisabled
-                                      ? "text-mint-500 border-mint-200"
-                                      : "text-destructive border-destructive/20"
-                                  }`}
-                                  onClick={() =>
-                                    isDisabled
-                                      ? handleReactivateUser(u.id)
-                                      : openDisableUserDialog(
-                                          u.id,
-                                          u.name || u.email,
-                                          profile?.is_advertiser
-                                        )
-                                  }
-                                >
-                                  {isDisabled ? "Reactivate User" : "Disable User"}
-                                </Button>
-                              </div>
                             </div>
-
-                            {expanded && (
-                              <div className="mt-3 space-y-2 border-t border-border/70 pt-3">
-                                {userFlags.length === 0 ? (
-                                  <p className="text-xs text-muted-foreground">No flags found for this user.</p>
-                                ) : (
-                                  userFlags.map((f) => {
-                                    const action = f.admin_action || (f.reviewed ? "reviewed" : null);
-                                    const targetMeta = eventMap[f.target_id];
-                                    const typeLabel =
-                                      f.target_type === "event"
-                                        ? "Activity"
-                                        : f.target_type === "comment"
-                                          ? "Comment"
-                                          : "Ad";
-                                    const hasReviewPane =
-                                      f.target_type === "comment" || f.target_type === "ad";
-                                    const reportedFlags = getReportedFlagOrdinal(f);
-                                    const history = getFlaggedCardHistory(f);
-                                    const historyKey = `flagging-${f.id}`;
-                                    const historyOpen = expandedFlagHistory.has(historyKey);
-
-                                    return (
-                                      <div
-                                        key={f.id}
-                                        className={`rounded-xl border p-3 ${
-                                          action ? "border-border bg-white" : "border-peach-200 bg-peach-50/50"
-                                        }`}
-                                      >
-                                        <div className="flex items-start justify-between gap-3 mb-2">
-                                          <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                            <span
-                                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                f.target_type === "event"
-                                                  ? "bg-mint-100 text-mint-600"
-                                                  : f.target_type === "comment"
-                                                    ? "bg-amber-100 text-amber-600"
-                                                    : "bg-peach-100 text-peach-600"
-                                              }`}
-                                            >
-                                              {typeLabel}
-                                            </span>
-                                            {action && (
-                                              <span
-                                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                  action === "manually_deactivated"
-                                                    ? "bg-red-100 text-red-600"
-                                                    : action === "flag_cleared"
-                                                      ? "bg-gray-100 text-gray-600"
-                                                      : "bg-mint-100 text-mint-700"
-                                                }`}
-                                              >
-                                                {adminActionLabel[action] || "Reviewed"}
-                                              </span>
-                                            )}
-                                          </div>
-                                          <p className="text-[11px] text-muted-foreground shrink-0 text-right leading-5">
-                                            {formatFlagSubmittedAt(f.created_date || f.created_at)}
-                                          </p>
-                                        </div>
-
-                                        <div
-                                          className={`grid gap-3 ${
-                                            hasReviewPane
-                                              ? "lg:grid-cols-[minmax(0,1fr)_minmax(200px,280px)]"
-                                              : ""
-                                          }`}
-                                        >
-                                          <div className="min-w-0 space-y-2">
-                                            {f.target_type === "event" ? (
-                                              <Link
-                                                to={`/event/${f.target_id}`}
-                                                className="text-sm font-semibold text-mint-600 hover:underline block truncate"
-                                              >
-                                                {targetMeta?.title || "Activity"}
-                                              </Link>
-                                            ) : f.target_type === "comment" ? (
-                                              targetMeta?.event_id ? (
-                                                <Link
-                                                  to={`/event/${targetMeta.event_id}`}
-                                                  className="text-sm font-semibold text-mint-600 hover:underline block truncate"
-                                                >
-                                                  {eventMap[targetMeta.event_id]?.title || "Activity"}
-                                                </Link>
-                                              ) : (
-                                                <p className="text-sm font-semibold">Comment</p>
-                                              )
-                                            ) : (
-                                              <p className="text-sm font-semibold truncate">
-                                                {targetMeta?.title || f.target_contributor_name || "Ad Asset"}
-                                              </p>
-                                            )}
-
-                                            <div className="text-xs text-muted-foreground space-y-0.5">
-                                              <p>
-                                                <span className="font-medium text-foreground/80">
-                                                  {f.target_type === "comment"
-                                                    ? "Comment by"
-                                                    : f.target_type === "ad"
-                                                      ? "Ad Asset"
-                                                      : "Contributor"}
-                                                  :
-                                                </span>{" "}
-                                                {resolveContributorName(f)}
-                                              </p>
-                                              <p>
-                                                <span className="font-medium text-foreground/80">
-                                                  Reported Flags:
-                                                </span>{" "}
-                                                {reportedFlags.position} of {reportedFlags.total}
-                                              </p>
-                                              <p>
-                                                <span className="font-medium text-foreground/80">Reason:</span>{" "}
-                                                <span className="capitalize">{f.reason || "—"}</span>
-                                              </p>
-                                              {f.details && (
-                                                <p>
-                                                  <span className="font-medium text-foreground/80">
-                                                    Comments:
-                                                  </span>{" "}
-                                                  {f.details}
-                                                </p>
-                                              )}
-                                              {history.length > 0 && (
-                                                <div className="pt-1">
-                                                  <button
-                                                    type="button"
-                                                    className="text-xs font-medium text-mint-600 hover:underline"
-                                                    onClick={() => {
-                                                      setExpandedFlagHistory((prev) => {
-                                                        const next = new Set(prev);
-                                                        if (next.has(historyKey)) next.delete(historyKey);
-                                                        else next.add(historyKey);
-                                                        return next;
-                                                      });
-                                                    }}
-                                                  >
-                                                    {historyOpen
-                                                      ? "Hide Admin History"
-                                                      : `Admin History (${history.length})`}
-                                                  </button>
-                                                  {historyOpen && (
-                                                    <div className="mt-1 space-y-0.5 pl-0.5">
-                                                      {history.map((histEntry, idx) => (
-                                                        <p key={`${historyKey}-hist-${idx}`}>
-                                                          • {formatAdminHistoryEntry(histEntry)}
-                                                        </p>
-                                                      ))}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              )}
-                                            </div>
-                                          </div>
-
-                                          {f.target_type === "comment" && (
-                                            <div className="rounded-lg border border-border/70 bg-white/80 p-2.5 min-w-0">
-                                              <p className="text-[11px] font-medium text-foreground/70 mb-1">
-                                                Comment
-                                              </p>
-                                              <p className="text-xs text-foreground whitespace-pre-wrap break-words max-h-36 overflow-y-auto">
-                                                {targetMeta?.content || "—"}
-                                              </p>
-                                            </div>
-                                          )}
-                                          {f.target_type === "ad" && (
-                                            <div className="rounded-lg border border-border/70 bg-white/80 p-2.5 min-w-0 space-y-2">
-                                              {targetMeta?.image_url ? (
-                                                <img
-                                                  src={targetMeta.image_url}
-                                                  alt=""
-                                                  className="w-20 aspect-[2/1] object-cover rounded-md border border-border"
-                                                />
-                                              ) : (
-                                                <div className="w-20 aspect-[2/1] rounded-md border border-dashed border-border bg-muted/40 flex items-center justify-center">
-                                                  <Image className="w-4 h-4 text-muted-foreground" />
-                                                </div>
-                                              )}
-                                              {targetMeta?.link_url ? (
-                                                <a
-                                                  href={targetMeta.link_url}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                  className="text-xs text-mint-600 hover:underline break-all"
-                                                >
-                                                  {targetMeta.link_url}
-                                                </a>
-                                              ) : (
-                                                <p className="text-xs text-muted-foreground">No URL</p>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })
-                                )}
-                              </div>
-                            )}
                           </div>
                         );
                       })}
-                    {filteredFlaggingUsers.length > PAGE_SIZE && (
+                    {filteredFlaggingActivityRows.length > PAGE_SIZE && (
                       <Paginator
-                        total={filteredFlaggingUsers.length}
+                        total={filteredFlaggingActivityRows.length}
                         page={flaggingUsersPage}
                         onPage={setFlaggingUsersPage}
                       />
@@ -2940,129 +3543,730 @@ export default function Admin() {
             <>
               <AdminSectionHeader title="List of Users" icon={Users} />
               <AdminPanelShell>
-                <div className="pb-4 mb-4 border-b border-border">
-                  <Input
-                    placeholder="Search users by name, email, or zip..."
-                    value={userSearch}
-                    onChange={(e) => { setUserSearch(e.target.value); setUsersPage(1); }}
-                    className="rounded-lg h-8 text-sm"
-                  />
+                <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <div className="flex items-center gap-2 sm:max-w-xs w-full">
+                    <Input
+                      placeholder="Search users by name, email, or zip..."
+                      value={userSearch}
+                      onChange={(e) => { setUserSearch(e.target.value); setUserSearchExactEmail(false); setUsersPage(1); }}
+                      className="rounded-lg h-8 text-sm flex-1"
+                    />
+                    {userSearch.trim() ? (
+                      <button
+                        type="button"
+                        className="shrink-0 text-xs font-medium text-mint-600 hover:underline"
+                        onClick={() => {
+                          setUserSearch("");
+                          setUserSearchExactEmail(false);
+                          setUsersPage(1);
+                        }}
+                      >
+                        Clear
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {USER_LIST_FILTERS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => { setUserListFilter(opt.id); setUsersPage(1); }}
+                        className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                          userListFilter === opt.id
+                            ? "border-mint-300 bg-mint-50 text-mint-700"
+                            : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th
-                          className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer hover:bg-muted/70"
-                          onClick={() => {
-                            if (userSortBy === "name") { setUserSortOrder(userSortOrder === "asc" ? "desc" : "asc"); }
-                            else { setUserSortBy("name"); setUserSortOrder("asc"); }
-                            setUsersPage(1);
-                          }}
-                        >
-                          Name {userSortBy === "name" && (userSortOrder === "asc" ? "↑" : "↓")}
-                        </th>
-                        <th
-                          className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer hover:bg-muted/70"
-                          onClick={() => {
-                            if (userSortBy === "email") { setUserSortOrder(userSortOrder === "asc" ? "desc" : "asc"); }
-                            else { setUserSortBy("email"); setUserSortOrder("asc"); }
-                            setUsersPage(1);
-                          }}
-                        >
-                          Email {userSortBy === "email" && (userSortOrder === "asc" ? "↑" : "↓")}
-                        </th>
-                        <th
-                          className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer hover:bg-muted/70"
-                          onClick={() => {
-                            if (userSortBy === "zip") { setUserSortOrder(userSortOrder === "asc" ? "desc" : "asc"); }
-                            else { setUserSortBy("zip"); setUserSortOrder("asc"); }
-                            setUsersPage(1);
-                          }}
-                        >
-                          Zip {userSortBy === "zip" && (userSortOrder === "asc" ? "↑" : "↓")}
-                        </th>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">Role</th>
-                        <th
-                          className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer hover:bg-muted/70"
-                          onClick={() => {
-                            if (userSortBy === "joined") { setUserSortOrder(userSortOrder === "asc" ? "desc" : "asc"); }
-                            else { setUserSortBy("joined"); setUserSortOrder("desc"); }
-                            setUsersPage(1);
-                          }}
-                        >
-                          Joined {userSortBy === "joined" && (userSortOrder === "asc" ? "↑" : "↓")}
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {filteredAndSortedUsers.slice((usersPage - 1) * PAGE_SIZE, usersPage * PAGE_SIZE).map((u) => {
+                {filteredAndSortedUsers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-12">
+                    {users.length === 0 ? "No users yet" : "No users match your search or filter"}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredAndSortedUsers
+                      .slice((usersPage - 1) * PAGE_SIZE, usersPage * PAGE_SIZE)
+                      .map((u) => {
                         const isDisabled = u.role === "disabled" || disabledUsers.has(u.id);
+                        const isSuspended = Boolean(u.suspended_at) && u.role !== "disabled" && !isDisabled;
                         const displayName = organizerMap[u.id]
                           ? organizerMap[u.id]
                           : (u.first_name || u.last_name)
                             ? `${u.first_name || ""} ${u.last_name || ""}`.trim()
                             : (u.full_name && !u.full_name.includes("@")) ? u.full_name : "—";
-                        return (
-                          <tr key={u.id} className="hover:bg-muted/30">
-                            <td className="px-4 py-3">{displayName}</td>
-                            <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
-                            <td className="px-4 py-3 text-muted-foreground tabular-nums">{u.zip_code || "—"}</td>
-                            <td className="px-4 py-3">
-                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted capitalize">
-                                {u.role === "community_member" ? "Community Member" : u.role === "organizer" ? "Organizer" : u.role === "admin" ? "Admin" : u.role === "disabled" ? "Disabled" : "Needs Setup"}
+                        const roleLabel =
+                          u.role === "community_member" ? "Community Member"
+                            : u.role === "organizer" ? "Organizer"
+                              : u.role === "admin" ? "Admin"
+                                : u.role === "disabled" ? "Disabled"
+                                  : "Needs Setup";
+                        const content = userContentById[u.id] || {
+                          events: [],
+                          comments: [],
+                          ads: [],
+                          activityFlagTotal: 0,
+                          commentFlagTotal: 0,
+                          adFlagTotal: 0,
+                          userFlagCount: Number(u.user_flag_count || 0),
+                          hasContent: false,
+                        };
+                        const flagging = flaggingStatsByUserId[u.id] || {
+                          activities: 0, comments: 0, ads: 0, users: 0, total: 0,
+                        };
+                        const contentPanel = userContentPanelById[u.id] || null;
+                        const contribOpen =
+                          contentPanel === "contribActivities"
+                          || contentPanel === "contribComments"
+                          || contentPanel === "contribAds";
+                        const flaggedOpen =
+                          contentPanel === "userFlags"
+                          || contentPanel === "activityFlags"
+                          || contentPanel === "commentFlags"
+                          || contentPanel === "adAssetFlags";
+                        const flaggingPanelType =
+                          contentPanel === "flaggingActivities" ? "event"
+                            : contentPanel === "flaggingComments" ? "comment"
+                              : contentPanel === "flaggingAds" ? "ad"
+                                : contentPanel === "flaggingUsers" ? "user"
+                                  : null;
+                        const flaggingOpen = Boolean(flaggingPanelType);
+                        const filedFlags = flaggingOpen
+                          ? flagsFiledByUserIncludingUsers(u.id).filter((f) => f.target_type === flaggingPanelType)
+                          : [];
+                        const receivedUserFlags = contentPanel === "userFlags" ? flagsReceivedByUser(u.id) : [];
+                        const flaggedEvents = content.events.filter((e) => Number(e.flag_count || 0) > 0);
+                        const flaggedComments = content.comments.filter((c) => Number(c.flag_count || 0) > 0);
+                        const flaggedAds = content.ads.filter((a) => Number(a.flag_count || 0) > 0);
+
+                        const renderCountLink = (count, panel) => {
+                          if (count <= 0) {
+                            return <span className="tabular-nums">0</span>;
+                          }
+                          const open = contentPanel === panel;
+                          return (
+                            <button
+                              type="button"
+                              className={`tabular-nums font-medium hover:underline ${
+                                open ? "text-mint-700" : "text-mint-600"
+                              }`}
+                              onClick={() => toggleUserContentPanel(u.id, panel)}
+                            >
+                              {count}
+                            </button>
+                          );
+                        };
+
+                        const renderHideSection = () => (
+                          <div className="mt-2 flex justify-end">
+                            <button
+                              type="button"
+                              className="text-[11px] text-mint-600 hover:underline"
+                              onClick={() => toggleUserContentPanel(u.id, contentPanel)}
+                            >
+                              Hide
+                            </button>
+                          </div>
+                        );
+
+                        const renderNestedFlagDetails = (key, detailFlags) => {
+                          if (!expandedItemFlags.has(key)) return null;
+                          if (!detailFlags.length) {
+                            return <p className="mt-1.5 text-[11px] text-muted-foreground pl-2">No flag details found.</p>;
+                          }
+                          return (
+                            <ul className="mt-1.5 ml-1 space-y-1.5 border-l border-border/70 pl-2.5">
+                              {detailFlags.map((f) => (
+                                <li key={f.id} className="text-xs text-muted-foreground space-y-0.5">
+                                  <p>
+                                    <span className="font-medium text-foreground/80">Flagged By:</span>{" "}
+                                    {resolveReporterName(f)}
+                                  </p>
+                                  <p>
+                                    <span className="font-medium text-foreground/80">Reason:</span>{" "}
+                                    {f.target_type === "user"
+                                      ? userFlagReasonLabel(f.reason)
+                                      : contentFlagReasonLabel(f.reason)}
+                                  </p>
+                                  {f.details ? (
+                                    <p>
+                                      <span className="font-medium text-foreground/80">Comments:</span> {f.details}
+                                    </p>
+                                  ) : null}
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {formatFlagSubmittedAt(f.created_date || f.created_at)}
+                                  </p>
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        };
+
+                        const renderFlagsCountControl = (count, key, detailFlags, clickable) => {
+                          const n = Number(count || 0);
+                          if (!clickable || n <= 0) {
+                            return (
+                              <span className="text-xs text-muted-foreground shrink-0 tabular-nums pt-0.5">
+                                {n} Flags
                               </span>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground text-xs">{moment(u.created_date).format("MMM D, YYYY")}</td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className={`rounded-lg text-xs h-7 ${u.is_advertiser ? "text-peach-500 border-peach-200" : "text-muted-foreground border-border"}`}
-                                  onClick={async () => {
-                                    const next = !u.is_advertiser;
-                                    const { error } = await supabase.from("profiles").update({
-                                      is_advertiser: next,
-                                      updated_at: new Date().toISOString(),
-                                    }).eq("id", u.id);
-                                    if (error) {
-                                      toast({ title: "Failed to update supporter", description: error.message, variant: "destructive" });
-                                      return;
-                                    }
-                                    setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_advertiser: next } : x)));
-                                    if (next) {
-                                      await notifyBecameSupporter(u.id);
-                                    }
-                                    toast({ title: next ? "Supporter role granted" : "Supporter role removed" });
-                                  }}
-                                >
-                                  {u.is_advertiser ? "✦ Supporter" : "Grant Supporter"}
-                                </Button>
-                                {u.role !== "admin" && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className={`rounded-lg text-xs h-7 ${isDisabled ? "text-mint-500 border-mint-200" : "text-destructive border-destructive/20"}`}
-                                    onClick={() =>
-                                      isDisabled
-                                        ? handleReactivateUser(u.id)
-                                        : openDisableUserDialog(u.id, displayName, u.is_advertiser)
-                                    }
-                                  >
-                                    {isDisabled ? "Reactivate" : "Disable"}
-                                  </Button>
+                            );
+                          }
+                          const open = expandedItemFlags.has(key);
+                          return (
+                            <button
+                              type="button"
+                              className={`text-xs shrink-0 tabular-nums pt-0.5 font-medium hover:underline ${
+                                open ? "text-mint-700" : "text-mint-600"
+                              }`}
+                              onClick={() => toggleItemFlagsExpand(key)}
+                            >
+                              {n} Flags
+                            </button>
+                          );
+                        };
+
+                        const zipParen = (zip) => (zip ? ` (${zip})` : "");
+                        const adZipParen = (item) => {
+                          const label = formatAdZipLabel(item);
+                          return label ? ` (${label})` : "";
+                        };
+
+                        return (
+                          <div
+                            key={u.id}
+                            className={`rounded-xl border p-3 shadow-sm ${
+                              isDisabled
+                                ? "border-red-200 bg-red-50/30"
+                                : isSuspended
+                                  ? "border-amber-200 bg-amber-50/30"
+                                  : "border-border bg-white"
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-start gap-3 justify-between">
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                  <p className="text-sm font-semibold truncate">{displayName}</p>
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted">
+                                    {roleLabel}
+                                  </span>
+                                  {isSuspended && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                      Suspended
+                                    </span>
+                                  )}
+                                  {u.is_advertiser && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted">
+                                      Supporter
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {[u.email, u.zip_code || null, moment(u.created_date).format("MMM D, YYYY")]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </p>
+                                <div className="text-xs text-muted-foreground space-y-0.5 pt-0.5">
+                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                    <span className="font-medium text-foreground/80">Contributions:</span>
+                                    <span>Activities: {renderCountLink(content.events.length, "contribActivities")}</span>
+                                    <span>·</span>
+                                    <span>Comments: {renderCountLink(content.comments.length, "contribComments")}</span>
+                                    <span>·</span>
+                                    <span>Ads: {renderCountLink(content.ads.length, "contribAds")}</span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                    <span className="font-medium text-foreground/80">Flagged:</span>
+                                    <span>User: {renderCountLink(content.userFlagCount, "userFlags")}</span>
+                                    <span>·</span>
+                                    <span>Activity: {renderCountLink(content.activityFlagTotal, "activityFlags")}</span>
+                                    <span>·</span>
+                                    <span>Comment: {renderCountLink(content.commentFlagTotal, "commentFlags")}</span>
+                                    <span>·</span>
+                                    <span>Ad Asset: {renderCountLink(content.adFlagTotal, "adAssetFlags")}</span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                    <span className="font-medium text-foreground/80">Flags Filed:</span>
+                                    <span>Activities: {renderCountLink(flagging.activities, "flaggingActivities")}</span>
+                                    <span>·</span>
+                                    <span>Comments: {renderCountLink(flagging.comments, "flaggingComments")}</span>
+                                    <span>·</span>
+                                    <span>Ads: {renderCountLink(flagging.ads, "flaggingAds")}</span>
+                                    <span>·</span>
+                                    <span>Users: {renderCountLink(flagging.users, "flaggingUsers")}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="shrink-0 self-start">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button size="sm" variant="outline" className="rounded-lg text-xs h-7 gap-1">
+                                      Actions
+                                      <MoreHorizontal className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-48 rounded-xl">
+                                    <DropdownMenuItem
+                                      onClick={async () => {
+                                        const next = !u.is_advertiser;
+                                        const { error } = await supabase.from("profiles").update({
+                                          is_advertiser: next,
+                                          updated_at: new Date().toISOString(),
+                                        }).eq("id", u.id);
+                                        if (error) {
+                                          toast({ title: "Failed to update supporter", description: error.message, variant: "destructive" });
+                                          return;
+                                        }
+                                        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_advertiser: next } : x)));
+                                        if (next) await notifyBecameSupporter(u.id);
+                                        toast({ title: next ? "Supporter role granted" : "Supporter role removed" });
+                                      }}
+                                    >
+                                      {u.is_advertiser ? "Remove Supporter" : "Grant Supporter"}
+                                    </DropdownMenuItem>
+                                    {u.role !== "admin" && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          className={isDisabled ? "text-mint-700" : "text-destructive"}
+                                          onClick={() =>
+                                            isDisabled
+                                              ? handleReactivateUser(u.id)
+                                              : openDisableUserDialog(u.id, displayName, u.is_advertiser)
+                                          }
+                                        >
+                                          {isDisabled ? "Reactivate User" : "Disable User"}
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+
+                            {(contribOpen || flaggedOpen) && (
+                              <div className="mt-3 space-y-3 border-t border-border/70 pt-3 pl-4 sm:pl-6">
+                                {contentPanel === "userFlags" && (
+                                  <div>
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                                      User Flags Received
+                                    </p>
+                                    {receivedUserFlags.length === 0 ? (
+                                      <p className="text-xs text-muted-foreground">No user flags found for this account.</p>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {receivedUserFlags.map((f) => {
+                                          const reportAction = f.admin_action || (f.reviewed ? "reviewed" : null);
+                                          return (
+                                            <div
+                                              key={f.id}
+                                              className={`rounded-lg border p-2.5 ${
+                                                isFlagOpen(f)
+                                                  ? "border-peach-200 bg-peach-50/40"
+                                                  : "border-border/70 bg-white/80"
+                                              }`}
+                                            >
+                                              <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0 space-y-0.5 text-sm">
+                                                  <p>
+                                                    <span className="font-medium text-foreground/80">Flagged By:</span>{" "}
+                                                    {resolveReporterName(f)}
+                                                  </p>
+                                                  <p>
+                                                    <span className="font-medium text-foreground/80">Category:</span>{" "}
+                                                    {userFlagReasonLabel(f.reason)}
+                                                  </p>
+                                                  {f.details && (
+                                                    <p>
+                                                      <span className="font-medium text-foreground/80">Comments:</span>{" "}
+                                                      {f.details}
+                                                    </p>
+                                                  )}
+                                                  <p className="text-[11px] text-muted-foreground">
+                                                    {formatFlagSubmittedAt(f.created_date || f.created_at)}
+                                                  </p>
+                                                </div>
+                                                {reportAction && (
+                                                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                    reportAction === "flag_cleared"
+                                                      ? "bg-gray-100 text-gray-600"
+                                                      : "bg-mint-100 text-mint-700"
+                                                  }`}>
+                                                    {adminActionLabel[reportAction] || "Reviewed"}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                    {renderHideSection()}
+                                  </div>
+                                )}
+
+                                {(contentPanel === "contribActivities" || contentPanel === "activityFlags") && (
+                                  (contentPanel === "activityFlags" ? flaggedEvents : content.events).length > 0 ? (
+                                    <div>
+                                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                                        {contentPanel === "activityFlags" ? "Flagged Activities" : "Activities"}
+                                      </p>
+                                      <ul className="space-y-1.5">
+                                        {(contentPanel === "activityFlags" ? flaggedEvents : content.events).map((e) => {
+                                          const flagsClickable = contentPanel === "activityFlags";
+                                          const flagKey = `flagged:event:${e.id}`;
+                                          const detailFlags = flagsClickable ? flagsOnTarget("event", e.id) : [];
+                                          const flagCount = Number(e.flag_count || 0);
+                                          return (
+                                            <li key={e.id} className="text-sm min-w-0">
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                <div className="truncate flex-1 min-w-0">
+                                                  <Link
+                                                    to={`/event/${e.id}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-mint-600 hover:underline font-medium"
+                                                    title={e.title}
+                                                  >
+                                                    {e.title || "Untitled"}
+                                                  </Link>
+                                                  <span className="text-muted-foreground">{zipParen(e.zip_code)}</span>
+                                                </div>
+                                                {renderFlagsCountControl(flagCount, flagKey, detailFlags, flagsClickable)}
+                                              </div>
+                                              {flagsClickable ? renderNestedFlagDetails(flagKey, detailFlags) : null}
+                                            </li>
+                                          );
+                                        })}
+                                      </ul>
+                                      {renderHideSection()}
+                                    </div>
+                                  ) : contentPanel === "activityFlags" ? (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">No flagged activities.</p>
+                                      {renderHideSection()}
+                                    </div>
+                                  ) : null
+                                )}
+
+                                {(contentPanel === "contribComments" || contentPanel === "commentFlags") && (
+                                  (contentPanel === "commentFlags" ? flaggedComments : content.comments).length > 0 ? (
+                                    <div>
+                                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                                        {contentPanel === "commentFlags" ? "Flagged Comments" : "Comments"}
+                                      </p>
+                                      <ul className="space-y-1.5">
+                                        {(contentPanel === "commentFlags" ? flaggedComments : content.comments).map((c) => {
+                                          const text = (c.content || "").trim() || "(empty)";
+                                          const long = text.length > 100;
+                                          const open = expandedUserComments.has(c.id);
+                                          const flagsClickable = contentPanel === "commentFlags";
+                                          const flagKey = `flagged:comment:${c.id}`;
+                                          const detailFlags = flagsClickable ? flagsOnTarget("comment", c.id) : [];
+                                          const flagCount = Number(c.flag_count || 0);
+                                          return (
+                                            <li key={c.id} className="text-sm min-w-0">
+                                              <div className="flex items-start gap-2 min-w-0">
+                                                <div className="flex-1 min-w-0">
+                                                  <p className={open ? "whitespace-pre-wrap break-words" : "truncate"}>
+                                                    {open || !long ? text : `${text.slice(0, 100)}…`}
+                                                  </p>
+                                                  {long && (
+                                                    <button
+                                                      type="button"
+                                                      className="text-[11px] text-mint-600 hover:underline mt-0.5"
+                                                      onClick={() => {
+                                                        setExpandedUserComments((prev) => {
+                                                          const next = new Set(prev);
+                                                          if (next.has(c.id)) next.delete(c.id);
+                                                          else next.add(c.id);
+                                                          return next;
+                                                        });
+                                                      }}
+                                                    >
+                                                      {open ? "Show less" : "Show full"}
+                                                    </button>
+                                                  )}
+                                                </div>
+                                                {renderFlagsCountControl(flagCount, flagKey, detailFlags, flagsClickable)}
+                                                {c.event_id ? (
+                                                  <Link
+                                                    to={`/event/${c.event_id}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="shrink-0 p-1 rounded-md hover:bg-mint-50 text-mint-600"
+                                                    title="View activity"
+                                                  >
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                  </Link>
+                                                ) : (
+                                                  <span className="shrink-0 p-1 text-muted-foreground/40" title="No activity link">
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {flagsClickable ? renderNestedFlagDetails(flagKey, detailFlags) : null}
+                                            </li>
+                                          );
+                                        })}
+                                      </ul>
+                                      {renderHideSection()}
+                                    </div>
+                                  ) : contentPanel === "commentFlags" ? (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">No flagged comments.</p>
+                                      {renderHideSection()}
+                                    </div>
+                                  ) : null
+                                )}
+
+                                {(contentPanel === "contribAds" || contentPanel === "adAssetFlags") && (
+                                  (contentPanel === "adAssetFlags" ? flaggedAds : content.ads).length > 0 ? (
+                                    <div>
+                                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                                        {contentPanel === "adAssetFlags" ? "Flagged Ad Assets" : "Ad Assets"}
+                                      </p>
+                                      <ul className="space-y-1.5">
+                                        {(contentPanel === "adAssetFlags" ? flaggedAds : content.ads).map((a) => {
+                                          const flagsClickable = contentPanel === "adAssetFlags";
+                                          const flagKey = `flagged:ad:${a.id}`;
+                                          const detailFlags = flagsClickable ? flagsOnTarget("ad", a.id) : [];
+                                          const flagCount = Number(a.flag_count || 0);
+                                          return (
+                                            <li key={a.id} className="text-sm min-w-0">
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                <div className="truncate flex-1 min-w-0" title={a.ad_name}>
+                                                  <span className="font-medium">{a.ad_name || "Untitled creative"}</span>
+                                                  <span className="text-muted-foreground">{adZipParen(a)}</span>
+                                                </div>
+                                                {renderFlagsCountControl(flagCount, flagKey, detailFlags, flagsClickable)}
+                                                {a.link_url ? (
+                                                  <a
+                                                    href={a.link_url.startsWith("http") ? a.link_url : `https://${a.link_url}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="shrink-0 p-1 rounded-md hover:bg-mint-50 text-mint-600"
+                                                    title="Open ad link"
+                                                  >
+                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                  </a>
+                                                ) : (
+                                                  <span className="shrink-0 p-1 text-muted-foreground/40" title="No link">
+                                                    <Link2 className="w-3.5 h-3.5" />
+                                                  </span>
+                                                )}
+                                                {a.image_url ? (
+                                                  <button
+                                                    type="button"
+                                                    className="shrink-0 p-1 rounded-md hover:bg-mint-50 text-mint-600"
+                                                    title="View ad image"
+                                                    onClick={() => setUserContentPreviewUrl(a.image_url)}
+                                                  >
+                                                    <Image className="w-3.5 h-3.5" />
+                                                  </button>
+                                                ) : (
+                                                  <span className="shrink-0 p-1 text-muted-foreground/40" title="No image">
+                                                    <Image className="w-3.5 h-3.5" />
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {flagsClickable ? renderNestedFlagDetails(flagKey, detailFlags) : null}
+                                            </li>
+                                          );
+                                        })}
+                                      </ul>
+                                      {renderHideSection()}
+                                    </div>
+                                  ) : contentPanel === "adAssetFlags" ? (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">No flagged ad assets.</p>
+                                      {renderHideSection()}
+                                    </div>
+                                  ) : null
                                 )}
                               </div>
-                            </td>
-                          </tr>
+                            )}
+
+                            {flaggingOpen && (
+                              <div className="mt-3 space-y-3 border-t border-border/70 pt-3 pl-4 sm:pl-6">
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                                  {flaggingPanelType === "event" ? "Activity Flags Filed"
+                                    : flaggingPanelType === "comment" ? "Comment Flags Filed"
+                                      : flaggingPanelType === "ad" ? "Ad Asset Flags Filed"
+                                        : "User Flags Filed"}
+                                </p>
+                                {filedFlags.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground">No flags found for this user.</p>
+                                ) : flaggingPanelType === "event" ? (
+                                  <ul className="space-y-1.5">
+                                    {groupFlagsByTarget(filedFlags).map(({ targetId, flags: group }) => {
+                                      const meta = eventMap[targetId] || events.find((ev) => ev.id === targetId);
+                                      const title = meta?.title || group[0]?.target_contributor_name || "Activity";
+                                      const zip = meta?.zip_code;
+                                      const flagKey = `flagging:event:${targetId}`;
+                                      return (
+                                        <li key={targetId} className="text-sm min-w-0">
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <div className="truncate flex-1 min-w-0">
+                                              <Link
+                                                to={`/event/${targetId}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-mint-600 hover:underline font-medium"
+                                                title={title}
+                                              >
+                                                {title}
+                                              </Link>
+                                              <span className="text-muted-foreground">{zipParen(zip)}</span>
+                                            </div>
+                                            {renderFlagsCountControl(group.length, flagKey, group, true)}
+                                          </div>
+                                          {renderNestedFlagDetails(flagKey, group)}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                ) : flaggingPanelType === "comment" ? (
+                                  <ul className="space-y-1.5">
+                                    {groupFlagsByTarget(filedFlags).map(({ targetId, flags: group }) => {
+                                      const meta = eventMap[targetId];
+                                      const text = (meta?.content || group[0]?.target_contributor_name || "Comment").trim() || "(empty)";
+                                      const long = text.length > 100;
+                                      const open = expandedUserComments.has(`flagging-${targetId}`);
+                                      const eventId = meta?.event_id;
+                                      const flagKey = `flagging:comment:${targetId}`;
+                                      return (
+                                        <li key={targetId} className="text-sm min-w-0">
+                                          <div className="flex items-start gap-2 min-w-0">
+                                            <div className="flex-1 min-w-0">
+                                              <p className={open ? "whitespace-pre-wrap break-words" : "truncate"}>
+                                                {open || !long ? text : `${text.slice(0, 100)}…`}
+                                              </p>
+                                              {long && (
+                                                <button
+                                                  type="button"
+                                                  className="text-[11px] text-mint-600 hover:underline mt-0.5"
+                                                  onClick={() => {
+                                                    setExpandedUserComments((prev) => {
+                                                      const next = new Set(prev);
+                                                      const cid = `flagging-${targetId}`;
+                                                      if (next.has(cid)) next.delete(cid);
+                                                      else next.add(cid);
+                                                      return next;
+                                                    });
+                                                  }}
+                                                >
+                                                  {open ? "Show less" : "Show full"}
+                                                </button>
+                                              )}
+                                            </div>
+                                            {renderFlagsCountControl(group.length, flagKey, group, true)}
+                                            {eventId ? (
+                                              <Link
+                                                to={`/event/${eventId}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="shrink-0 p-1 rounded-md hover:bg-mint-50 text-mint-600"
+                                                title="View activity"
+                                              >
+                                                <Eye className="w-3.5 h-3.5" />
+                                              </Link>
+                                            ) : (
+                                              <span className="shrink-0 p-1 text-muted-foreground/40" title="No activity link">
+                                                <Eye className="w-3.5 h-3.5" />
+                                              </span>
+                                            )}
+                                          </div>
+                                          {renderNestedFlagDetails(flagKey, group)}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                ) : flaggingPanelType === "ad" ? (
+                                  <ul className="space-y-1.5">
+                                    {groupFlagsByTarget(filedFlags).map(({ targetId, flags: group }) => {
+                                      const meta = eventMap[targetId];
+                                      const title = meta?.title || group[0]?.target_contributor_name || "Ad Asset";
+                                      const flagKey = `flagging:ad:${targetId}`;
+                                      return (
+                                        <li key={targetId} className="text-sm min-w-0">
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <div className="truncate flex-1 min-w-0" title={title}>
+                                              <span className="font-medium">{title}</span>
+                                              <span className="text-muted-foreground">{adZipParen(meta)}</span>
+                                            </div>
+                                            {renderFlagsCountControl(group.length, flagKey, group, true)}
+                                            {meta?.link_url ? (
+                                              <a
+                                                href={meta.link_url.startsWith("http") ? meta.link_url : `https://${meta.link_url}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="shrink-0 p-1 rounded-md hover:bg-mint-50 text-mint-600"
+                                                title="Open ad link"
+                                              >
+                                                <ExternalLink className="w-3.5 h-3.5" />
+                                              </a>
+                                            ) : (
+                                              <span className="shrink-0 p-1 text-muted-foreground/40" title="No link">
+                                                <Link2 className="w-3.5 h-3.5" />
+                                              </span>
+                                            )}
+                                            {meta?.image_url ? (
+                                              <button
+                                                type="button"
+                                                className="shrink-0 p-1 rounded-md hover:bg-mint-50 text-mint-600"
+                                                title="View ad image"
+                                                onClick={() => setUserContentPreviewUrl(meta.image_url)}
+                                              >
+                                                <Image className="w-3.5 h-3.5" />
+                                              </button>
+                                            ) : (
+                                              <span className="shrink-0 p-1 text-muted-foreground/40" title="No image">
+                                                <Image className="w-3.5 h-3.5" />
+                                              </span>
+                                            )}
+                                          </div>
+                                          {renderNestedFlagDetails(flagKey, group)}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                ) : (
+                                  <ul className="space-y-1.5">
+                                    {groupFlagsByTarget(filedFlags).map(({ targetId, flags: group }) => {
+                                      const flaggedUser = users.find((x) => x.id === targetId);
+                                      const flaggedUserName = flaggedUser
+                                        ? (organizerMap[flaggedUser.id]
+                                          || [flaggedUser.first_name, flaggedUser.last_name].filter(Boolean).join(" ").trim()
+                                          || flaggedUser.full_name
+                                          || flaggedUser.email
+                                          || "User")
+                                        : (group[0]?.target_contributor_name || "User");
+                                      const flagKey = `flagging:user:${targetId}`;
+                                      return (
+                                        <li key={targetId} className="text-sm min-w-0">
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <span className="truncate flex-1 min-w-0 font-medium">{flaggedUserName}</span>
+                                            {renderFlagsCountControl(group.length, flagKey, group, true)}
+                                          </div>
+                                          {renderNestedFlagDetails(flagKey, group)}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )}
+                                {renderHideSection()}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
-                </div>
-                <Paginator total={filteredAndSortedUsers.length} page={usersPage} onPage={setUsersPage} />
+                    <Paginator total={filteredAndSortedUsers.length} page={usersPage} onPage={setUsersPage} />
+                  </div>
+                )}
               </AdminPanelShell>
             </>
           )}
@@ -3442,6 +4646,11 @@ export default function Admin() {
         confirmLabel="Decline Request"
         loading={disableBusy}
         onConfirm={handleDeclineReactivation}
+      />
+
+      <ImagePreviewModal
+        imageUrl={userContentPreviewUrl}
+        onOpenChange={setUserContentPreviewUrl}
       />
     </div>
   );

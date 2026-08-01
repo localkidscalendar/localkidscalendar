@@ -270,3 +270,27 @@ export async function notifyOwnerFlagLifecycle({
   });
   return { id: data || null, error };
 }
+
+/**
+ * Admin: notify a flagged user after Flagged Users actions.
+ * p_event: "cleared" | "partial_cleared" | "flagged" | "withdrawn"
+ */
+export async function notifyOwnerUserFlagLifecycle({
+  userId,
+  event,
+  flagCount = 0,
+  reason = null,
+  details = null,
+}) {
+  if (!userId || !event) {
+    return { id: null, error: new Error("Missing notifyOwnerUserFlagLifecycle args") };
+  }
+  const { data, error } = await supabase.rpc("admin_notify_owner_user_flag_lifecycle", {
+    p_owner_id: userId,
+    p_event: event,
+    p_flag_count: flagCount,
+    p_reason: reason,
+    p_details: details,
+  });
+  return { id: data || null, error };
+}

@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { isAccountDisabled, isProfileComplete, isRegisteredUser } from "@/lib/authRoles";
+import { isAccountDisabled, isProfileComplete, isRegisteredUser, isAccountSuspended } from "@/lib/authRoles";
 
 const AuthContext = createContext();
 
@@ -66,6 +66,8 @@ async function buildAppUser(authUser) {
     disabled_note: profile?.disabled_note || "",
     disabled_at: profile?.disabled_at || null,
     disabled_by: profile?.disabled_by || null,
+    suspended_at: profile?.suspended_at || null,
+    user_flag_count: Number(profile?.user_flag_count || 0),
   };
 }
 
@@ -156,9 +158,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const accountDisabled = isAccountDisabled(user);
+  const accountSuspended = isAccountSuspended(user);
   const registered = isRegisteredUser(user);
   const profileComplete = isProfileComplete(user);
-  /** Feature for registered-only features — null when disabled or signup unfinished. */
+  /** Viewer for registered-only features — null when disabled, suspended, or signup unfinished. */
   const registeredUser = useMemo(
     () => (registered && profileComplete ? user : null),
     [registered, profileComplete, user]
@@ -171,6 +174,7 @@ export const AuthProvider = ({ children }) => {
         setUser,
         registeredUser,
         isAccountDisabled: accountDisabled,
+        isAccountSuspended: accountSuspended,
         isRegistered: registered,
         isProfileComplete: profileComplete,
         isAuthenticated,

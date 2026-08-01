@@ -23,11 +23,36 @@ export function alreadyFlaggedMessage(targetLabel = "item") {
 
 /**
  * Withdraw the signed-in user's flag for a target (deletes report + updates counters).
+ * For user targets, prefer withdrawUserFlag(targetUserId); withdrawFlag("user", id) also works.
  */
 export async function withdrawFlag(targetType, targetId) {
   const { data, error } = await supabase.rpc("withdraw_flag", {
     p_target_type: targetType,
     p_target_id: targetId,
+  });
+  return { data, error };
+}
+
+/**
+ * Submit a community flag against a user profile (details required for all reasons).
+ * Reasons: misrepresented_user | disregard_rules | other
+ */
+export async function submitUserFlag(targetUserId, reason, details) {
+  const { data, error } = await supabase.rpc("submit_user_flag", {
+    p_target_user_id: targetUserId,
+    p_reason: reason,
+    p_details: details,
+  });
+  return { data, error };
+}
+
+/**
+ * Withdraw the signed-in user's flag against a user profile.
+ * Equivalent to withdrawFlag("user", targetUserId).
+ */
+export async function withdrawUserFlag(targetUserId) {
+  const { data, error } = await supabase.rpc("withdraw_user_flag", {
+    p_target_user_id: targetUserId,
   });
   return { data, error };
 }

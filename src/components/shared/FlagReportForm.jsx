@@ -31,6 +31,10 @@ export default function FlagReportForm({
   reasons = FLAG_REASONS,
   onSubmit,
   onCancel,
+  detailsAlwaysRequired = false,
+  title,
+  description,
+  reasonPrompt,
 }) {
   const [reason, setReason] = useState(null);
   const [details, setDetails] = useState("");
@@ -44,7 +48,7 @@ export default function FlagReportForm({
     }
   }, [open]);
 
-  const detailsRequired = reason === "other";
+  const detailsRequired = detailsAlwaysRequired || reason === "other";
   const canSubmit = Boolean(reason) && (!detailsRequired || details.trim());
 
   const handleClose = () => {
@@ -75,16 +79,18 @@ export default function FlagReportForm({
             <Flag className="w-6 h-6 text-peach-500" />
           </div>
           <DialogTitle className="font-heading font-bold text-xl">
-            Report this {targetLabel}
+            {title || `Report this ${targetLabel}`}
           </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
-            Tell us why this {targetLabel} should be reviewed. Your report helps keep LocalKidsCalendar safe for families.
+          <DialogDescription className="text-sm text-muted-foreground whitespace-pre-wrap">
+            {description || `Tell us why this ${targetLabel} should be reviewed. Your report helps keep LocalKidsCalendar safe for families.`}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-1">
           <div>
-            <p className="text-sm font-medium mb-2">Why are you flagging this {targetLabel}?</p>
+            <p className="text-sm font-medium mb-2">
+              {reasonPrompt || `Why are you flagging this ${targetLabel}?`}
+            </p>
             <div className="flex flex-wrap gap-2">
               {reasons.map((r) => (
                 <Button
@@ -117,7 +123,11 @@ export default function FlagReportForm({
                 disabled={submitting}
               />
               {detailsRequired && !details.trim() && (
-                <p className="text-[11px] text-peach-600 mt-1">A short explanation is required for Other.</p>
+                <p className="text-[11px] text-peach-600 mt-1">
+                  {detailsAlwaysRequired
+                    ? "A short explanation is required."
+                    : "A short explanation is required for Other."}
+                </p>
               )}
             </div>
           )}

@@ -2,9 +2,10 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import ContactProtected from "@/components/shared/ContactProtected";
+import UserFlagControl from "@/components/shared/UserFlagControl";
 import { Globe, Heart, CalendarDays } from "lucide-react";
 
-export default function OrganizerCard({ org, isFavorite, onToggleFavorite }) {
+export default function OrganizerCard({ org, isFavorite, onToggleFavorite, currentUserId = null }) {
   const navigate = useNavigate();
 
   return (
@@ -51,16 +52,23 @@ export default function OrganizerCard({ org, isFavorite, onToggleFavorite }) {
           </div>
         )}
       </div>
-      <div className="mt-3 pt-3 border-t border-border">
+      <div className="mt-3 pt-3 border-t border-border flex items-end justify-between gap-2">
         <Button
           variant="outline"
           size="sm"
-          className="w-full rounded-xl text-xs h-8 text-mint-600 border-mint-200 hover:bg-mint-50"
+          className="rounded-xl text-xs h-8 text-mint-600 border-mint-200 hover:bg-mint-50 flex-1"
           onClick={() => navigate(`/?org=${encodeURIComponent(org.org_name)}`)}
         >
           <CalendarDays className="w-3.5 h-3.5 mr-1.5" />
           View Activities
         </Button>
+        <UserFlagControl
+          targetUserId={org.user_id}
+          currentUserId={currentUserId}
+          label="organizer"
+          variant="icon"
+          className="mb-0.5"
+        />
       </div>
     </div>
   );

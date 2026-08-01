@@ -325,7 +325,7 @@ $$;
 
 
 
-revoke all on function public.notify_owner_flag_lifecycle(uuid, text, uuid, text, numeric, text, text, text) from public;
+-- Old 8-arg overload may already be gone; DROP IF EXISTS is enough (REVOKE fails if missing).
 drop function if exists public.notify_owner_flag_lifecycle(uuid, text, uuid, text, numeric, text, text, text);
 grant execute on function public.notify_owner_flag_lifecycle(uuid, text, uuid, text, numeric, text, text, text, boolean) to service_role;
 

@@ -121,6 +121,7 @@ export default function SavedOrganizersTab({ user }) {
               org={org}
               isFavorite
               onToggleFavorite={toggleFavorite}
+              currentUserId={user?.id || null}
             />
           ))}
         </div>

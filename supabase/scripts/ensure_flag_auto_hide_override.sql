@@ -325,7 +325,7 @@ $$;
 
 
 
-revoke all on function public.notify_owner_flag_lifecycle(uuid, text, uuid, text, numeric, text, text, text) from public;
+-- Old 8-arg overload may already be gone; DROP IF EXISTS is enough (REVOKE fails if missing).
 drop function if exists public.notify_owner_flag_lifecycle(uuid, text, uuid, text, numeric, text, text, text);
 grant execute on function public.notify_owner_flag_lifecycle(uuid, text, uuid, text, numeric, text, text, text, boolean) to service_role;
 
@@ -396,11 +396,8 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  if exists (
-    select 1 from public.profiles p
-    where p.id = v_uid and p.role = 'disabled'
-  ) then
-    raise exception 'Account disabled';
+  if public.is_account_action_blocked() then
+    raise exception 'Account restricted';
   end if;
 
   if p_target_type not in ('event', 'comment', 'ad') then
