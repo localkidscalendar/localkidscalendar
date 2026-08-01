@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import UserNoticeCard from "@/components/account/UserNoticeCard";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
+import SearchClearField from "@/components/shared/SearchClearField";
 import {
   fetchUserMessages,
   markMessageRead,
@@ -104,11 +104,10 @@ export default function MyMessagesTab({ user, onUnreadChange }) {
 
   return (
     <div className="space-y-4">
-      <Input
+      <SearchClearField
         placeholder="Search messages…"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="rounded-lg h-8 text-sm sm:max-w-xs"
+        onValueChange={setSearch}
       />
 
       {filtered.length === 0 ? (

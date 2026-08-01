@@ -1,16 +1,32 @@
 /**
  * Catalog of automated in-app notices for Admin Previews
  * and for consistent copy when creating live messages.
- * Titles align with EMAIL_TEMPLATE_META labels when both channels exist.
+ * Titles use topic categories (Flags, Reviews, Billing, …) for Admin scanning.
  */
 
-/** @typedef {{ key: string, title: string, subject: string, body: string, actionLabel?: string, actionHref?: string, channels: ('in_app'|'email')[], audience: string, when: string }} AutomatedNoticeDef */
+/** @typedef {'welcome'|'flags'|'reviews'|'admin_removals'|'billing'|'saved'} AutomatedNoticeCategory */
+
+/**
+ * Filter-pill order for Admin → Previews → Automated Messages.
+ * @type {{ id: AutomatedNoticeCategory, label: string }[]}
+ */
+export const AUTOMATED_NOTICE_CATEGORIES = [
+  { id: "welcome", label: "Welcome" },
+  { id: "flags", label: "Flags" },
+  { id: "reviews", label: "Reviews" },
+  { id: "admin_removals", label: "Admin Removals" },
+  { id: "billing", label: "Billing" },
+  { id: "saved", label: "Saved" },
+];
+
+/** @typedef {{ key: string, category: AutomatedNoticeCategory, title: string, subject: string, body: string, actionLabel?: string, actionHref?: string, channels: ('in_app'|'email')[], audience: string, when: string }} AutomatedNoticeDef */
 
 /** @type {AutomatedNoticeDef[]} */
 export const AUTOMATED_NOTICE_CATALOG = [
   {
     key: "activity_photo_approved_admin",
-    title: "Community - Activity Photo Approved (Manual Review)",
+    category: "reviews",
+    title: "Reviews · Activity Photo · Approved",
     subject: "Your activity photo was approved",
     body: "The photo you uploaded for \"Summer Soccer Camp\" has been manually reviewed and approved. It is now live on the listing.",
     actionLabel: "View My Activity Posts",
@@ -21,7 +37,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "activity_photo_declined_admin",
-    title: "Community - Activity Photo Declined (Manual Review)",
+    category: "reviews",
+    title: "Reviews · Activity Photo · Declined",
     subject: "Your activity photo was declined",
     body: "The photo you uploaded for \"Summer Soccer Camp\" was not approved.\n\nReason: The photo appeared blurry and did not clearly represent the activity.\n\nPlease edit your activity to upload a different photo. Your activity remains live in the meantime.",
     actionLabel: "View My Activity Posts",
@@ -32,7 +49,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "activity_removed_admin",
-    title: "Community - Activity Removed (Admin Reason)",
+    category: "admin_removals",
+    title: "Admin Removals · Activity Removed",
     subject: "Your activity was removed",
     body: "Your activity \"Summer Soccer Camp\" was removed by our Admin team.\n\nReason: The listed registration link was broken and could not be verified.\n\nYou can review this on My Activity Posts. If you believe this was a mistake, contact us.",
     actionLabel: "View My Activity Posts",
@@ -43,7 +61,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "activity_removed_flags",
-    title: "Community - Activity Removed (Community Flags)",
+    category: "flags",
+    title: "Flags · Activity · Removed (3+)",
     subject: "Your activity was removed",
     body: "Your activity \"Summer Soccer Camp\" was flagged by a community member (3 of 3) and has been automatically removed pending review.\n\nReason: Inaccurate\n\nYou can review it under My Activity Posts.",
     actionLabel: "View My Activity Posts",
@@ -54,7 +73,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "activity_flagged",
-    title: "Community - Activity Flagged",
+    category: "flags",
+    title: "Flags · Activity · Flagged",
     subject: "Your activity was flagged",
     body: "Your activity \"Summer Soccer Camp\" was flagged by a community member (1 of 3).\n\nReason: Inaccurate\n\nYou can edit or deactivate it from My Activity Posts. Reviewing it now may help prevent additional flags.",
     actionLabel: "View My Activity Posts",
@@ -65,7 +85,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "activity_flag_withdrawn",
-    title: "Community - Activity Flag Withdrawn",
+    category: "flags",
+    title: "Flags · Activity · Flag Withdrawn",
     subject: "A flag on your activity was withdrawn",
     body: "A community flag on your activity \"Summer Soccer Camp\" was withdrawn. Current flags: 1 of 3.",
     actionLabel: "View My Activity Posts",
@@ -76,7 +97,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "activity_flags_cleared",
-    title: "Community - Activity Clear Flags / Second Chance (Admin)",
+    category: "flags",
+    title: "Flags · Activity · Clear Flags (Second Chance)",
     subject: "Your activity was reinstated",
     body: "An Admin overrode the 3+ flag rule and reactivated your activity \"Summer Soccer Camp\", but it could be subject to deactivation again with more flags.",
     actionLabel: "View My Activity Posts",
@@ -87,7 +109,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "activity_flag_partial_cleared",
-    title: "Community - Activity Flag Cleared (Admin)",
+    category: "flags",
+    title: "Flags · Activity · Flag Cleared",
     subject: "Flags on your activity were cleared",
     body: "An Admin cleared community flag(s) on your activity \"Summer Soccer Camp\". Current flags: 1 of 3.",
     actionLabel: "View My Activity Posts",
@@ -98,7 +121,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "activity_flag_overridden",
-    title: "Community - Activity Override 3+ (Admin)",
+    category: "flags",
+    title: "Flags · Activity · Override 3+",
     subject: "Your activity was reinstated",
     body: "An Admin overrode the 3+ flag rule and reactivated your activity \"Summer Soccer Camp\".",
     actionLabel: "View My Activity Posts",
@@ -109,7 +133,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "activity_reactivated",
-    title: "Community - Activity Reinstated (Admin, legacy)",
+    category: "flags",
+    title: "Flags · Activity · Reinstated (Legacy)",
     subject: "Your activity was reinstated",
     body: "An Admin overrode the 3+ flag rule and reactivated your activity \"Summer Soccer Camp\".",
     actionLabel: "View My Activity Posts",
@@ -120,7 +145,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "comment_removed_flags",
-    title: "Community - Comment Removed (Community Flags)",
+    category: "flags",
+    title: "Flags · Comment · Removed (3+)",
     subject: "Your comment was removed",
     body: "Your comment was flagged by a community member (3 of 3) and has been automatically removed pending review.\n\nReason: Inappropriate",
     channels: ["in_app"],
@@ -129,16 +155,18 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "comment_flagged",
-    title: "Community - Comment Flagged",
+    category: "flags",
+    title: "Flags · Comment · Flagged",
     subject: "Your comment was flagged",
-    body: "Your comment was flagged by a community member (1 of 3).\n\nReason: Inappropriate\n\nYou can edit or delete your comment on the activity page. Reviewing it now may help prevent additional flags.",
+    body: "Your comment was flagged by a community member (1 of 3).\n\nReason: Inappropriate\n\nYou can edit or delete it on the activity page. Reviewing it now may help prevent additional flags.",
     channels: ["in_app"],
     audience: "Comment author",
     when: "Someone flags a comment (1st or 2nd flag)",
   },
   {
     key: "comment_flag_withdrawn",
-    title: "Community - Comment Flag Withdrawn",
+    category: "flags",
+    title: "Flags · Comment · Flag Withdrawn",
     subject: "A flag on your comment was withdrawn",
     body: "A community flag on your comment was withdrawn. Current flags: 1 of 3.",
     channels: ["in_app"],
@@ -147,7 +175,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "comment_flags_cleared",
-    title: "Community - Comment Clear Flags / Second Chance (Admin)",
+    category: "flags",
+    title: "Flags · Comment · Clear Flags (Second Chance)",
     subject: "Your comment was reinstated",
     body: "An Admin overrode the 3+ flag rule and reactivated your comment, but it could be subject to deactivation again with more flags.",
     channels: ["in_app"],
@@ -156,7 +185,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "comment_flag_partial_cleared",
-    title: "Community - Comment Flag Cleared (Admin)",
+    category: "flags",
+    title: "Flags · Comment · Flag Cleared",
     subject: "Flags on your comment were cleared",
     body: "An Admin cleared community flag(s) on your comment. Current flags: 1 of 3.",
     channels: ["in_app"],
@@ -165,7 +195,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "comment_flag_overridden",
-    title: "Community - Comment Override 3+ (Admin)",
+    category: "flags",
+    title: "Flags · Comment · Override 3+",
     subject: "Your comment was reinstated",
     body: "An Admin overrode the 3+ flag rule and reactivated your comment.",
     channels: ["in_app"],
@@ -174,7 +205,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "comment_reactivated",
-    title: "Community - Comment Reinstated (Admin, legacy)",
+    category: "flags",
+    title: "Flags · Comment · Reinstated (Legacy)",
     subject: "Your comment was reinstated",
     body: "An Admin overrode the 3+ flag rule and reactivated your comment.",
     channels: ["in_app"],
@@ -183,7 +215,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "saved_activity_removed",
-    title: "Community - Saved Activity Removed",
+    category: "saved",
+    title: "Saved · Activity Removed",
     subject: "A saved activity was removed",
     body: "An activity you saved (\"Summer Soccer Camp\") is no longer available on Local Kids Calendar.\n\nNote: Removed after community flagging.",
     actionLabel: "View Saved Activities",
@@ -194,7 +227,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "welcome_new_profile",
-    title: "Community - Welcome (New Profile)",
+    category: "welcome",
+    title: "Welcome · New Profile",
     subject: "Welcome to Local Kids Calendar!",
     body: "Welcome! We're glad you're here.\n\nLocal Kids Calendar helps families discover camps, classes, sports, and events nearby. Visit the About page for an overview of the site and tips to get started — whether you're browsing as a community member, posting as an organizer, or exploring how to support local kids activities.",
     actionLabel: "About & Getting Started",
@@ -205,7 +239,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "ad_flagged_admin",
-    title: "Advertiser - Ad Creative Disabled (Admin)",
+    category: "admin_removals",
+    title: "Admin Removals · Ad Creative Disabled",
     subject: "Your ad creative was disabled",
     body: "Your Supporter ad creative has been disabled by our Admin team across zip 89448 and 89449.\n\nReason: The destination link redirected to an unrelated third-party promotion.\n\nWhat Next: Your subscription and billing remain active. Open Ad Manager and assign a different approved creative to each affected zip to restore those placements. Each zip goes live again as soon as you assign a compliant Ad Asset.",
     actionLabel: "Open Ad Manager",
@@ -216,7 +251,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "ad_removed_flagged",
-    title: "Advertiser - Ad Creative Disabled (Community Flags)",
+    category: "flags",
+    title: "Flags · Ad Creative · Disabled (3+)",
     subject: "Your ad creative was disabled",
     body: "Your ad creative \"Summer Camp Adventures\" was flagged by a community member (3 of 3) and has been disabled across all zip placements using it.\n\nReason: Inappropriate\n\nWhat Next: Your subscription and billing remain active. Open Ad Manager and assign a different approved creative to each affected zip to restore those placements.",
     actionLabel: "Open Ad Manager",
@@ -227,7 +263,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "ad_flagged",
-    title: "Advertiser - Ad Creative Flagged",
+    category: "flags",
+    title: "Flags · Ad Creative · Flagged",
     subject: "Your ad creative was flagged",
     body: "Your ad creative \"Summer Camp Adventures\" was flagged by a community member (1 of 3).\n\nReason: Inappropriate\n\nIf needed, assign a different approved creative in Ad Manager. Reviewing it now may help prevent additional flags.",
     actionLabel: "Open Ad Manager",
@@ -238,7 +275,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "ad_flag_withdrawn",
-    title: "Advertiser - Ad Creative Flag Withdrawn",
+    category: "flags",
+    title: "Flags · Ad Creative · Flag Withdrawn",
     subject: "A flag on your ad creative was withdrawn",
     body: "A community flag on your ad creative \"Summer Camp Adventures\" was withdrawn. Current flags: 1 of 3.",
     actionLabel: "Open Ad Manager",
@@ -249,7 +287,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "ad_flags_cleared",
-    title: "Advertiser - Ad Creative Clear Flags / Second Chance (Admin)",
+    category: "flags",
+    title: "Flags · Ad Creative · Clear Flags (Second Chance)",
     subject: "Your ad creative was reinstated",
     body: "An Admin overrode the 3+ flag rule and reactivated your ad creative \"Summer Camp Adventures\", but it could be subject to deactivation again with more flags.",
     actionLabel: "Open Ad Manager",
@@ -260,7 +299,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "ad_flag_partial_cleared",
-    title: "Advertiser - Ad Creative Flag Cleared (Admin)",
+    category: "flags",
+    title: "Flags · Ad Creative · Flag Cleared",
     subject: "Flags on your ad creative were cleared",
     body: "An Admin cleared community flag(s) on your ad creative \"Summer Camp Adventures\". Current flags: 1 of 3.",
     actionLabel: "Open Ad Manager",
@@ -271,7 +311,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "ad_flag_overridden",
-    title: "Advertiser - Ad Creative Override 3+ (Admin)",
+    category: "flags",
+    title: "Flags · Ad Creative · Override 3+",
     subject: "Your ad creative was reinstated",
     body: "An Admin overrode the 3+ flag rule and reactivated your ad creative \"Summer Camp Adventures\".",
     actionLabel: "Open Ad Manager",
@@ -282,7 +323,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "ad_reactivated",
-    title: "Advertiser - Ad Creative Reinstated (Admin, legacy)",
+    category: "flags",
+    title: "Flags · Ad Creative · Reinstated (Legacy)",
     subject: "Your ad creative was reinstated",
     body: "An Admin overrode the 3+ flag rule and reactivated your ad creative \"Summer Camp Adventures\".",
     actionLabel: "Open Ad Manager",
@@ -293,7 +335,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "ad_creative_approved_admin",
-    title: "Advertiser - Creative Asset Approved (Manual Review)",
+    category: "reviews",
+    title: "Reviews · Ad Creative · Approved",
     subject: "Your ad creative was approved",
     body: "Your Supporter ad creative \"Summer Camp Adventures\" has been manually reviewed and approved. It is now available to assign to zip placements in Ad Manager.",
     actionLabel: "Open Ad Manager",
@@ -304,7 +347,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "ad_creative_declined_admin",
-    title: "Advertiser - Creative Asset Declined (Manual Review)",
+    category: "reviews",
+    title: "Reviews · Ad Creative · Declined",
     subject: "Your ad creative was declined",
     body: "Your Supporter ad creative \"Summer Camp Adventures\" was not approved in manual review and has been removed from your library.\n\nReason: The destination link did not match the advertised business.\n\nPlease upload a new creative in Ad Library if you still want to advertise.",
     actionLabel: "Open Ad Manager",
@@ -315,7 +359,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "subscription_payment_failed",
-    title: "Advertiser - Subscription Payment Failed",
+    category: "billing",
+    title: "Billing · Payment Failed",
     subject: "Payment past due — action required",
     body: "Your Supporter ad renewal payment for zip 89448 failed.\n\nYour ad is temporarily hidden from public view, but your spot is still reserved for 7 days (until July 28, 2026).\n\nUpdate your payment method in Ad Manager before that date. If payment isn’t updated in time, your spot will be released and may be offered to the waitlist.",
     actionLabel: "Open Ad Manager",
@@ -326,7 +371,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "subscription_renewed",
-    title: "Advertiser - Subscription Renewed",
+    category: "billing",
+    title: "Billing · Subscription Renewed",
     subject: "Payment successful — ad renewed",
     body: "Your Supporter ad renewal payment for zip 89449 was successful. Thank you for supporting local kids activities.",
     actionLabel: "Open Ad Manager",
@@ -337,7 +383,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "subscription_renewing_soon",
-    title: "Advertiser - Subscription Renewing Soon",
+    category: "billing",
+    title: "Billing · Renewing Soon",
     subject: "Your Supporter ad is renewing soon",
     body: "Your Supporter ad for zip 89448 renews on July 30, 2026. No action is needed unless you want to update payment or set non-renew in Ad Manager.",
     actionLabel: "Open Ad Manager",
@@ -348,7 +395,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "plan_upgrade_confirmed",
-    title: "Advertiser - Plan Upgrade Confirmed (Monthly → Annual)",
+    category: "billing",
+    title: "Billing · Plan Upgrade (Monthly → Annual)",
     subject: "Your Supporter plan is switching to annual",
     body: "As requested, your Supporter ad for zip 89448 will switch from monthly to the annual plan at your upcoming renewal on July 30, 2026.\n\nYour new annual rate is locked from the published pricing in effect about 21 days before renewal. That locked rate will be charged at renewal, and your plan will renew annually going forward unless you set non-renew.",
     actionLabel: "Open Ad Manager",
@@ -359,7 +407,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "plan_downgrade_confirmed",
-    title: "Advertiser - Plan Downgrade Confirmed (Annual → Monthly)",
+    category: "billing",
+    title: "Billing · Plan Downgrade (Annual → Monthly)",
     subject: "Your Supporter plan is switching to monthly",
     body: "As requested, your Supporter ad for zip 89449 will switch from annual to the monthly plan at your upcoming renewal on July 30, 2026.\n\nYour new monthly rate is locked from the published pricing in effect about 21 days before renewal. That locked rate will be charged at renewal, and your plan will renew monthly going forward unless you set non-renew.",
     actionLabel: "Open Ad Manager",
@@ -370,7 +419,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "waitlist_spot_available",
-    title: "Advertiser - Spot Available",
+    category: "billing",
+    title: "Billing · Waitlist Spot Available",
     subject: "A spot has opened up in your area",
     body: "A Supporter ad spot opened in zip 89448. Complete checkout from Ad Manager → Waitlist within 24 hours to claim it.",
     actionLabel: "Open Ad Manager",
@@ -381,7 +431,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "welcome_supporter",
-    title: "Advertiser - Welcome (Became a Supporter)",
+    category: "welcome",
+    title: "Welcome · Became a Supporter",
     subject: "Welcome as a Supporter!",
     body: "Thank you for becoming a Supporter of Local Kids Calendar.\n\nYou can manage creatives, zip placements, and billing in Ad Manager. For practical guidance on getting the most from your presence here, read Tips for Supporters.",
     actionLabel: "Tips For Supporters",
@@ -392,7 +443,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "user_flagged",
-    title: "Community - Account Flagged",
+    category: "flags",
+    title: "Flags · Account · Flagged",
     subject: "Your account was flagged",
     body: "Your account was flagged by a community member (1 of 3).\n\nReason: Misrepresented User\nDetails: Profile appears to impersonate another local organizer.\n\nPlease review how you present yourself on Local Kids Calendar. Additional flags may suspend your account for Admin review.",
     actionLabel: "Open My Messages",
@@ -403,7 +455,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "user_suspended_flags",
-    title: "Community - Account Suspended (Community Flags)",
+    category: "flags",
+    title: "Flags · Account · Suspended (3+)",
     subject: "Your account has been suspended for review",
     body: "Your account was flagged by community members (3 of 3) and has been suspended pending Admin review.\n\nReason: Disregard for Our Community Rules\nDetails: Repeated rule violations after prior warnings.\n\nWhile suspended you can still sign in and read My Messages, but you cannot post, comment, flag, favorite, or save. Digests are turned off. Your public activities and comments remain visible, and any running ads continue.\n\nAn Admin will review soon.",
     actionLabel: "Open My Messages",
@@ -414,7 +467,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "user_flag_withdrawn",
-    title: "Community - Account Flag Withdrawn",
+    category: "flags",
+    title: "Flags · Account · Flag Withdrawn",
     subject: "A flag on your account was withdrawn",
     body: "A community flag on your account was withdrawn. Current flags: 1 of 3.\n\nIf your account was suspended, it has been reinstated for normal use.",
     actionLabel: "Open My Messages",
@@ -425,7 +479,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "user_flags_cleared",
-    title: "Community - Account Clear Flags (Admin)",
+    category: "flags",
+    title: "Flags · Account · Clear Flags",
     subject: "Flags on your account were cleared",
     body: "An Admin cleared community flag(s) on your account and reinstated normal access. Further flags could suspend your account again for review.",
     actionLabel: "Open My Messages",
@@ -436,7 +491,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "user_flag_partial_cleared",
-    title: "Community - Account Flag Cleared (Admin)",
+    category: "flags",
+    title: "Flags · Account · Flag Cleared",
     subject: "A flag on your account was cleared",
     body: "An Admin cleared a community flag on your account. Current flags: 1 of 3.\n\nIf your account was suspended, it has been reinstated for normal use.",
     actionLabel: "Open My Messages",
@@ -447,7 +503,8 @@ export const AUTOMATED_NOTICE_CATALOG = [
   },
   {
     key: "favorited_organizer_removed",
-    title: "Community - Favorited Organizer Removed",
+    category: "saved",
+    title: "Saved · Favorited Organizer Removed",
     subject: "A favorited organizer was removed",
     body: "An organizer you favorited (\"Lake Tahoe Kids Club\") is no longer available on Local Kids Calendar.",
     actionLabel: "View Saved Organizers",

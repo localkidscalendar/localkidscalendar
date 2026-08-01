@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, X, Clock, ExternalLink, Image, HelpCircle, Ban, RotateCcw } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
+import SearchClearField from "@/components/shared/SearchClearField";
 import moment from "moment";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
 import {
@@ -236,11 +237,11 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
 
       <div className="overflow-hidden">
         <div className="pb-4 border-b border-border">
-          <Input
+          <SearchClearField
             placeholder="Search by business, zip, plan, or status…"
             value={adsSearch}
-            onChange={(e) => { setAdsSearch(e.target.value); setAdsPage(1); }}
-            className="rounded-lg h-8 text-sm"
+            onValueChange={(v) => { setAdsSearch(v); setAdsPage(1); }}
+            wrapperClassName="flex items-center gap-2 w-full"
           />
         </div>
         <div className="overflow-x-auto">

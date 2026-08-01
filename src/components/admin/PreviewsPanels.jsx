@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from "react";
 import {
   AUTOMATED_NOTICE_CATALOG,
+  AUTOMATED_NOTICE_CATEGORIES,
   channelsSentTags,
   deliverySummary,
 } from "@/lib/userMessagesCatalog";
 import { EMAIL_TEMPLATE_META, buildEmail, SAMPLE_DATA } from "@/lib/emailTemplates";
 import UserNoticeCard from "@/components/account/UserNoticeCard";
+import SearchClearField from "@/components/shared/SearchClearField";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 function ChannelTags({ channels }) {
@@ -49,50 +51,120 @@ function PreviewRow({ open, onToggle, title, channels, audience, when, children 
   );
 }
 
+const CATEGORY_ORDER = Object.fromEntries(
+  AUTOMATED_NOTICE_CATEGORIES.map((c, i) => [c.id, i])
+);
+
 /**
  * Admin → Previews → Automated Messages
  */
 export function AutomatedMessagesPreview() {
-  const items = useMemo(
-    () =>
-      [...AUTOMATED_NOTICE_CATALOG].sort((a, b) =>
-        a.title.localeCompare(b.title, undefined, { sensitivity: "base" })
-      ),
-    []
-  );
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [expandedKey, setExpandedKey] = useState(null);
+
+  const filtered = useMemo(() => {
+    let list = [...AUTOMATED_NOTICE_CATALOG];
+    if (categoryFilter !== "all") {
+      list = list.filter((n) => n.category === categoryFilter);
+    }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((n) => {
+        const hay = [
+          n.title,
+          n.subject,
+          n.body,
+          n.audience,
+          n.when,
+          n.key,
+          n.category,
+        ].join(" ").toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    list.sort((a, b) => {
+      const ao = CATEGORY_ORDER[a.category] ?? 99;
+      const bo = CATEGORY_ORDER[b.category] ?? 99;
+      if (ao !== bo) return ao - bo;
+      return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+    });
+    return list;
+  }, [search, categoryFilter]);
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Automated inbox notices (welcome, billing, creative review, and community-flag lifecycle). Expand a row to see exactly what users receive. Tags show Email and/or Message.
+        Automated inbox notices grouped by workflow (Welcome, Flags, Reviews, Admin Removals, Billing, Saved).
+        Use search or category pills to narrow the catalog. Expand a row to see exactly what users receive.
+        Tags show Email and/or Message.
       </p>
-      <div className="space-y-2">
-        {items.map((n) => {
-          const open = expandedKey === n.key;
-          return (
-            <PreviewRow
-              key={n.key}
-              open={open}
-              onToggle={() => setExpandedKey(open ? null : n.key)}
-              title={n.title}
-              channels={n.channels}
-              audience={n.audience}
-              when={n.when}
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <SearchClearField
+          placeholder="Search notices…"
+          value={search}
+          onValueChange={setSearch}
+        />
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("all")}
+            className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+              categoryFilter === "all"
+                ? "border-mint-300 bg-mint-50 text-mint-700"
+                : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
+            }`}
+          >
+            All
+          </button>
+          {AUTOMATED_NOTICE_CATEGORIES.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setCategoryFilter(opt.id)}
+              className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                categoryFilter === opt.id
+                  ? "border-mint-300 bg-mint-50 text-mint-700"
+                  : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
+              }`}
             >
-              <UserNoticeCard
-                subject={n.subject}
-                body={n.body}
-                unread={false}
-                actionLabel={n.actionLabel}
-                actionHref={n.actionHref}
-                preview
-                forceExpanded
-              />
-            </PreviewRow>
-          );
-        })}
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
+      {filtered.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-12">
+          No notices match your search or filter.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((n) => {
+            const open = expandedKey === n.key;
+            return (
+              <PreviewRow
+                key={n.key}
+                open={open}
+                onToggle={() => setExpandedKey(open ? null : n.key)}
+                title={n.title}
+                channels={n.channels}
+                audience={n.audience}
+                when={n.when}
+              >
+                <UserNoticeCard
+                  subject={n.subject}
+                  body={n.body}
+                  unread={false}
+                  actionLabel={n.actionLabel}
+                  actionHref={n.actionHref}
+                  preview
+                  forceExpanded
+                />
+              </PreviewRow>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

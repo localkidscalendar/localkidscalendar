@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { BookOpen, ExternalLink, ChevronDown, ChevronUp, Search, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { BookOpen, ExternalLink, ChevronDown, ChevronUp, Search } from "lucide-react";
+import SearchClearField from "@/components/shared/SearchClearField";
 
 /**
  * Admin Site Manual — layman overview + technical breakdown per topic.
@@ -133,21 +133,23 @@ const categories = [
       {
         id: "user-types",
         title: "Roles: Community Member, Organizer, Admin, Disabled",
-        keywords: ["role", "organizer", "community_member", "admin"],
+        keywords: ["role", "organizer", "community_member", "admin", "suspended"],
         overview:
-          "Community Members browse, save, flag, comment, and can post activities. Organizers get org branding and directory presence. Admin is a privileged operator role (not chosen at signup). Disabled accounts cannot use the site normally and see the Account Disabled experience.",
+          "Community Members browse, save, flag, comment, and can post activities. Organizers get org branding and directory presence. Admin is a privileged operator role (not chosen at signup). Disabled accounts cannot use the site normally and see the Account Disabled experience. Suspended is separate from Disabled: at 3+ user flags the account is limited to guest actions + My Messages until Admin clears flags or uses Manual Disable.",
         features: [
           "community_member: core family/user experience",
           "organizer: same plus org profile (name, logo, website, email) and directory listing",
           "admin: Admin panel + elevated APIs; primary account often localkidscalendar@gmail.com",
-          "disabled: blocked; digests forced off; prior role stored for restore",
+          "disabled: blocked; digests forced off; prior role stored for restore; content archived; directory hidden",
+          "suspended (profiles.suspended_at): guest actions only; digests Off; Ad Manager frozen; can sign in + My Messages; public content and ads stay; organizer still appears in the directory",
           "Supporter is not a role — it is profiles.is_advertiser on top of CM or Organizer",
         ],
         technicalOverview:
-          "profiles.role check constraint: admin | organizer | community_member | disabled. organizers table is 1:1 with user_id. Admin Users list shows the live profiles.role label, zip_code column, and search by name/email/zip.",
+          "profiles.role check constraint: admin | organizer | community_member | disabled. organizers table is 1:1 with user_id. Admin Users → List of Users shows role badges, Suspended / Supporter chips, Contributions / Flagged / Flags Filed expanders, and Actions (Grant Supporter, Disable/Reactivate). Search supports Clear plus filters All / Admins / Community Members / Organizers / Supporters.",
         technicalFeatures: [
           "role_before_disabled preserved on disable; restoreRoleFromProfile in authRoles.js",
-          "Weekly digests intentionally skip organizer and admin recipients",
+          "isAccountSuspended gates registered actions while role stays CM/Organizer",
+          "Weekly digests intentionally skip organizer and admin recipients (and suspended/disabled)",
           "ProfileTab locks role after registration for non-admins (edit Profile never offers account-type change); admins keep their real role on save",
           "authRoles.isProfileComplete gates app access until zip is set",
         ],
@@ -155,9 +157,9 @@ const categories = [
       {
         id: "account-disable-reactivation",
         title: "Disable Account & Reactivation Requests",
-        keywords: ["disable", "reactivate", "banned", "account disabled"],
+        keywords: ["disable", "reactivate", "banned", "account disabled", "suspend"],
         overview:
-          "Admins can disable a user with a required note. The user is treated as signed out for normal features, digests turn Off, their active activities and comments are archived (savers get the Saved Activity Removed notice), and they see an Account Disabled page with the note. They may submit one reactivation request for Admin review.",
+          "Admins can disable a user with a required note (severe path, including from Flagged Users → Manual Disable). The user is treated as signed out for normal features, digests turn Off, their active activities and comments are archived (savers get the Saved Activity Removed notice), organizer directory listing is hidden, and they see an Account Disabled page with the note. They may submit one reactivation request for Admin review. Suspension from 3+ user flags is lighter and does not archive content or hide the organizer.",
         features: [
           "Always: role → disabled, digests Off, active activities/comments archived, note shown on Account Disabled",
           "Savers of hidden activities get saved_activity_removed; favoriters of the organizer get favorited_organizer_removed",
@@ -167,7 +169,7 @@ const categories = [
           "On approve: prior role restored only — digests, ads, Stripe, and archived content are not auto-restored",
         ],
         technicalOverview:
-          "Admin Users → disable calls /api/admin-disable-user. Content hide archives events (admin_notes + manually_deactivated case) and comments; trg_notify_on_content_hidden notifies savers; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
+          "Admin Users → Actions → Disable (or Flagged Users Manual Disable) calls /api/admin-disable-user. Content hide archives events (admin_notes + manually_deactivated case) and comments; trg_notify_on_content_hidden notifies savers; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
         technicalFeatures: [
           "Caller must be admin (or allowlisted admin email on the API)",
           "Non-supporter path: role/digest + content hide",
@@ -185,9 +187,10 @@ const categories = [
           "Ad Manager for creatives, placements, renewals, plan changes, waitlist",
           "Granted automatically on first purchase or via Admin",
           "One slot-holding placement per zip per Supporter",
+          "While suspended, Ad Manager is frozen (ads already running continue)",
         ],
         technicalOverview:
-          "profiles.is_advertiser. Placements in banner_ads; creatives in ad_library. Checkout via /api/create-ad-checkout.",
+          "profiles.is_advertiser. Placements in banner_ads; creatives in ad_library. Checkout via /api/create-ad-checkout. Admin Users → Actions can Grant/Remove Supporter.",
         technicalFeatures: [
           "Slot-holding statuses: active, pending_payment, pending_review, flagged, past_due",
           "Admin can grant advertiser flag from Users",
@@ -197,15 +200,16 @@ const categories = [
         id: "user-dashboard",
         title: "My Account Tabs",
         overview:
-          "Everything personal lives under My Account. Default tab is Messages. Profile is for editing a completed account (zip, distance, names/org, password reset) — not for first-time signup. Incomplete Google/email profiles are sent to Register to finish.",
+          "Everything personal lives under My Account. Default tab is Messages. Profile is for editing a completed account (zip, distance, names/org, password reset) — not for first-time signup. Incomplete Google/email profiles are sent to Register to finish. Suspended accounts can still open Account → Messages only.",
         features: [
           "Messages (default) — in-app inbox",
           "My Activity Posts — Active / Inactive filter chips; inactive rows show reason in the status pill (e.g. Inactive: User Deactivated, Inactive: 3-User Flags, Inactive: Admin Removed)",
           "Saved Activities, Fav Organizers, Email Notifications, Home Search Filters (My Filters), Profile",
           "Profile: account type read-only; distance editable; names/org use Strict/Soft Title Case",
+          "Suspended: banner + Messages-only; other tabs and guest-restricted site actions paused",
         ],
         technicalOverview:
-          "Account.jsx VALID_TABS: messages, posts, saved, saved-organizers, notifications, saved-filters, profile. Unread badge uses countUnreadMessages.",
+          "Account.jsx VALID_TABS: messages, posts, saved, saved-organizers, notifications, saved-filters, profile. Unread badge uses countUnreadMessages. Suspended path uses isAccountSuspended(sessionUser).",
         technicalFeatures: [
           "?tab=flagged redirects to messages (legacy links)",
           "Incomplete profiles: AuthCallback + AppLayout → /register?complete=1 (not Account ?setup=1)",
@@ -216,16 +220,17 @@ const categories = [
         title: "In-App Messages Inbox",
         keywords: ["inbox", "user_messages", "welcome"],
         overview:
-          "One-way inbox for site notices: welcome messages, billing/plan notices, photo/ad decisions, the full community-flag lifecycle (each flag with reason, reporter withdraw, Admin clear/reactivate, and 3+ removal), and Admin mass messages. Users can mark read and soft-delete. Many items include optional action buttons (e.g. open Ad Manager or My Activity Posts).",
+          "One-way inbox for site notices: welcome messages, billing/plan notices, photo/ad decisions, the full community-flag lifecycle for content and for user (account) flags, and Admin mass messages. Users can mark read and soft-delete. Many items include optional action buttons (e.g. open Ad Manager or My Activity Posts).",
         features: [
           "Unread count in nav / Account tab",
           "System + Admin-authored messages",
-          "Flag lifecycle notices for activities, comments, and Ad Assets",
+          "Content flag lifecycle notices for activities, comments, and Ad Assets",
+          "User-flag notices: flagged (1/2), suspended at 3, withdraw, Clear Flags / partial clear",
           "Optional action label + in-app path",
           "Soft-delete from the user’s view",
         ],
         technicalOverview:
-          "user_messages table + helpers in userMessages.js / userMessagesCatalog.js. Flag notices via notify_owner_flag_lifecycle (submit_flag / withdraw_flag) and admin_notify_owner_flag_lifecycle (Admin Flags). Welcome onboarding inserts on new profile. Admin Previews → Automated Messages shows the full catalog.",
+          "user_messages table + helpers in userMessages.js / userMessagesCatalog.js. Content flag notices via notify_owner_flag_lifecycle / admin_notify_owner_flag_lifecycle; user-flag notices via notify_owner_user_flag_lifecycle / admin_notify_owner_user_flag_lifecycle. Welcome onboarding inserts on new profile. Admin Previews → Automated Messages shows the full catalog.",
         technicalFeatures: [
           "Mass messages fan out copies then can be retracted (soft-delete copies + remove archive row)",
           "Some flows are inbox-only (e.g. renewal-soon, most flag notices); others also send Resend email (payment failed, waitlist offer, ad disabled at 3+)",
@@ -461,12 +466,13 @@ const categories = [
           "Admin → Flags is the primary place for 3+ Override / Clear Flags (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
           "Admin → Flags → Flagged Users: Clear Flags / Manual Disable (existing disable path) when suspended or 3+; per-report Clear Flag; Reviewed",
           "Admin 3+ card: Override 3+, Clear Flags, Reviewed; after Override/Clear Flags/Reviewed: Mark Unreviewed",
+          "Admin → Users → List of Users: Contributions / Flagged / Flags Filed counts (click # to expand); nested # Flags show reporter, reason, comments, timestamp; Clear search + role filters; Actions for Supporter and Disable",
           "Admin → Users shows a Suspended badge when suspended_at is set (and role is not disabled)",
           "Manual delete/deactivate of activities and ad assets elsewhere in Admin is unchanged",
           "Ad asset cascade: disabling a creative affects all zip placements using it",
         ],
         technicalOverview:
-          "flag_reports target_id for ads is ad_library id; user flags use target_type=user and target_id=profile id. notify_owner_flag_lifecycle + admin_notify_owner_flag_lifecycle (content); notify_owner_user_flag_lifecycle + admin_notify_owner_user_flag_lifecycle (users). profiles.user_flag_count / suspended_at. flag_auto_hide_exempt on events/comments/ad_library. Ad quarantine helpers in quarantineAdLibrary.js + submit_flag / withdraw_flag / disable_ad_asset RPCs. User helpers: submit_user_flag / withdraw_user_flag.",
+          "flag_reports target_id for ads is ad_library id; user flags use target_type=user and target_id=profile id. Surfaces: UserFlagControl on Event Detail Posted by + OrganizerCard. notify_owner_flag_lifecycle + admin_notify_owner_flag_lifecycle (content); notify_owner_user_flag_lifecycle + admin_notify_owner_user_flag_lifecycle (users). profiles.user_flag_count / suspended_at. flag_auto_hide_exempt on events/comments/ad_library. Ad quarantine helpers in quarantineAdLibrary.js + submit_flag / withdraw_flag / disable_ad_asset RPCs. User helpers: submit_user_flag / withdraw_user_flag. Ensure scripts: ensure_user_flagging_and_suspension.sql then ensure_flag_auto_hide_override.sql.",
         technicalFeatures: [
           "Dispositions include manually_deactivated, overridden, reactivated, reviewed, flags_cleared / flag_cleared",
           "submit_flag auto-hides only when count ≥ 3 and flag_auto_hide_exempt is false",
@@ -476,7 +482,7 @@ const categories = [
           "Community 3-flag on ads can still email via notify-ad-asset-disabled (idempotent disable_notified_at)",
           "Admin → Flags → Flagged Content filters: All / Activities / Comments / Ads, plus a combinable 3+ toggle for 3+ Deactivation cards only",
           "Admin → Flags → Flagged Users filters: All / Community Members / Organizers / 3+",
-          "Admin → Flags → Flagging Activity: report-only leaderboard of Flagging vs Being Flagged (separate rows), filters All / Flagging / Being Flagged; click name to open Users → List of Users filtered by email",
+          "Admin → Flags → Flagging Activity: report-only leaderboard of Flagging vs Being Flagged (separate rows; Flagging includes user-target reports; Being Flagged = content received + user flags); filters All / Flagging / Being Flagged; click name → Users list by exact email",
           "banner_ads.flag_count mirrors the asset for Ad Manager display",
         ],
       },
@@ -805,15 +811,16 @@ const categories = [
         id: "automated-notices",
         title: "Automated In-App Notices",
         overview:
-          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, and the full community-flag lifecycle). Previewed under Admin → Previews → Automated Messages without sending. Comment flag notices have no action button (authors edit/delete on the activity page).",
+          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, and the full community-flag lifecycle for content and user accounts). Previewed under Admin → Previews → Automated Messages without sending — search + category pills (Welcome / Flags / Reviews / Admin Removals / Billing / Saved); titles use topic format (e.g. Flags · Activity · Flagged). Comment flag notices have no action button (authors edit/delete on the activity page).",
         features: [
           "Catalog-driven copy in userMessagesCatalog.js",
-          "Flag lifecycle: flagged (1/2), removed at 3, flag withdrawn, Clear Flags (second chance), Override 3+ — for activities, comments, and Ad Assets",
-          "Preview with sample data (no send)",
-          "Triggered by submit_flag / withdraw_flag, Admin Flags actions, DB events, or webhooks",
+          "Content flag lifecycle: flagged (1/2), removed at 3, flag withdrawn, Clear Flags (second chance), Override 3+ — for activities, comments, and Ad Assets",
+          "User-flag lifecycle: flagged (1/2), suspended at 3, withdraw, Clear Flags / partial clear",
+          "Preview with sample data (no send); filter by workflow category or search",
+          "Triggered by submit_flag / withdraw_flag / submit_user_flag / withdraw_user_flag, Admin Flags actions, DB events, or webhooks",
         ],
         technicalOverview:
-          "userMessagesCatalog.js powers Admin → Previews → Automated Messages. Live inserts via create_user_message / notify_owner_flag_lifecycle / admin_notify_owner_flag_lifecycle and related helpers.",
+          "userMessagesCatalog.js powers Admin → Previews → Automated Messages (AUTOMATED_NOTICE_CATEGORIES + category on each notice). Live inserts via create_user_message / notify_owner_flag_lifecycle / admin_notify_owner_flag_lifecycle / notify_owner_user_flag_lifecycle / admin_notify_owner_user_flag_lifecycle and related helpers.",
         technicalFeatures: [
           "Welcome trigger on new profiles migration",
           "Ad 3+ disable still emails via notify-ad-asset-disabled; inbox copy aligned in catalog",
@@ -908,15 +915,15 @@ const categories = [
           "Beta — stage gates / zip whitelist",
           "Contact Us — inbound messages",
           "FAQs — manage public FAQ entries",
-          "Flags — flagged content + flagged users + flagging activity report (primary restore path for 3-flag archived activities)",
+          "Flags — Flagged Content, Flagged Users, Flagging Activity (primary restore path for 3-flag archived activities)",
           "Manual — this document (keep updated when product/admin rules change)",
           "Mass Messages — compose, archive, digest controls",
           "Previews — emails, automated messages, site notices",
           "Reviews — activity photos + ad creatives needing humans",
-          "Users — zip reports, user list, reactivation requests",
+          "Users — List of Users (default), Reactivation Requests, Zip Code Reports",
         ],
         technicalOverview:
-          "Admin.jsx tabs + AdminSubNav section arrays (ADS_SECTIONS, FLAGS_SECTIONS, USER_SECTIONS, PREVIEW_SECTIONS, REVIEW_SECTIONS, MASS_MESSAGE_SECTIONS, …). All Activities helpers: getActivityStatusMeta, openFlagsForActivity, handleReactivateItem (admin notes required for events).",
+          "Admin.jsx tabs + AdminSubNav section arrays (ADS_SECTIONS, FLAGS_SECTIONS, USER_SECTIONS, PREVIEW_SECTIONS, REVIEW_SECTIONS, MASS_MESSAGE_SECTIONS, …). All Activities helpers: getActivityStatusMeta, openFlagsForActivity, handleReactivateItem (admin notes required for events). Users list: openUserInUsersList from Flagging Activity; USER_LIST_FILTERS + Contributions/Flagged/Flags Filed panels.",
         technicalFeatures: [
           "Hard gate: if user.role !== 'admin' navigate home",
           "Consistent AdminSectionHeader + AdminPanelShell chrome",
@@ -984,14 +991,14 @@ const categories = [
           "Safe previews of outbound-looking content: email HTML templates, the automated message catalog (including flag lifecycle notices), and site notices — without blasting users.",
         features: [
           "Emails tester (send sample to the signed-in admin only)",
-          "Automated Messages catalog — welcome, billing, creative review, and flag lifecycle (flagged / withdrawn / Clear Flags / Override 3+ / removed)",
+          "Automated Messages catalog — topic titles (Flags / Reviews / Billing / …) with search + category pills",
           "Site Notices preview",
         ],
         technicalOverview:
           "PreviewsPanels (Emails + Automated Messages from EMAIL_TEMPLATE_META / AUTOMATED_NOTICE_CATALOG) + SiteEmailsTester + SiteNoticesPreview under Admin → Previews.",
         technicalFeatures: [
           "Email send uses /api/send-email admin auth",
-          "Automated Messages list is catalog-driven — new notice keys appear automatically after catalog updates",
+          "Automated Messages list is catalog-driven — new notice keys appear automatically after catalog updates; filter by AUTOMATED_NOTICE_CATEGORIES",
         ],
       },
     ],
@@ -1094,25 +1101,16 @@ export default function AdminManual() {
           Expand a topic for the overview bullets, then the technical section underneath. Update this manual when product behavior changes.
         </p>
 
-        <div className="relative max-w-md">
-          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <Input
+        <div className="max-w-md">
+          <SearchClearField
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onValueChange={setQuery}
             placeholder="Search keywords (e.g. digest, waitlist, disable…)"
-            className="pl-9 pr-9 rounded-xl"
+            wrapperClassName="flex items-center gap-2 w-full"
+            inputClassName="rounded-xl flex-1 min-w-0"
+            leading={<Search className="w-4 h-4" />}
             aria-label="Search site manual"
           />
-          {searching && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-muted-foreground hover:text-foreground"
-              aria-label="Clear search"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
         </div>
         {searching && (
           <p className="text-xs text-muted-foreground">

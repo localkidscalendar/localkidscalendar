@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Building2, Loader2, UserPlus } from "lucide-react";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
+import SearchClearField from "@/components/shared/SearchClearField";
 import OrganizerCard from "@/components/organizers/OrganizerCard";
 import { DEFAULT_RADIUS_MILES, normalizeRadiusMiles } from "@/lib/locationDefaults";
 
@@ -266,10 +266,15 @@ export default function Organizers() {
           </p>
         )}
 
-        <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search organizers..." value={search} onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 rounded-xl w-full" />
+        <div className="mb-6">
+          <SearchClearField
+            placeholder="Search organizers..."
+            value={search}
+            onValueChange={setSearch}
+            wrapperClassName="flex items-center gap-2 w-full"
+            inputClassName="rounded-xl w-full flex-1 min-w-0"
+            leading={<Search className="w-4 h-4" />}
+          />
         </div>
 
         {loading ? (

@@ -22,6 +22,7 @@ import { toTitleCaseLabel } from "@/lib/titleCase";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 import AdminPanelShell from "@/components/admin/AdminPanelShell";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
+import SearchClearField from "@/components/shared/SearchClearField";
 
 const AUDIENCE_OPTIONS = [
   { value: "all", label: "All" },
@@ -457,11 +458,10 @@ export default function AdminMassMessagesPanel({ toast, activeSection = "mass-co
         <AdminPanelShell>
           <div className="space-y-3">
             <div className="space-y-2">
-              <Input
+              <SearchClearField
                 placeholder="Search sent messages…"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="rounded-lg h-8 text-sm sm:max-w-xs"
+                onValueChange={setSearch}
               />
               <div className="flex flex-wrap gap-1.5">
                 {FILTER_ROLE_OPTIONS.map((o) => (

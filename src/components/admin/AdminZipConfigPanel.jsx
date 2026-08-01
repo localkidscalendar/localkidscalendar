@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
+import SearchClearField from "@/components/shared/SearchClearField";
 
 export default function AdminZipConfigPanel({ ads = [], toast }) {
   const [zipConfigs, setZipConfigs] = useState([]);
@@ -92,15 +93,15 @@ export default function AdminZipConfigPanel({ ads = [], toast }) {
         Default: <strong>3 slots per zip</strong> when no custom configuration is set. Add a zip here to raise or lower capacity for that zip only (1–20).
       </p>
 
-      <Input
+      <SearchClearField
         placeholder="Search by zip code…"
         maxLength={5}
         value={zipSearch}
-        onChange={(e) => {
-          setZipSearch(e.target.value.replace(/\D/g, ""));
+        onValueChange={(v) => {
+          setZipSearch(String(v || "").replace(/\D/g, ""));
           setZipPage(1);
         }}
-        className="rounded-lg h-8 text-sm max-w-xs"
+        inputClassName="rounded-lg h-8 text-sm flex-1 min-w-0"
       />
 
       <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border">

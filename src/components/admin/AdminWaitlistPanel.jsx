@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronUp, RotateCcw, Star, HelpCircle, Loader2, Clock,
 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
+import SearchClearField from "@/components/shared/SearchClearField";
 import moment from "moment";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
 import {
@@ -296,11 +297,11 @@ export default function AdminWaitlistPanel({ toast }) {
         job also expires stale offers and advances the queue every 30 minutes.
       </p>
       <div className="flex items-center gap-3">
-        <Input
+        <SearchClearField
           placeholder="Search by business, zip, email, or status…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="rounded-lg h-8 text-sm"
+          onValueChange={setSearch}
+          wrapperClassName="flex items-center gap-2 flex-1 min-w-0"
         />
         <Button variant="outline" size="sm" className="rounded-xl shrink-0" onClick={load}>
           Refresh

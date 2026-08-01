@@ -5,7 +5,7 @@ import EventCard from "@/components/events/EventCard";
 import { Bookmark } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import LoadingState from "@/components/shared/LoadingState";
-import { Input } from "@/components/ui/input";
+import SearchClearField from "@/components/shared/SearchClearField";
 import moment from "moment";
 
 const DATE_FILTERS = [
@@ -158,11 +158,11 @@ export default function SavedActivitiesTab({ user }) {
       </p>
 
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-        <Input
+        <SearchClearField
           placeholder="Search saved activities…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="rounded-xl h-9 text-sm sm:max-w-xs"
+          onValueChange={setSearch}
+          inputClassName="rounded-xl h-9 text-sm flex-1 min-w-0"
         />
         <div className="flex flex-wrap gap-1.5">
           {DATE_FILTERS.map((f) => (

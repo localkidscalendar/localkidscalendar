@@ -17,10 +17,16 @@ export default function ZipCodeSearchCard({ title, rows, columns }) {
     setSearched(true);
   };
 
+  const handleClear = () => {
+    setQuery("");
+    setResult(null);
+    setSearched(false);
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-border p-4">
       <h4 className="font-heading font-semibold text-sm mb-3">{title}</h4>
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center flex-wrap">
         <Input
           placeholder="Enter zip code..."
           value={query}
@@ -31,6 +37,15 @@ export default function ZipCodeSearchCard({ title, rows, columns }) {
         <Button size="sm" variant="outline" className="rounded-lg" onClick={handleSearch}>
           <Search className="w-3.5 h-3.5 mr-1.5" /> Search
         </Button>
+        {query.trim() || searched ? (
+          <button
+            type="button"
+            className="text-xs font-medium text-mint-600 hover:underline"
+            onClick={handleClear}
+          >
+            Clear
+          </button>
+        ) : null}
       </div>
       {searched && result && (
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm bg-muted/40 rounded-lg px-3 py-2">

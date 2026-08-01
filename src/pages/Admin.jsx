@@ -13,6 +13,7 @@ import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 import AdminNoteConfirmDialog from "@/components/admin/AdminNoteConfirmDialog";
 import { restoreRoleFromProfile } from "@/lib/authRoles";
 import ImagePreviewModal from "@/components/ads/ImagePreviewModal";
+import SearchClearField from "@/components/shared/SearchClearField";
 
 import FAQManagerV2 from "@/components/admin/FAQManager";
 import SiteNoticesPreview from "@/components/admin/SiteNoticesPreview";
@@ -2388,11 +2389,10 @@ export default function Admin() {
           <AdminSectionHeader title="All Activities" icon={CalendarDays} />
           <AdminPanelShell>
             <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
-              <Input
+              <SearchClearField
                 placeholder="Search by title or zip code…"
                 value={eventSearch}
-                onChange={(e) => { setEventSearch(e.target.value); setEventsPage(1); }}
-                className="rounded-lg h-8 text-sm sm:max-w-xs"
+                onValueChange={(v) => { setEventSearch(v); setEventsPage(1); }}
               />
               <div className="flex flex-wrap gap-1.5">
                 {[
@@ -2539,11 +2539,10 @@ export default function Admin() {
             <AdminSectionHeader title="Flagged Content (Activities, Comments, Ad Assets)" icon={Flag} />
               <AdminPanelShell>
                 <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <Input
+                  <SearchClearField
                     placeholder="Search flags…"
                     value={flagSearch}
-                    onChange={(e) => { setFlagSearch(e.target.value); setFlaggedContentPage(1); }}
-                    className="rounded-lg h-8 text-sm sm:max-w-xs"
+                    onValueChange={(v) => { setFlagSearch(v); setFlaggedContentPage(1); }}
                   />
                   <div className="flex flex-wrap gap-1.5">
                     {[
@@ -3089,11 +3088,10 @@ export default function Admin() {
               <AdminSectionHeader title="Flagged Users" icon={Users} />
               <AdminPanelShell>
                 <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <Input
+                  <SearchClearField
                     placeholder="Search flagged users…"
                     value={flaggedUserSearch}
-                    onChange={(e) => { setFlaggedUserSearch(e.target.value); setFlaggedUsersPage(1); }}
-                    className="rounded-lg h-8 text-sm sm:max-w-xs"
+                    onValueChange={(v) => { setFlaggedUserSearch(v); setFlaggedUsersPage(1); }}
                   />
                   <div className="flex flex-wrap gap-1.5">
                     {FLAGGED_USER_ROLE_FILTERS.map((opt) => (
@@ -3367,11 +3365,10 @@ export default function Admin() {
               <AdminSectionHeader title="Flagging Activity" icon={Users} />
               <AdminPanelShell>
                 <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <Input
+                  <SearchClearField
                     placeholder="Search users…"
                     value={flaggingUserSearch}
-                    onChange={(e) => { setFlaggingUserSearch(e.target.value); setFlaggingUsersPage(1); }}
-                    className="rounded-lg h-8 text-sm sm:max-w-xs"
+                    onValueChange={(v) => { setFlaggingUserSearch(v); setFlaggingUsersPage(1); }}
                   />
                   <div className="flex flex-wrap gap-1.5">
                     {FLAGGING_ACTIVITY_FILTERS.map((opt) => (
@@ -3544,27 +3541,15 @@ export default function Admin() {
               <AdminSectionHeader title="List of Users" icon={Users} />
               <AdminPanelShell>
                 <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <div className="flex items-center gap-2 sm:max-w-xs w-full">
-                    <Input
-                      placeholder="Search users by name, email, or zip..."
-                      value={userSearch}
-                      onChange={(e) => { setUserSearch(e.target.value); setUserSearchExactEmail(false); setUsersPage(1); }}
-                      className="rounded-lg h-8 text-sm flex-1"
-                    />
-                    {userSearch.trim() ? (
-                      <button
-                        type="button"
-                        className="shrink-0 text-xs font-medium text-mint-600 hover:underline"
-                        onClick={() => {
-                          setUserSearch("");
-                          setUserSearchExactEmail(false);
-                          setUsersPage(1);
-                        }}
-                      >
-                        Clear
-                      </button>
-                    ) : null}
-                  </div>
+                  <SearchClearField
+                    placeholder="Search users by name, email, or zip..."
+                    value={userSearch}
+                    onValueChange={(v) => {
+                      setUserSearch(v);
+                      setUserSearchExactEmail(false);
+                      setUsersPage(1);
+                    }}
+                  />
                   <div className="flex flex-wrap gap-1.5">
                     {USER_LIST_FILTERS.map((opt) => (
                       <button
@@ -4279,11 +4264,10 @@ export default function Admin() {
               />
               <AdminPanelShell>
                 <div className="pb-4 mb-4 border-b border-border">
-                  <Input
+                  <SearchClearField
                     placeholder="Search reactivation requests…"
                     value={reactivationSearch}
-                    onChange={(e) => { setReactivationSearch(e.target.value); setReactivationPage(1); }}
-                    className="rounded-lg h-8 text-sm sm:max-w-xs"
+                    onValueChange={(v) => { setReactivationSearch(v); setReactivationPage(1); }}
                   />
                 </div>
                 {filteredReactivationRequests.length === 0 ? (

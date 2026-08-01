@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { ChevronDown, ChevronUp, Search, UserPlus, Shield, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import GrowingCommunitySection from "@/components/about/GrowingCommunitySection";
+import SearchClearField from "@/components/shared/SearchClearField";
 
 const COMMUNITY_RULES = [
   {
@@ -219,14 +220,14 @@ export default function About() {
         )}
 
         {faqs.length > 0 && (
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+          <div className="mb-4">
+            <SearchClearField
               placeholder="Search FAQs..."
-              className="w-full pl-9 pr-4 py-2 rounded-xl border border-input bg-white text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              wrapperClassName="flex items-center gap-2 w-full"
+              inputClassName="rounded-xl w-full flex-1 min-w-0 py-2 h-auto"
+              leading={<Search className="w-4 h-4" />}
             />
           </div>
         )}

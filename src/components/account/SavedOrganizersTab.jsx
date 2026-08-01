@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import OrganizerCard from "@/components/organizers/OrganizerCard";
 import EmptyState from "@/components/shared/EmptyState";
 import LoadingState from "@/components/shared/LoadingState";
-import { Input } from "@/components/ui/input";
+import SearchClearField from "@/components/shared/SearchClearField";
 import { Heart } from "lucide-react";
 
 export default function SavedOrganizersTab({ user }) {
@@ -102,11 +102,11 @@ export default function SavedOrganizersTab({ user }) {
         Organizers you&apos;ve favorited so you can follow their activities more easily.
       </p>
 
-      <Input
+      <SearchClearField
         placeholder="Search favorite organizers…"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="rounded-xl h-9 text-sm sm:max-w-xs"
+        onValueChange={setSearch}
+        inputClassName="rounded-xl h-9 text-sm flex-1 min-w-0"
       />
 
       {filteredOrganizers.length === 0 ? (

@@ -22,6 +22,7 @@ import { createAdCheckout } from "@/lib/adBilling";
 import { SUPPORTER_RULES, TOS_INTRO, TOS_SECTIONS, TOS_FOOTER } from "@/lib/supporterContent";
 import { countOpenAdSlots, SLOT_HOLDING_STATUSES } from "@/lib/waitlistQueue";
 import useBetaConfig, { isZipAllowed, betaZipBlockedCopy } from "@/lib/useBetaConfig"; // BETA MODE
+import SearchClearField from "@/components/shared/SearchClearField";
 
 const ADS_STATUS_FILTERS = [
   { value: "all", label: "All" },
@@ -978,11 +979,10 @@ export default function AdManager() {
                   <AdminPanelShell>
                     <div className="space-y-3">
                       <div className="space-y-2">
-                        <Input
+                        <SearchClearField
                           placeholder="Search by zip, name, status…"
                           value={adsSearch}
-                          onChange={(e) => setAdsSearch(e.target.value)}
-                          className="rounded-lg h-8 text-sm sm:max-w-xs"
+                          onValueChange={setAdsSearch}
                         />
                         <div className="flex flex-wrap gap-1.5">
                           {ADS_STATUS_FILTERS.map((f) => (

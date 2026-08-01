@@ -2,13 +2,13 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import {
   CalendarDays, Edit, Copy, Eye, Bookmark, MessageSquare, TrendingUp, Trash2, RotateCcw, Flag,
 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import LoadingState from "@/components/shared/LoadingState";
+import SearchClearField from "@/components/shared/SearchClearField";
 import moment from "moment";
 
 const STATUS_FILTERS = [
@@ -165,11 +165,11 @@ export default function MyPostsTab({ user }) {
       </p>
 
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-        <Input
+        <SearchClearField
           placeholder="Search your posts…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="rounded-xl h-9 text-sm sm:max-w-xs"
+          onValueChange={setSearch}
+          inputClassName="rounded-xl h-9 text-sm flex-1 min-w-0"
         />
         <div className="flex flex-wrap gap-1.5">
           {STATUS_FILTERS.map((f) => (

@@ -205,8 +205,8 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
 
   return (
     <div className="bg-white rounded-2xl border border-border p-4 space-y-3">
-      <div className="flex gap-2">
-        <div className="relative flex-1">
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1 min-w-0">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -224,6 +224,15 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
             className="pl-9 rounded-xl"
           />
         </div>
+        {localSearch.trim() ? (
+          <button
+            type="button"
+            className="shrink-0 text-xs font-medium text-mint-600 hover:underline"
+            onClick={() => setLocalSearch("")}
+          >
+            Clear
+          </button>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
