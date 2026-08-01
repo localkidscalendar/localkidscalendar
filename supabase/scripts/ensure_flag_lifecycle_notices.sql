@@ -844,9 +844,13 @@ begin
   if tg_table_name = 'events' then
     if new.status = 'archived' and old.status is distinct from 'archived' then
       -- Owner inbox is sent from submit_flag (includes reason + N of 3).
+      -- Prefer admin_notes when set (e.g. account disable hide).
       perform public.notify_savers_activity_removed(
         new.id,
-        'Removed after community flagging.'
+        coalesce(
+          nullif(trim(coalesce(new.admin_notes, '')), ''),
+          'Removed after community flagging.'
+        )
       );
     elsif new.status = 'deleted'
       and old.status is distinct from 'deleted'

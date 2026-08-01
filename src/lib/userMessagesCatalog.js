@@ -190,7 +190,7 @@ export const AUTOMATED_NOTICE_CATALOG = [
     actionHref: "/account?tab=saved",
     channels: ["in_app"],
     audience: "Users who saved the activity",
-    when: "A saved activity is removed from the site",
+    when: "A saved activity is archived or admin-removed (community flags, Admin delete, or poster account disabled)",
   },
   {
     key: "welcome_new_profile",

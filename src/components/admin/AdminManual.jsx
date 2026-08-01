@@ -157,20 +157,22 @@ const categories = [
         title: "Disable Account & Reactivation Requests",
         keywords: ["disable", "reactivate", "banned", "account disabled"],
         overview:
-          "Admins can disable a user with a required note. The user is treated as signed out for normal features, digests turn Off, and they see an Account Disabled page with the note. They may submit one reactivation request for Admin review.",
+          "Admins can disable a user with a required note. The user is treated as signed out for normal features, digests turn Off, their active activities and comments are archived (savers get the Saved Activity Removed notice), and they see an Account Disabled page with the note. They may submit one reactivation request for Admin review.",
         features: [
-          "Always: role → disabled, digests Off, note shown on Account Disabled",
+          "Always: role → disabled, digests Off, active activities/comments archived, note shown on Account Disabled",
+          "Savers of hidden activities get saved_activity_removed (same path as flag/Admin removal)",
           "Supporters also: slot-holding ads cancelled, Stripe set not to renew, waitlist cleared, waitlist processor runs",
           "Reactivation: one request per user lifetime (pending / reactivated / declined)",
-          "On approve: prior role restored (admin prior is stored carefully; organizer restores as organizer)",
+          "On approve: prior role restored only — digests, ads, Stripe, and archived content are not auto-restored",
         ],
         technicalOverview:
-          "Admin Users → disable calls /api/admin-disable-user. Reactivation rows live in account_reactivation_requests. UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
+          "Admin Users → disable calls /api/admin-disable-user. Content hide archives events (admin_notes + manually_deactivated case) and comments; trg_notify_on_content_hidden notifies savers. Reactivation rows live in account_reactivation_requests. UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
         technicalFeatures: [
           "Caller must be admin (or allowlisted admin email on the API)",
-          "Non-supporter path: simple role/digest updates",
+          "Non-supporter path: role/digest + content hide",
           "Supporter path: banner_ads + Stripe cancel_at_period_end + ad_waitlist cleanup + processWaitlist",
           "authRoles.isAccountDisabled / isRegisteredUser gate registered-only features",
+          "ensure_disable_user_hides_content.sql keeps saver-note trigger using admin_notes on archive",
         ],
       },
       {

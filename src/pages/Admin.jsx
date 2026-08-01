@@ -820,14 +820,19 @@ export default function Admin() {
         throw new Error(payload.error || (raw && raw.length < 200 ? raw : null) || `Request failed (${res.status})`);
       }
 
+      const contentNote = [
+        payload.activities_hidden ? `${payload.activities_hidden} activit${payload.activities_hidden === 1 ? "y" : "ies"} hidden` : null,
+        payload.comments_hidden ? `${payload.comments_hidden} comment${payload.comments_hidden === 1 ? "" : "s"} hidden` : null,
+      ].filter(Boolean).join(", ");
       const supporterNote = payload.is_supporter
         ? ` Ads cancelled: ${payload.ads_cancelled || 0}. Waitlist released: ${payload.waitlist_released || 0}.`
         : " Digest notifications turned off.";
       toast({
         title: "User account disabled",
-        description: payload.is_supporter
-          ? `Full Supporter disable applied.${supporterNote}`
-          : supporterNote.trim(),
+        description: [
+          payload.is_supporter ? `Full Supporter disable applied.${supporterNote}` : supporterNote.trim(),
+          contentNote ? ` ${contentNote}.` : "",
+        ].join(""),
       });
       setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false });
       setDisabledUsers((prev) => new Set([...prev, userId]));
@@ -3415,8 +3420,8 @@ export default function Admin() {
         title="Disable User Account"
         description={
           disableDialog.isSupporter
-            ? `Disable ${disableDialog.userName}? As a Supporter this turns off digests, blocks sign-in, cancels active ads (and Stripe auto-renew), releases zip slots, and clears their waitlist.`
-            : `Disable ${disableDialog.userName}? They will be treated as signed out, digests will be turned off, and they will see your note when they sign in.`
+            ? `Disable ${disableDialog.userName}? This hides their active activities and comments (savers are notified), turns off digests, blocks registered features, cancels active ads (and Stripe auto-renew), releases zip slots, and clears their waitlist.`
+            : `Disable ${disableDialog.userName}? This hides their active activities and comments (savers are notified), turns off digests, blocks registered features, and they will see your note when they sign in.`
         }
         noteLabel="Note to User"
         notePlaceholder="Explain why this account is being disabled…"

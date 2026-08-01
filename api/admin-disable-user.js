@@ -12,7 +12,7 @@ const QUEUE_STATUSES = ["waiting", "offered"];
 
 /**
  * Admin-only: disable a user account.
- * Always: role → disabled, digest notifications off.
+ * Always: role → disabled, digest notifications off, hide active activities/comments.
  * If Supporter (is_advertiser): cancel slot-holding ads, Stripe non-renew,
  * release waitlist entries, then advance waitlists.
  *
@@ -101,10 +101,68 @@ export default async function handler(req, res) {
       console.error("admin-disable-user: digest prefs update failed:", digestError.message);
     }
 
+    const hideReason = "Removed after the poster's account was disabled.";
+    const caseStamp = {
+      action: "manually_deactivated",
+      at: now,
+      by: "Admin",
+      scope: "account_disabled",
+      note: note || null,
+    };
+
+    const { data: activeEvents, error: eventsSelectError } = await admin
+      .from("events")
+      .select("id, flag_case_admin_history")
+      .eq("created_by_id", userId)
+      .eq("status", "active");
+    if (eventsSelectError) {
+      console.error("admin-disable-user: events select failed:", eventsSelectError.message);
+    }
+
+    let activitiesHidden = 0;
+    for (const event of activeEvents || []) {
+      const history = Array.isArray(event.flag_case_admin_history)
+        ? event.flag_case_admin_history
+        : [];
+      const { error: eventHideError } = await admin
+        .from("events")
+        .update({
+          status: "archived",
+          admin_notes: hideReason,
+          flag_case_admin_action: "manually_deactivated",
+          flag_case_admin_history: [...history, caseStamp],
+          updated_at: now,
+        })
+        .eq("id", event.id)
+        .eq("status", "active");
+      if (eventHideError) {
+        console.error(`admin-disable-user: hide event ${event.id} failed:`, eventHideError.message);
+      } else {
+        activitiesHidden += 1;
+      }
+    }
+
+    const { data: hiddenComments, error: commentsHideError } = await admin
+      .from("comments")
+      .update({
+        status: "archived",
+        flag_case_admin_action: "manually_deactivated",
+        updated_at: now,
+      })
+      .eq("created_by_id", userId)
+      .eq("status", "active")
+      .select("id");
+    if (commentsHideError) {
+      console.error("admin-disable-user: hide comments failed:", commentsHideError.message);
+    }
+    const commentsHidden = (hiddenComments || []).length;
+
     const isSupporter = Boolean(target.is_advertiser);
     const summary = {
       prior_role: priorRole,
       is_supporter: isSupporter,
+      activities_hidden: activitiesHidden,
+      comments_hidden: commentsHidden,
       ads_cancelled: 0,
       stripe_non_renew: 0,
       waitlist_released: 0,
