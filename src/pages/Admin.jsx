@@ -1026,23 +1026,31 @@ export default function Admin() {
     return secondary;
   };
 
-  const recordDeactivatedCaseAction = async (item, action) => {
+  const recordDeactivatedCaseAction = async (item, actionOrActions) => {
     const table = item.type === "event" ? "events" : item.type === "comment" ? "comments" : "ad_library";
+    const actions = Array.isArray(actionOrActions) ? actionOrActions : [actionOrActions];
+    const now = new Date().toISOString();
     const history = [
       ...getDeactivatedCaseHistory(item),
-      {
+      ...actions.map((action) => ({
         action,
-        at: new Date().toISOString(),
+        at: now,
         by: adminName(),
         scope: "deactivated_content",
-      },
+      })),
     ];
+    const lastAction = actions[actions.length - 1];
     const updates = {
       flag_case_admin_history: history,
-      flag_case_admin_action: action === "unreviewed" ? null : action,
-      updated_at: new Date().toISOString(),
+      flag_case_admin_action: lastAction === "unreviewed" ? null : lastAction,
+      updated_at: now,
     };
-    return supabase.from(table).update(updates).eq("id", item.item.id);
+    const result = await supabase.from(table).update(updates).eq("id", item.item.id);
+    if (!result.error) {
+      item.item.flag_case_admin_history = history;
+      item.item.flag_case_admin_action = updates.flag_case_admin_action;
+    }
+    return result;
   };
 
   const isDeactivatedItemHidden = (item) =>
@@ -1123,7 +1131,7 @@ export default function Admin() {
       toast({ title: "Failed to override", description: error.message, variant: "destructive" });
       return;
     }
-    const { error: historyError } = await recordDeactivatedCaseAction(item, "overridden");
+    const { error: historyError } = await recordDeactivatedCaseAction(item, ["overridden", "reviewed"]);
     if (historyError) {
       toast({ title: "Override applied, but failed to record admin action", description: historyError.message, variant: "destructive" });
       loadAll();
@@ -1133,8 +1141,8 @@ export default function Admin() {
     toast({
       title: "Override 3+ applied",
       description: targetType === "ad"
-        ? "The creative is live again and protected from community auto-hide."
-        : "The item is live again and protected from community auto-hide.",
+        ? "The creative is live again, protected from community auto-hide, and marked reviewed."
+        : "The item is live again, protected from community auto-hide, and marked reviewed.",
     });
     loadAll();
   };
@@ -1387,7 +1395,7 @@ export default function Admin() {
       return;
     }
 
-    const { error: caseError } = await recordDeactivatedCaseAction(item, "flags_cleared");
+    const { error: caseError } = await recordDeactivatedCaseAction(item, ["flags_cleared", "reviewed"]);
     if (caseError) {
       toast({ title: "Flags cleared, but failed to record case history", description: caseError.message, variant: "destructive" });
       loadAll();
@@ -1406,7 +1414,7 @@ export default function Admin() {
       });
     }
 
-    toast({ title: "Flags cleared" });
+    toast({ title: "Flags cleared", description: "Marked as reviewed." });
     loadAll();
   };
 
