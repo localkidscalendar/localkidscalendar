@@ -440,25 +440,29 @@ const categories = [
       {
         id: "flagging-system",
         title: "Flagging & Admin Disposition",
-        keywords: ["flag", "3 flags", "manually_deactivated", "cascade"],
+        keywords: ["flag", "3 flags", "override", "flag_auto_hide_exempt", "cascade"],
         overview:
-          "Registered users flag activities, comments, or ad creatives from a centered reason modal. Activities and comments use Inaccurate, Inappropriate, Spam, or Other (details required). Ad creatives use Inappropriate, Spam, or Other — not Inaccurate. Owners get an inbox notice on every flag (with reason and N of 3), on reporter withdraw, and when Admin clears flags or reactivates. At 3 distinct flaggers, activities/comments auto-archive; ad flags attach to the Ad Asset and disable that creative across all zip placements. Admin Flags reviews dispositions and history.",
+          "Registered users flag activities, comments, or ad creatives from a centered reason modal. Activities and comments use Inaccurate, Inappropriate, Spam, or Other (details required). Ad creatives use Inappropriate, Spam, or Other — not Inaccurate. Owners get an inbox notice on every flag (with reason and N of 3), on reporter withdraw, and when Admin clears flags or uses Override 3+. At 3 distinct flaggers, activities/comments auto-archive; ad flags attach to the Ad Asset and disable that creative across all zip placements — unless Admin has applied Override 3+ (community auto-hide exempt). Admin Flags reviews dispositions and history.",
         features: [
           "Flag reason prompt opens as a centered modal (not an inline strip)",
           "Shared reasons for activities/comments; ads omit Inaccurate; Other requires text",
           "Tapping Flag again after reporting offers Remove Flag (withdraw_flag) or Keep Flag",
-          "Owner inbox notices for flag 1/2/3 (with reason), reporter withdraw, Admin Clear Flags, and Admin Reactivate",
+          "Owner inbox notices for flag 1/2/3 (with reason), reporter withdraw, Clear Flags (second chance), and Override 3+",
           "Preview all flag notice copy under Admin → Previews → Automated Messages",
           "Threshold: 3 different users → activity/comment status archived; Ad Asset → moderation flagged (all placements)",
+          "Override 3+: confirm, reinstate, set flag_auto_hide_exempt so further community flags do not auto-hide (users can still flag → Admin Flags + owner notice)",
+          "Clear Flags: second chance — flag count → 0 (reports retained), clears exemption so auto-hide can apply again",
           "Owners cannot flag their own activity, comment, or ad creative",
-          "Admin → Flags is the primary place to Reactivate 3-flag cases (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
-          "Admin: Manually Deactivate, Reactivate, Reviewed, Clear Flag / flags cleared",
+          "Admin → Flags is the primary place for 3+ Override / Clear Flags (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
+          "Admin 3+ card: Override 3+, Clear Flags, Reviewed; after live: Manually Deactivate, Clear Flags, Reviewed",
+          "Manual delete/deactivate of activities and ad assets elsewhere in Admin is unchanged",
           "Ad asset cascade: disabling a creative affects all zip placements using it",
         ],
         technicalOverview:
-          "flag_reports target_id for ads is ad_library id. notify_owner_flag_lifecycle + admin_notify_owner_flag_lifecycle. Ad quarantine helpers in quarantineAdLibrary.js + submit_flag / withdraw_flag / disable_ad_asset RPCs.",
+          "flag_reports target_id for ads is ad_library id. notify_owner_flag_lifecycle + admin_notify_owner_flag_lifecycle. flag_auto_hide_exempt on events/comments/ad_library. Ad quarantine helpers in quarantineAdLibrary.js + submit_flag / withdraw_flag / disable_ad_asset RPCs.",
         technicalFeatures: [
-          "Dispositions include manually_deactivated, reactivated, reviewed, flags_cleared / flag_cleared",
+          "Dispositions include manually_deactivated, overridden, reactivated, reviewed, flags_cleared / flag_cleared",
+          "submit_flag auto-hides only when count ≥ 3 and flag_auto_hide_exempt is false",
           "User withdraw deletes their report and decrements counters; may restore auto-hidden content below 3 (not Admin manual deactivate)",
           "3+ hide trigger still notifies activity savers; owner 3+ message comes from submit_flag (avoids duplicates)",
           "Community 3-flag on ads can still email via notify-ad-asset-disabled (idempotent disable_notified_at)",
@@ -795,7 +799,7 @@ const categories = [
           "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, and the full community-flag lifecycle). Previewed under Admin → Previews → Automated Messages without sending. Comment flag notices have no action button (authors edit/delete on the activity page).",
         features: [
           "Catalog-driven copy in userMessagesCatalog.js",
-          "Flag lifecycle: flagged (1/2), removed at 3, flag withdrawn, Admin flags cleared, Admin reinstated — for activities, comments, and Ad Assets",
+          "Flag lifecycle: flagged (1/2), removed at 3, flag withdrawn, Clear Flags (second chance), Override 3+ — for activities, comments, and Ad Assets",
           "Preview with sample data (no send)",
           "Triggered by submit_flag / withdraw_flag, Admin Flags actions, DB events, or webhooks",
         ],
@@ -971,7 +975,7 @@ const categories = [
           "Safe previews of outbound-looking content: email HTML templates, the automated message catalog (including flag lifecycle notices), and site notices — without blasting users.",
         features: [
           "Emails tester (send sample to the signed-in admin only)",
-          "Automated Messages catalog — welcome, billing, creative review, and flag lifecycle (flagged / withdrawn / cleared / reinstated / removed)",
+          "Automated Messages catalog — welcome, billing, creative review, and flag lifecycle (flagged / withdrawn / Clear Flags / Override 3+ / removed)",
           "Site Notices preview",
         ],
         technicalOverview:

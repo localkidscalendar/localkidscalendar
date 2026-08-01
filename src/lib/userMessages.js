@@ -244,8 +244,8 @@ export async function notifyBecameSupporter(userId) {
 }
 
 /**
- * Admin: notify content owner that flags were cleared or content was reinstated.
- * p_event: "cleared" | "reactivated"
+ * Admin: notify content owner after Flags actions.
+ * p_event: "cleared" | "partial_cleared" | "reactivated" | "overridden"
  */
 export async function notifyOwnerFlagLifecycle({
   userId,

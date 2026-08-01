@@ -499,7 +499,7 @@ export default function Admin() {
 
   const loadDeletedItems = async () => {
     try {
-      // Content that hit the 3-flag threshold (stays listed after Reactivate while flag_count >= 3)
+      // Content that hit the 3-flag threshold (stays listed after Override 3+ while flag_count >= 3)
       const [{ data: multiFlagEvents }, { data: multiFlagComments }, { data: multiFlagAds }] = await Promise.all([
         supabase.from("events").select("*").gte("flag_count", 3).order("created_at", { ascending: false }).limit(50),
         supabase.from("comments").select("*").gte("flag_count", 3).order("created_at", { ascending: false }).limit(50),
@@ -543,6 +543,12 @@ export default function Admin() {
   const syncTargetStatusWithFlagThreshold = async (table, targetId, targetType, nextCount, currentStatus) => {
     if (targetType === "ad") {
       if (nextCount >= 3) {
+        const { data: asset } = await supabase
+          .from("ad_library")
+          .select("flag_auto_hide_exempt")
+          .eq("id", targetId)
+          .maybeSingle();
+        if (asset?.flag_auto_hide_exempt) return;
         if (currentStatus !== "flagged") {
           await disableAdAsset(
             targetId,
@@ -561,6 +567,12 @@ export default function Admin() {
     const updates = { updated_at: new Date().toISOString() };
 
     if (nextCount >= 3) {
+      const { data: row } = await supabase
+        .from(table)
+        .select("flag_auto_hide_exempt")
+        .eq("id", targetId)
+        .maybeSingle();
+      if (row?.flag_auto_hide_exempt) return;
       if (currentStatus !== hiddenStatus) {
         updates.status = hiddenStatus;
         await supabase.from(table).update(updates).eq("id", targetId);
@@ -942,6 +954,7 @@ export default function Admin() {
     flag_cleared: "Flag Cleared",
     flags_cleared: "Flags Cleared",
     reviewed: "Reviewed",
+    overridden: "Override 3+",
     reactivated: "Reactivated",
     flag_reactivated: "Flag Reactivated",
     unreviewed: "Marked Unreviewed",
@@ -962,7 +975,7 @@ export default function Admin() {
   const getDeactivatedCaseHistory = (item) =>
     Array.isArray(item?.item?.flag_case_admin_history) ? item.item.flag_case_admin_history : [];
 
-  const REOPEN_FLAG_ACTIONS = new Set(["reactivated", "flag_reactivated", "unreviewed"]);
+  const REOPEN_FLAG_ACTIONS = new Set(["reactivated", "overridden", "flag_reactivated", "unreviewed"]);
 
   const buildFlagDispositionUpdate = (report, action) => {
     const history = [
@@ -1079,32 +1092,49 @@ export default function Admin() {
     });
   };
 
-  const handleDeactivatedReactivate = async (item) => {
+  const handleDeactivatedOverride = async (item) => {
     const targetType = item.type;
     const targetId = item.item.id;
+    const label = targetType === "event" ? "activity" : targetType === "comment" ? "comment" : "ad creative";
+    if (!window.confirm(
+      `Override 3+ for this ${label}?\n\nIt will go live again, and community flags will no longer auto-hide it. Users can still flag it for Admin review. You can still manually deactivate it later.`
+    )) return;
+
     let error;
     if (targetType === "ad") {
       ({ error } = await reactivateAdAsset(targetId));
+      if (!error) {
+        ({ error } = await supabase.from("ad_library").update({
+          flag_auto_hide_exempt: true,
+          updated_at: new Date().toISOString(),
+        }).eq("id", targetId));
+      }
     } else {
       const table = targetType === "event" ? "events" : "comments";
-      const updates = { status: "active", updated_at: new Date().toISOString() };
+      const updates = {
+        status: "active",
+        flag_auto_hide_exempt: true,
+        updated_at: new Date().toISOString(),
+      };
       if (targetType === "event") updates.admin_notes = "";
       ({ error } = await supabase.from(table).update(updates).eq("id", targetId));
     }
     if (error) {
-      toast({ title: "Failed to reactivate", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to override", description: error.message, variant: "destructive" });
       return;
     }
-    const { error: historyError } = await recordDeactivatedCaseAction(item, "reactivated");
+    const { error: historyError } = await recordDeactivatedCaseAction(item, "overridden");
     if (historyError) {
-      toast({ title: "Reactivated, but failed to record admin action", description: historyError.message, variant: "destructive" });
+      toast({ title: "Override applied, but failed to record admin action", description: historyError.message, variant: "destructive" });
       loadAll();
       return;
     }
-    await notifyOwnerAfterFlagAdminAction(item, "reactivated");
+    await notifyOwnerAfterFlagAdminAction(item, "overridden");
     toast({
-      title: targetType === "ad" ? "Ad creative restored" : "Item reactivated",
-      description: targetType === "ad" ? "The creative and related zip placements are active again." : undefined,
+      title: "Override 3+ applied",
+      description: targetType === "ad"
+        ? "The creative is live again and protected from community auto-hide."
+        : "The item is live again and protected from community auto-hide.",
     });
     loadAll();
   };
@@ -1315,7 +1345,7 @@ export default function Admin() {
           userId: ownerId,
           targetType: report.target_type,
           targetId: report.target_id,
-          event: "cleared",
+          event: "partial_cleared",
           flagCount: Number(row.flag_count || 0),
           itemLabel: isAd ? row.ad_name : report.target_type === "event" ? row.title : null,
         });
@@ -1333,7 +1363,7 @@ export default function Admin() {
       toast({ title: "No flags to clear" });
       return;
     }
-    if (!window.confirm(`Clear all ${uncleared.length} flags on this ${label}? They will be removed from the item’s flag count, but reports stay for admin history.`)) return;
+    if (!window.confirm(`Clear all ${uncleared.length} flags on this ${label}? They will be removed from the item’s flag count, but reports stay for admin history. Community auto-hide can apply again if flags build up.`)) return;
 
     for (const report of uncleared) {
       await clearFlagFromTarget(report);
@@ -1343,6 +1373,18 @@ export default function Admin() {
         loadAll();
         return;
       }
+    }
+
+    // Second chance: clear any Override 3+ exemption so auto-hide can apply again
+    const clearTable = item.type === "event" ? "events" : item.type === "comment" ? "comments" : "ad_library";
+    const { error: exemptError } = await supabase.from(clearTable).update({
+      flag_auto_hide_exempt: false,
+      updated_at: new Date().toISOString(),
+    }).eq("id", item.item.id);
+    if (exemptError) {
+      toast({ title: "Flags cleared, but failed to reset auto-hide override", description: exemptError.message, variant: "destructive" });
+      loadAll();
+      return;
     }
 
     const { error: caseError } = await recordDeactivatedCaseAction(item, "flags_cleared");
@@ -2241,7 +2283,7 @@ export default function Admin() {
                               >
                                 Mark Unreviewed
                               </Button>
-                            ) : !hidden || action === "reactivated" ? (
+                            ) : !hidden || action === "reactivated" || action === "overridden" ? (
                               <>
                                 <Button
                                   size="sm"
@@ -2274,9 +2316,9 @@ export default function Admin() {
                                   size="sm"
                                   variant="outline"
                                   className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
-                                  onClick={() => handleDeactivatedReactivate(item)}
+                                  onClick={() => handleDeactivatedOverride(item)}
                                 >
-                                  Reactivate
+                                  Override 3+
                                 </Button>
                                 <Button
                                   size="sm"
