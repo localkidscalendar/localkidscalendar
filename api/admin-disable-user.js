@@ -7,8 +7,10 @@ import {
   SLOT_HOLDING_STATUSES,
 } from "./_lib/stripeHelpers.js";
 import { runProcessWaitlist } from "./_lib/processWaitlistCore.js";
+import { sendViaResend } from "./_lib/resendSend.js";
 
 const QUEUE_STATUSES = ["waiting", "offered"];
+const APP_URL = getEnv("APP_URL", "VITE_APP_URL") || "https://localkidscalendar.com";
 
 /**
  * Admin-only: disable a user account.
@@ -16,7 +18,7 @@ const QUEUE_STATUSES = ["waiting", "offered"];
  * If Supporter (is_advertiser): cancel slot-holding ads, Stripe non-renew,
  * release waitlist entries, then advance waitlists.
  *
- * Body: { user_id, note, prior_role? }
+ * Body: { user_id, note, prior_role?, send_email? }
  */
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
@@ -56,11 +58,13 @@ export default async function handler(req, res) {
 
     const { data: target, error: targetError } = await admin
       .from("profiles")
-      .select("id, role, role_before_disabled, is_advertiser")
+      .select("id, role, role_before_disabled, is_advertiser, email, first_name, last_name")
       .eq("id", userId)
       .maybeSingle();
     if (targetError) throw targetError;
     if (!target) return res.status(404).json({ error: "User not found" });
+
+    const sendEmail = Boolean(req.body?.send_email);
 
     const requestedPrior =
       typeof req.body?.prior_role === "string" ? req.body.prior_role.trim() : "";
@@ -273,8 +277,35 @@ export default async function handler(req, res) {
       console.error("admin-disable-user: processWaitlist failed:", err.message);
     }
 
+    let emailSent = false;
+    if (sendEmail && target.email) {
+      try {
+        const contactUrl = `${APP_URL.replace(/\/$/, "")}/contact`;
+        const displayName =
+          [target.first_name, target.last_name].filter(Boolean).join(" ").trim() || "there";
+        const html = `
+          <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;padding:20px;">
+            <h2 style="margin:0 0 12px;">Your Local Kids Calendar account was disabled</h2>
+            <p>Hi ${displayName},</p>
+            <p>Your account on Local Kids Calendar has been disabled by our Admin team.</p>
+            <p><strong>Note from Admin:</strong></p>
+            <p style="white-space:pre-wrap;">${note.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+            <p>If you believe this was a mistake, you can sign in and submit a reactivation request, or <a href="${contactUrl}">contact us</a>.</p>
+          </div>
+        `;
+        await sendViaResend({
+          to: target.email,
+          subject: "Your Local Kids Calendar account was disabled",
+          html,
+        });
+        emailSent = true;
+      } catch (err) {
+        console.error("admin-disable-user: email failed:", err.message);
+      }
+    }
+
     console.log(`admin-disable-user: disabled ${userId} by ${authUser.id}`, summary);
-    return res.status(200).json({ success: true, ...summary });
+    return res.status(200).json({ success: true, email_sent: emailSent, ...summary });
   } catch (error) {
     console.error("admin-disable-user error:", error);
     return res.status(500).json({ error: error.message || "Failed to disable user" });

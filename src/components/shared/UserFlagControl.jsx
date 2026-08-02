@@ -120,9 +120,9 @@ export default function UserFlagControl({
           onClick={handleClick}
           disabled={checking}
           title={alreadyFlagged ? "You flagged this user" : "Flag this user"}
-          className={`shrink-0 p-1.5 rounded-full hover:bg-peach-50 transition-colors ${className}`}
+          className={`shrink-0 p-1.5 rounded-md text-muted-foreground/70 hover:text-muted-foreground transition-colors ${className}`}
         >
-          <Flag className={`w-4 h-4 ${alreadyFlagged ? "fill-peach-500 text-peach-500" : "text-muted-foreground"}`} />
+          <Flag className={`w-4 h-4 ${alreadyFlagged ? "fill-muted-foreground/40 text-muted-foreground" : ""}`} />
         </button>
       )}
 

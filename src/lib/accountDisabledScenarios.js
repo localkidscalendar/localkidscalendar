@@ -1,12 +1,20 @@
 /**
  * Shared Account Disabled preview scenarios (Admin Previews + full-page preview route).
+ * Preview titles use Category · Target · Event (aligned with Automated Messages / Emails).
  */
 import moment from "moment";
+
+export const SITE_NOTICE_CATEGORIES = [
+  { id: "site", label: "Site" },
+  { id: "account", label: "Account" },
+];
 
 export const ACCOUNT_DISABLED_SCENARIOS = [
   {
     id: "fresh",
+    category: "account",
     label: "Just Disabled (No Request)",
+    title: "Account · Disabled · Just Disabled (No Request)",
     disabledNote:
       "Your account was disabled due to repeated inappropriate flagging of community content. If you believe this was a mistake, you may submit a reactivation request.",
     disabledAt: moment().subtract(1, "hour").toISOString(),
@@ -14,7 +22,9 @@ export const ACCOUNT_DISABLED_SCENARIOS = [
   },
   {
     id: "pending",
+    category: "account",
     label: "Request Pending",
+    title: "Account · Disabled · Request Pending",
     disabledNote: "Account disabled for policy violations related to community guidelines.",
     disabledAt: moment().subtract(3, "days").toISOString(),
     request: {
@@ -25,7 +35,9 @@ export const ACCOUNT_DISABLED_SCENARIOS = [
   },
   {
     id: "declined",
+    category: "account",
     label: "Request Declined",
+    title: "Account · Disabled · Request Declined",
     disabledNote: "Account disabled for policy violations related to community guidelines.",
     disabledAt: moment().subtract(10, "days").toISOString(),
     request: {
@@ -39,7 +51,9 @@ export const ACCOUNT_DISABLED_SCENARIOS = [
   },
   {
     id: "reactivated",
+    category: "account",
     label: "Request Reactivated",
+    title: "Account · Disabled · Request Reactivated",
     disabledNote: "Temporary disable for review.",
     disabledAt: moment().subtract(5, "days").toISOString(),
     request: {

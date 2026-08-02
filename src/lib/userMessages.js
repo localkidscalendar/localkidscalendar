@@ -136,6 +136,25 @@ export async function notifyActivityRemovedAdmin(event, reason) {
   });
 }
 
+/** Convenience: comment removed by Admin → author inbox (message only). */
+export async function notifyCommentRemovedAdmin(comment, reason) {
+  if (!comment?.created_by_id) return { error: null };
+  return createUserMessage({
+    userId: comment.created_by_id,
+    templateKey: "comment_removed_admin",
+    source: "system",
+    subject: "Your comment was removed",
+    body: [
+      "Your comment was removed by our Admin team.",
+      reason ? `\n\nReason: ${reason}` : "",
+      "\n\nIf you believe this was a mistake, contact us.",
+    ].join(""),
+    relatedType: "comment",
+    relatedId: comment.id,
+    metadata: { channels: ["in_app"] },
+  });
+}
+
 /** Shared next-steps copy after an Ad Asset is disabled (admin or community). */
 export const AD_CREATIVE_DISABLED_WHAT_NEXT =
   "What Next: Your subscription and billing remain active. Open Ad Manager and assign a different approved creative to each affected zip to restore those placements. Each zip goes live again as soon as you assign a compliant Ad Asset.";
@@ -254,6 +273,7 @@ export async function notifyOwnerFlagLifecycle({
   event,
   flagCount = 0,
   itemLabel = null,
+  details = null,
 }) {
   if (!userId || !targetType || !targetId || !event) {
     return { id: null, error: new Error("Missing notifyOwnerFlagLifecycle args") };
@@ -265,7 +285,7 @@ export async function notifyOwnerFlagLifecycle({
     p_event: event,
     p_flag_count: flagCount,
     p_reason: null,
-    p_details: null,
+    p_details: details || null,
     p_item_label: itemLabel,
   });
   return { id: data || null, error };

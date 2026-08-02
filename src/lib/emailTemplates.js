@@ -89,34 +89,51 @@ function wrapBrandedEmail(bodyHtml, { eyebrow = null } = {}) {
 </html>`;
 }
 
+/** Email-only categories (plus shared Automated Message categories where keys overlap). */
+export const EMAIL_TEMPLATE_CATEGORIES = [
+  { id: "digests", label: "Digests" },
+  { id: "flags", label: "Flags" },
+  { id: "admin_removals", label: "Admin Removals" },
+  { id: "billing", label: "Billing" },
+];
+
+/**
+ * Labels use Category · Target · Event. Where `value` matches an Automated Message key,
+ * keep the same title as AUTOMATED_NOTICE_CATALOG so Emails and Messages stay correlated.
+ */
 export const EMAIL_TEMPLATE_META = [
   {
     value: "activity_digest",
-    label: "Notification - Activity Digest (Weekly)",
+    category: "digests",
+    label: "Digests · Weekly Activity",
     audience: "Users with weekly digest notifications enabled",
     when: "Every Tuesday · includes Supporter ads for the recipient’s notification/profile zip (with default filler ads if slots are empty)",
   },
   {
     value: "ad_flagged_admin",
-    label: "Advertiser - Ad Creative Disabled (Admin)",
+    category: "admin_removals",
+    label: "Admin Removals · Ad Creative Disabled",
     audience: "Advertiser (Supporter)",
     when: "Admin disables an Ad Asset across all zip placements using it (Admin → Ads, or Flags → Manually Deactivate)",
   },
   {
     value: "ad_removed_flagged",
-    label: "Advertiser - Ad Creative Disabled (Community Flags)",
+    category: "flags",
+    label: "Flags · Ad Creative · Disabled (3+)",
     audience: "Advertiser (Supporter)",
     when: "An Ad Asset is disabled after 3 community flags (inbox notice includes reason; email also sent)",
   },
   {
     value: "subscription_payment_failed",
-    label: "Advertiser - Subscription Payment Failed",
+    category: "billing",
+    label: "Billing · Payment Failed",
     audience: "Advertiser (Supporter)",
     when: "A renewal payment fails (7-day grace period starts)",
   },
   {
     value: "waitlist_spot_available",
-    label: "Advertiser - Spot Available",
+    category: "billing",
+    label: "Billing · Waitlist Spot Available",
     audience: "Waitlisted advertiser",
     when: "A zip code spot opens for someone on the waitlist",
   },

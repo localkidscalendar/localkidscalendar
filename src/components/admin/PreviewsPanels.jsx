@@ -5,7 +5,12 @@ import {
   channelsSentTags,
   deliverySummary,
 } from "@/lib/userMessagesCatalog";
-import { EMAIL_TEMPLATE_META, buildEmail, SAMPLE_DATA } from "@/lib/emailTemplates";
+import {
+  EMAIL_TEMPLATE_META,
+  EMAIL_TEMPLATE_CATEGORIES,
+  buildEmail,
+  SAMPLE_DATA,
+} from "@/lib/emailTemplates";
 import UserNoticeCard from "@/components/account/UserNoticeCard";
 import SearchClearField from "@/components/shared/SearchClearField";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -169,10 +174,16 @@ export function AutomatedMessagesPreview() {
   );
 }
 
+const EMAIL_CATEGORY_ORDER = Object.fromEntries(
+  EMAIL_TEMPLATE_CATEGORIES.map((c, i) => [c.id, i])
+);
+
 /**
  * Admin → Previews → Emails
  */
 export function EmailsPreviewSimplified() {
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [expandedKey, setExpandedKey] = useState(null);
 
   const catalogByKey = useMemo(() => {
@@ -182,22 +193,49 @@ export function EmailsPreviewSimplified() {
   }, []);
 
   const items = useMemo(() => {
-    return [...EMAIL_TEMPLATE_META]
-      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }))
-      .map((t) => {
-        const notice = catalogByKey.get(t.value);
-        const channels = notice?.channels?.includes("email")
-          ? notice.channels
-          : ["email"];
-        return {
-          key: t.value,
-          title: t.label,
-          audience: notice?.audience || t.audience,
-          when: notice?.when || t.when,
-          channels,
-        };
+    let list = EMAIL_TEMPLATE_META.map((t) => {
+      const notice = catalogByKey.get(t.value);
+      const channels = notice?.channels?.includes("email")
+        ? notice.channels
+        : ["email"];
+      // Prefer catalog title when the email also has an Automated Message (same key).
+      return {
+        key: t.value,
+        category: notice?.category || t.category,
+        title: notice?.title || t.label,
+        audience: notice?.audience || t.audience,
+        when: notice?.when || t.when,
+        channels,
+      };
+    });
+
+    if (categoryFilter !== "all") {
+      list = list.filter((item) => item.category === categoryFilter);
+    }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((item) => {
+        const hay = [
+          item.title,
+          item.audience,
+          item.when,
+          item.key,
+          item.category,
+        ]
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
       });
-  }, [catalogByKey]);
+    }
+
+    list.sort((a, b) => {
+      const ao = EMAIL_CATEGORY_ORDER[a.category] ?? 99;
+      const bo = EMAIL_CATEGORY_ORDER[b.category] ?? 99;
+      if (ao !== bo) return ao - bo;
+      return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+    });
+    return list;
+  }, [catalogByKey, search, categoryFilter]);
 
   const sampleHtml = (key) => {
     try {
@@ -211,37 +249,78 @@ export function EmailsPreviewSimplified() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        System emails. Expand a row to preview the HTML. Tags show whether an in-app Message is also sent.
+        System emails grouped by workflow (Digests, Flags, Admin Removals, Billing). Titles match Automated
+        Messages when both channels send the same notice. Expand a row to preview the HTML. Tags show whether
+        an in-app Message is also sent.
       </p>
-
-      <div className="space-y-2">
-        {items.map((item) => {
-          const open = expandedKey === item.key;
-          const sample = open ? sampleHtml(item.key) : null;
-          return (
-            <PreviewRow
-              key={item.key}
-              open={open}
-              onToggle={() => setExpandedKey(open ? null : item.key)}
-              title={item.title}
-              channels={item.channels}
-              audience={item.audience}
-              when={item.when}
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <SearchClearField
+          placeholder="Search emails…"
+          value={search}
+          onValueChange={setSearch}
+        />
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("all")}
+            className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+              categoryFilter === "all"
+                ? "border-mint-300 bg-mint-50 text-mint-700"
+                : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
+            }`}
+          >
+            All
+          </button>
+          {EMAIL_TEMPLATE_CATEGORIES.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setCategoryFilter(opt.id)}
+              className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                categoryFilter === opt.id
+                  ? "border-mint-300 bg-mint-50 text-mint-700"
+                  : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
+              }`}
             >
-              <div className="space-y-2">
-                {sample?.subject ? (
-                  <p className="text-xs text-muted-foreground">
-                    Subject: <span className="text-foreground font-medium">{sample.subject}</span>
-                  </p>
-                ) : null}
-                <div className="border rounded-lg p-4 bg-white overflow-x-auto">
-                  <div dangerouslySetInnerHTML={{ __html: sample?.html || "" }} />
-                </div>
-              </div>
-            </PreviewRow>
-          );
-        })}
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-12">
+          No emails match your search or filter.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {items.map((item) => {
+            const open = expandedKey === item.key;
+            const sample = open ? sampleHtml(item.key) : null;
+            return (
+              <PreviewRow
+                key={item.key}
+                open={open}
+                onToggle={() => setExpandedKey(open ? null : item.key)}
+                title={item.title}
+                channels={item.channels}
+                audience={item.audience}
+                when={item.when}
+              >
+                <div className="space-y-2">
+                  {sample?.subject ? (
+                    <p className="text-xs text-muted-foreground">
+                      Subject: <span className="text-foreground font-medium">{sample.subject}</span>
+                    </p>
+                  ) : null}
+                  <div className="border rounded-lg p-4 bg-white overflow-x-auto">
+                    <div dangerouslySetInnerHTML={{ __html: sample?.html || "" }} />
+                  </div>
+                </div>
+              </PreviewRow>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

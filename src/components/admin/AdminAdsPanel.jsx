@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Check, X, Clock, ExternalLink, Image, HelpCircle, Ban, RotateCcw } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import SearchClearField from "@/components/shared/SearchClearField";
+import AdminNoteConfirmDialog from "@/components/admin/AdminNoteConfirmDialog";
 import moment from "moment";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
 import {
@@ -27,6 +28,8 @@ const STATUS_CONFIG = {
 
 export default function AdminAdsPanel({ ads, onRefresh, toast }) {
   const [rejectionNotes, setRejectionNotes] = useState({});
+  const [disableDialogAd, setDisableDialogAd] = useState(null);
+  const [disableBusy, setDisableBusy] = useState(false);
 
   const [adsPage, setAdsPage] = useState(1);
   const [adsSortBy, setAdsSortBy] = useState("created_at");
@@ -82,46 +85,50 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
   };
 
   /** Disable the Ad Asset across every zip placement using it. */
-  const handleDisableCreative = async (ad) => {
-    const notes = window.prompt(
-      "Provide an explanation for disabling this ad creative. It will be removed from every zip placement using this asset. Billing stays active; the Supporter must assign a different approved creative:"
-    );
-    if (notes === null) return;
-    if (!notes.trim()) {
-      toast?.({ title: "An explanation is required to disable this ad creative.", variant: "destructive" });
-      return;
-    }
+  const handleDisableCreative = (ad) => {
+    setDisableDialogAd(ad);
+  };
+
+  const confirmDisableCreative = async (notes) => {
+    const ad = disableDialogAd;
+    if (!ad) return;
+    setDisableBusy(true);
     const reason = notes.trim();
-    const { data, error } = await disableAdAssetFromBanner(ad.id, reason);
-    if (error) {
-      toast?.({ title: "Failed to disable ad creative", description: error.message, variant: "destructive" });
-      return;
-    }
-    const zipCodes = data?.zip_codes || [ad.zip_code].filter(Boolean);
-    const already = data?.already_disabled;
-    if (!already) {
-      await sendAdAssetDisabledEmail({
-        userId: data?.user_id || ad.user_id,
-        businessName: data?.business_name || ad.business_name,
-        zipCodes,
-        reason,
-        templateKey: "ad_flagged_admin",
+    try {
+      const { data, error } = await disableAdAssetFromBanner(ad.id, reason);
+      if (error) {
+        toast?.({ title: "Failed to disable ad creative", description: error.message, variant: "destructive" });
+        return;
+      }
+      const zipCodes = data?.zip_codes || [ad.zip_code].filter(Boolean);
+      const already = data?.already_disabled;
+      if (!already) {
+        await sendAdAssetDisabledEmail({
+          userId: data?.user_id || ad.user_id,
+          businessName: data?.business_name || ad.business_name,
+          zipCodes,
+          reason,
+          templateKey: "ad_flagged_admin",
+        });
+        await notifyAdCreativeDisabledAdmin({
+          userId: data?.user_id || ad.user_id,
+          businessName: data?.business_name || ad.business_name,
+          zipCodes,
+          reason,
+        });
+        await markAdAssetDisableNotified(data?.asset_ids || []);
+      }
+      toast?.({
+        title: "Ad creative disabled",
+        description: zipCodes.length > 1
+          ? `Disabled across ${zipCodes.length} zip placements. Supporter was notified.`
+          : "Supporter was notified (email + My Messages).",
       });
-      await notifyAdCreativeDisabledAdmin({
-        userId: data?.user_id || ad.user_id,
-        businessName: data?.business_name || ad.business_name,
-        zipCodes,
-        reason,
-      });
-      await markAdAssetDisableNotified(data?.asset_ids || []);
+      setDisableDialogAd(null);
+      onRefresh?.();
+    } finally {
+      setDisableBusy(false);
     }
-    toast?.({
-      title: "Ad creative disabled",
-      description: zipCodes.length > 1
-        ? `Disabled across ${zipCodes.length} zip placements. Supporter was notified.`
-        : "Supporter was notified (email + My Messages).",
-    });
-    onRefresh?.();
   };
 
   const pendingAds = ads.filter((a) => a.status === "pending_review");
@@ -346,6 +353,22 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
         </div>
         <Paginator total={filteredAds.length} page={adsPage} onPage={setAdsPage} />
       </div>
+
+      <AdminNoteConfirmDialog
+        open={Boolean(disableDialogAd)}
+        onOpenChange={(open) => {
+          if (!open) setDisableDialogAd(null);
+        }}
+        title="Disable Ad Creative"
+        description={`Disable "${disableDialogAd?.business_name || "this creative"}" across all zip placements using it? Billing stays active; the Supporter must assign a different approved creative.`}
+        noteLabel="Note to Supporter"
+        notePlaceholder="Explain why this ad creative is being disabled…"
+        noteRequired
+        emailMode="always"
+        confirmLabel="Disable Creative"
+        loading={disableBusy}
+        onConfirm={confirmDisableCreative}
+      />
     </div>
   );
 }

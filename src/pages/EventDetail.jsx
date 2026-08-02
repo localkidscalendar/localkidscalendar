@@ -49,9 +49,10 @@ export default function EventDetail() {
   useEffect(() => {
     if (event?.created_by_id) {
       loadPosterUser(event.created_by_id);
-      if (user) checkFavorite(event.created_by_id);
+      if (user && event.posted_by_role === "organizer") checkFavorite(event.created_by_id);
+      else setIsFavorite(false);
     }
-  }, [event?.created_by_id, user]);
+  }, [event?.created_by_id, event?.posted_by_role, user]);
 
   const loadEvent = async () => {
     setLoading(true);
@@ -119,7 +120,8 @@ export default function EventDetail() {
   };
 
   const handleToggleFavorite = async () => {
-    if (!user) return setAuthPrompt("Sign in to favorite this poster and get notified about their activities.");
+    if (!user) return setAuthPrompt("Sign in to favorite this organizer and get notified about their activities.");
+    if (event?.posted_by_role !== "organizer") return;
     const posterId = event?.created_by_id;
     if (!posterId) return;
     try {
@@ -612,55 +614,56 @@ export default function EventDetail() {
           </div>
 
           {/* Posted by info */}
-          <div className="bg-mint-50/50 rounded-xl p-4 mb-6">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">This activity was posted by:</p>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                {event.posted_by_role === "organizer" ? (
-                  <>
-                    {(posterOrganizer?.org_logo || event.org_logo) ? (
-                      <img src={posterOrganizer?.org_logo || event.org_logo} alt={posterOrganizer?.org_name || event.org_name} className="w-10 h-10 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-mint-200 flex items-center justify-center font-bold text-mint-600">
-                        {(posterOrganizer?.org_name || event.org_name || "O")[0]}
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm">{posterOrganizer?.org_name || event.org_name} <span className="text-xs text-mint-500 font-medium">(Organizer)</span></p>
-                      {(posterOrganizer?.org_description || event.org_description) && <p className="text-xs text-muted-foreground">{posterOrganizer?.org_description || event.org_description}</p>}
-                      <p className="text-xs text-muted-foreground">Posted {moment(event.created_date).format("MMMM D, YYYY")}</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-10 h-10 rounded-full bg-mint-200 flex items-center justify-center font-bold text-mint-600">
-                      {event.poster_display_name?.[0] || "?"}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm">{event.poster_display_name || "Community Member"} <span className="text-xs text-muted-foreground">(Community Member)</span></p>
-                      <p className="text-xs text-muted-foreground">Posted {moment(event.created_date).format("MMMM D, YYYY")}</p>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <div className="relative bg-mint-50/50 rounded-xl p-4 mb-6 pr-14">
+            <div className="absolute top-3 right-3 flex items-center gap-0.5">
+              {event.posted_by_role === "organizer" ? (
                 <button
+                  type="button"
                   onClick={handleToggleFavorite}
-                  title={isFavorite ? "Remove from favorites" : "Favorite this poster"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${isFavorite ? "bg-red-50 border-red-200 text-red-500 hover:bg-red-100" : "bg-white border-border text-muted-foreground hover:border-mint-300 hover:text-mint-500"}`}
+                  title={isFavorite ? "Remove from favorites" : "Favorite this organizer"}
+                  className="p-1.5 rounded-md text-muted-foreground/70 hover:text-muted-foreground transition-colors"
                 >
-                  <Heart className={`w-4 h-4 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
-                  {isFavorite ? "Favorited" : "Favorite"}
+                  <Heart className={`w-4 h-4 ${isFavorite ? "fill-muted-foreground/40 text-muted-foreground" : ""}`} />
                 </button>
-                {user && event.created_by_id && (
-                  <UserFlagControl
-                    targetUserId={event.created_by_id}
-                    currentUserId={user.id}
-                    label={event.posted_by_role === "organizer" ? "organizer" : "community member"}
-                    variant="button"
-                  />
-                )}
-              </div>
+              ) : null}
+              {user && event.created_by_id ? (
+                <UserFlagControl
+                  targetUserId={event.created_by_id}
+                  currentUserId={user.id}
+                  label={event.posted_by_role === "organizer" ? "organizer" : "community member"}
+                  variant="icon"
+                  className="p-1.5 rounded-md text-muted-foreground/70 hover:text-muted-foreground hover:bg-transparent"
+                />
+              ) : null}
+            </div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">This activity was posted by:</p>
+            <div className="flex items-center gap-3 min-w-0">
+              {event.posted_by_role === "organizer" ? (
+                <>
+                  {(posterOrganizer?.org_logo || event.org_logo) ? (
+                    <img src={posterOrganizer?.org_logo || event.org_logo} alt={posterOrganizer?.org_name || event.org_name} className="w-10 h-10 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-mint-200 flex items-center justify-center font-bold text-mint-600">
+                      {(posterOrganizer?.org_name || event.org_name || "O")[0]}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{posterOrganizer?.org_name || event.org_name} <span className="text-xs text-mint-500 font-medium">(Organizer)</span></p>
+                    {(posterOrganizer?.org_description || event.org_description) && <p className="text-xs text-muted-foreground">{posterOrganizer?.org_description || event.org_description}</p>}
+                    <p className="text-xs text-muted-foreground">Posted {moment(event.created_date).format("MMMM D, YYYY")}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-mint-200 flex items-center justify-center font-bold text-mint-600">
+                    {event.poster_display_name?.[0] || "?"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">{event.poster_display_name || "Community Member"} <span className="text-xs text-muted-foreground">(Community Member)</span></p>
+                    <p className="text-xs text-muted-foreground">Posted {moment(event.created_date).format("MMMM D, YYYY")}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

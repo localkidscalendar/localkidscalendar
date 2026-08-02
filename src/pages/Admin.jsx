@@ -42,6 +42,7 @@ import {
 } from "@/lib/quarantineAdLibrary";
 import {
   notifyActivityRemovedAdmin,
+  notifyCommentRemovedAdmin,
   notifyAdCreativeDisabledAdmin,
   notifyBecameSupporter,
   notifyOwnerFlagLifecycle,
@@ -295,6 +296,14 @@ export default function Admin() {
   });
   const [declineDialog, setDeclineDialog] = useState({ open: false, request: null });
   const [disableBusy, setDisableBusy] = useState(false);
+  /** Shared note dialog for remove / deactivate / clear-flag actions */
+  const [noteDialog, setNoteDialog] = useState({
+    open: false,
+    mode: null,
+    context: {},
+    busy: false,
+  });
+  const closeNoteDialog = () => setNoteDialog({ open: false, mode: null, context: {}, busy: false });
 
   // Pagination state
   const [eventsPage, setEventsPage] = useState(1);
@@ -506,11 +515,16 @@ export default function Admin() {
     } catch {}
   };
 
-  const handleDeleteEvent = async (event) => {
-    if (!window.confirm(`Delete "${event.title}"? This will remove it from the public site immediately.`)) return;
-    const notes = window.prompt("Provide an explanation for removing this activity. This will be shown to the contributor on their Dashboard:");
-    if (notes === null) return;
-    if (!notes.trim()) { toast({ title: "An explanation is required to delete this activity.", variant: "destructive" }); return; }
+  const handleDeleteEvent = (event) => {
+    setNoteDialog({
+      open: true,
+      mode: "remove_activity",
+      context: { event },
+      busy: false,
+    });
+  };
+
+  const executeRemoveActivity = async (event, notes, { flagId = null, deactivatedItem = null } = {}) => {
     const { error } = await supabase.from("events").update({
       status: "deleted",
       admin_notes: notes.trim(),
@@ -518,12 +532,88 @@ export default function Admin() {
     }).eq("id", event.id);
     if (error) {
       toast({ title: "Failed to remove activity", description: error.message, variant: "destructive" });
-      return;
+      return false;
     }
     void notifyActivityRemovedAdmin(event, notes.trim());
-    // Savers are notified by DB trigger when admin_notes is set on delete.
+    if (flagId) {
+      const { error: historyError } = await recordFlagAdminAction(flagId, "manually_deactivated");
+      if (historyError) {
+        toast({ title: "Removed, but failed to record admin action", description: historyError.message, variant: "destructive" });
+      }
+    }
+    if (deactivatedItem) {
+      const { error: historyError } = await recordDeactivatedCaseAction(deactivatedItem, "manually_deactivated");
+      if (historyError) {
+        toast({ title: "Removed, but failed to record admin action", description: historyError.message, variant: "destructive" });
+      }
+    }
     toast({ title: "Activity removed" });
-    loadAll();
+    return true;
+  };
+
+  const executeDeactivateComment = async (comment, notes, { flagId = null, deactivatedItem = null } = {}) => {
+    const { error } = await supabase.from("comments").update({
+      status: "archived",
+      updated_at: new Date().toISOString(),
+    }).eq("id", comment.id);
+    if (error) {
+      toast({ title: "Failed to deactivate comment", description: error.message, variant: "destructive" });
+      return false;
+    }
+    void notifyCommentRemovedAdmin(comment, notes.trim());
+    if (flagId) {
+      const { error: historyError } = await recordFlagAdminAction(flagId, "manually_deactivated");
+      if (historyError) {
+        toast({ title: "Deactivated, but failed to record admin action", description: historyError.message, variant: "destructive" });
+      }
+    }
+    if (deactivatedItem) {
+      const { error: historyError } = await recordDeactivatedCaseAction(deactivatedItem, "manually_deactivated");
+      if (historyError) {
+        toast({ title: "Deactivated, but failed to record admin action", description: historyError.message, variant: "destructive" });
+      }
+    }
+    toast({ title: "Comment deactivated" });
+    return true;
+  };
+
+  const executeDeactivateAd = async (targetId, notes, { flagId = null, deactivatedItem = null } = {}) => {
+    const reason = notes.trim();
+    const { data: disableResult, error } = await disableAdAsset(targetId, reason);
+    if (error) {
+      toast({ title: "Failed to deactivate", description: error.message, variant: "destructive" });
+      return false;
+    }
+    if (disableResult && !disableResult.already_disabled) {
+      await sendAdAssetDisabledEmail({
+        userId: disableResult.user_id,
+        businessName: disableResult.business_name,
+        zipCodes: disableResult.zip_codes || [],
+        reason,
+        templateKey: "ad_flagged_admin",
+      });
+      await notifyAdCreativeDisabledAdmin({
+        userId: disableResult.user_id,
+        businessName: disableResult.business_name,
+        zipCodes: disableResult.zip_codes || [],
+        reason,
+      });
+      await markAdAssetDisableNotified(disableResult.asset_ids || []);
+    }
+    if (flagId) {
+      const { error: historyError } = await recordFlagAdminAction(flagId, "manually_deactivated");
+      if (historyError) {
+        toast({ title: "Deactivated, but failed to record admin action", description: historyError.message, variant: "destructive" });
+      }
+    }
+    if (deactivatedItem) {
+      const { error: historyError } = await recordDeactivatedCaseAction(deactivatedItem, "manually_deactivated");
+      if (historyError) {
+        toast({ title: "Deactivated, but failed to record admin action", description: historyError.message, variant: "destructive" });
+      }
+    }
+    toast({ title: "Ad creative disabled" });
+    return true;
   };
 
   const updateMessageStatus = async (id, status) => {
@@ -914,7 +1004,7 @@ export default function Admin() {
     });
   };
 
-  const handleDisableUser = async (note) => {
+  const handleDisableUser = async (note, { sendEmail } = {}) => {
     const userId = disableDialog.userId;
     if (!userId) return;
     const profile = users.find((u) => u.id === userId);
@@ -941,6 +1031,7 @@ export default function Admin() {
           user_id: userId,
           note,
           prior_role: priorRole,
+          send_email: Boolean(sendEmail),
         }),
       });
       const raw = await res.text();
@@ -966,6 +1057,7 @@ export default function Admin() {
         description: [
           payload.is_supporter ? `Full Supporter disable applied.${supporterNote}` : supporterNote.trim(),
           contentNote ? ` ${contentNote}.` : "",
+          payload.email_sent ? " Email sent." : "",
         ].join(""),
       });
       setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false });
@@ -1230,15 +1322,22 @@ export default function Admin() {
     return { error, nextCount, unsuspended: nextCount < 3 && wasSuspended };
   };
 
-  const handleClearUserFlag = async (flagId) => {
+  const handleClearUserFlag = (flagId) => {
     const report = flags.find((f) => f.id === flagId);
     if (!report || report.target_type !== "user") return;
-    if (!window.confirm("Clear this user flag? It will be removed from the account’s flag count, but the report stays for admin history.")) return;
+    setNoteDialog({
+      open: true,
+      mode: "clear_user_flag",
+      context: { flagId, report },
+      busy: false,
+    });
+  };
 
+  const executeClearUserFlag = async (flagId, report, notes) => {
     const { error } = await recordFlagAdminAction(flagId, "flag_cleared", "flagged_user");
     if (error) {
       toast({ title: "Failed to clear flag", description: error.message, variant: "destructive" });
-      return;
+      return false;
     }
 
     const { error: syncError, nextCount } = await syncUserFlagCounters(report.target_id, {
@@ -1246,36 +1345,40 @@ export default function Admin() {
     });
     if (syncError) {
       toast({ title: "Flag cleared, but failed to update count", description: syncError.message, variant: "destructive" });
-      loadAll();
-      return;
+      return false;
     }
 
     await notifyOwnerUserFlagLifecycle({
       userId: report.target_id,
       event: "partial_cleared",
       flagCount: nextCount,
+      details: notes || null,
     });
 
     toast({ title: "Flag cleared" });
-    loadAll();
+    return true;
   };
 
-  const handleClearUserFlags = async (card) => {
+  const handleClearUserFlags = (card) => {
     const uncleared = (card.flags || []).filter((f) => f.admin_action !== "flag_cleared");
     if (uncleared.length === 0) {
       toast({ title: "No flags to clear" });
       return;
     }
-    if (!window.confirm(
-      `Clear all ${uncleared.length} flags on this user? They will be removed from the account’s flag count, but reports stay for admin history. Further flags could suspend the account again.`
-    )) return;
+    setNoteDialog({
+      open: true,
+      mode: "clear_user_flags",
+      context: { card, uncleared },
+      busy: false,
+    });
+  };
 
+  const executeClearUserFlags = async (card, uncleared, notes) => {
     for (const report of uncleared) {
       const { error } = await recordFlagAdminAction(report.id, "flag_cleared", "flagged_user");
       if (error) {
         toast({ title: "Failed to clear flags", description: error.message, variant: "destructive" });
-        loadAll();
-        return;
+        return false;
       }
     }
 
@@ -1288,25 +1391,24 @@ export default function Admin() {
     }).eq("id", card.userId);
     if (profileError) {
       toast({ title: "Flags cleared, but failed to reset account counters", description: profileError.message, variant: "destructive" });
-      loadAll();
-      return;
+      return false;
     }
 
     const { error: caseError } = await recordUserFlagCaseAction(card.userId, ["flags_cleared", "reviewed"]);
     if (caseError) {
       toast({ title: "Flags cleared, but failed to record case history", description: caseError.message, variant: "destructive" });
-      loadAll();
-      return;
+      return false;
     }
 
     await notifyOwnerUserFlagLifecycle({
       userId: card.userId,
       event: "cleared",
       flagCount: 0,
+      details: notes || null,
     });
 
     toast({ title: "Flags cleared", description: "Account reinstated and marked as reviewed." });
-    loadAll();
+    return true;
   };
 
   const handleUserFlagReviewed = async (card) => {
@@ -1450,57 +1552,31 @@ export default function Admin() {
     loadAll();
   };
 
-  const handleDeactivatedManuallyDeactivate = async (item) => {
-    const label = item.type === "event" ? "activity" : item.type === "comment" ? "comment" : "ad";
-    if (!window.confirm(
-      item.type === "ad"
-        ? "Manually deactivate this ad creative? It will be disabled across all zip placements using it."
-        : `Manually deactivate this ${label}? It will be hidden from the public site.`
-    )) return;
-
-    const targetId = item.item.id;
-    let error;
-    let disableResult = null;
+  const handleDeactivatedManuallyDeactivate = (item) => {
     if (item.type === "ad") {
-      const reason = "Ad creative manually deactivated by Admin.";
-      ({ data: disableResult, error } = await disableAdAsset(targetId, reason));
-      if (!error && disableResult && !disableResult.already_disabled) {
-        await sendAdAssetDisabledEmail({
-          userId: disableResult.user_id,
-          businessName: disableResult.business_name,
-          zipCodes: disableResult.zip_codes || [],
-          reason,
-          templateKey: "ad_flagged_admin",
-        });
-        await notifyAdCreativeDisabledAdmin({
-          userId: disableResult.user_id,
-          businessName: disableResult.business_name,
-          zipCodes: disableResult.zip_codes || [],
-          reason,
-        });
-        await markAdAssetDisableNotified(disableResult.asset_ids || []);
-      }
-    } else {
-      const table = item.type === "event" ? "events" : "comments";
-      ({ error } = await supabase.from(table).update({
-        status: "archived",
-        updated_at: new Date().toISOString(),
-      }).eq("id", targetId));
-    }
-    if (error) {
-      toast({ title: "Failed to deactivate", description: error.message, variant: "destructive" });
+      setNoteDialog({
+        open: true,
+        mode: "deactivate_ad",
+        context: { targetId: item.item.id, deactivatedItem: item },
+        busy: false,
+      });
       return;
     }
-    const { error: historyError } = await recordDeactivatedCaseAction(item, "manually_deactivated");
-    if (historyError) {
-      toast({ title: "Deactivated, but failed to record admin action", description: historyError.message, variant: "destructive" });
-      loadAll();
+    if (item.type === "comment") {
+      setNoteDialog({
+        open: true,
+        mode: "deactivate_comment",
+        context: { comment: item.item, deactivatedItem: item },
+        busy: false,
+      });
       return;
     }
-    toast({
-      title: item.type === "ad" ? "Ad creative disabled" : `${label === "activity" ? "Activity" : "Comment"} deactivated`,
+    setNoteDialog({
+      open: true,
+      mode: "remove_activity",
+      context: { event: item.item, deactivatedItem: item },
+      busy: false,
     });
-    loadAll();
   };
 
   const handleDeactivatedReviewed = async (item) => {
@@ -1523,57 +1599,45 @@ export default function Admin() {
     loadAll();
   };
 
-  const handleManuallyDeactivate = async (flagId, targetId, targetType) => {
-    const label = targetType === "event" ? "activity" : targetType === "comment" ? "comment" : "ad";
-    if (!window.confirm(
-      targetType === "ad"
-        ? "Manually deactivate this ad creative? It will be disabled across all zip placements using it."
-        : `Manually deactivate this ${label}? It will be hidden from the public site.`
-    )) return;
-
-    let error;
+  const handleManuallyDeactivate = (flagId, targetId, targetType) => {
     if (targetType === "ad") {
-      const reason = "Ad creative manually deactivated by Admin.";
-      const { data: disableResult, error: disableError } = await disableAdAsset(targetId, reason);
-      error = disableError;
-      if (!error && disableResult && !disableResult.already_disabled) {
-        await sendAdAssetDisabledEmail({
-          userId: disableResult.user_id,
-          businessName: disableResult.business_name,
-          zipCodes: disableResult.zip_codes || [],
-          reason,
-          templateKey: "ad_flagged_admin",
-        });
-        await notifyAdCreativeDisabledAdmin({
-          userId: disableResult.user_id,
-          businessName: disableResult.business_name,
-          zipCodes: disableResult.zip_codes || [],
-          reason,
-        });
-        await markAdAssetDisableNotified(disableResult.asset_ids || []);
-      }
-    } else {
-      const table = targetType === "event" ? "events" : "comments";
-      ({ error } = await supabase.from(table).update({
-        status: "archived",
-        updated_at: new Date().toISOString(),
-      }).eq("id", targetId));
-    }
-    if (error) {
-      toast({ title: "Failed to deactivate", description: error.message, variant: "destructive" });
+      setNoteDialog({
+        open: true,
+        mode: "deactivate_ad",
+        context: { targetId, flagId },
+        busy: false,
+      });
       return;
     }
-
-    if (flagId) {
-      const { error: historyError } = await recordFlagAdminAction(flagId, "manually_deactivated");
-      if (historyError) {
-        toast({ title: "Deactivated, but failed to record admin action", description: historyError.message, variant: "destructive" });
-        loadAll();
+    if (targetType === "comment") {
+      void (async () => {
+        const { data: comment } = await supabase.from("comments").select("id, created_by_id").eq("id", targetId).maybeSingle();
+        if (!comment) {
+          toast({ title: "Comment not found", variant: "destructive" });
+          return;
+        }
+        setNoteDialog({
+          open: true,
+          mode: "deactivate_comment",
+          context: { comment, flagId },
+          busy: false,
+        });
+      })();
+      return;
+    }
+    void (async () => {
+      const { data: event } = await supabase.from("events").select("*").eq("id", targetId).maybeSingle();
+      if (!event) {
+        toast({ title: "Activity not found", variant: "destructive" });
         return;
       }
-    }
-    toast({ title: targetType === "ad" ? "Ad creative disabled" : `${label === "activity" ? "Activity" : "Comment"} deactivated` });
-    loadAll();
+      setNoteDialog({
+        open: true,
+        mode: "remove_activity",
+        context: { event, flagId },
+        busy: false,
+      });
+    })();
   };
 
   const handleReactivateFromFlag = async (flagId, targetId, targetType) => {
@@ -1627,21 +1691,26 @@ export default function Admin() {
     loadAll();
   };
 
-  const handleClearFlag = async (flagId) => {
+  const handleClearFlag = (flagId) => {
     const report = flags.find((f) => f.id === flagId);
     if (!report) return;
-    if (!window.confirm("Clear this flag? It will be removed from the item’s flag count, but the report stays for admin history.")) return;
+    setNoteDialog({
+      open: true,
+      mode: "clear_flag",
+      context: { flagId, report },
+      busy: false,
+    });
+  };
 
-    // Keep the report row for audit history; clear it from the target content counters
+  const executeClearFlag = async (flagId, report, notes) => {
     await clearFlagFromTarget(report);
 
     const { error } = await recordFlagAdminAction(flagId, "flag_cleared");
     if (error) {
       toast({ title: "Failed to clear flag", description: error.message, variant: "destructive" });
-      return;
+      return false;
     }
 
-    // Notify owner with remaining count after this clear
     const isAd = report.target_type === "ad";
     const table = report.target_type === "event" ? "events" : report.target_type === "comment" ? "comments" : "ad_library";
     const { data: row } = await supabase
@@ -1659,34 +1728,39 @@ export default function Admin() {
           event: "partial_cleared",
           flagCount: Number(row.flag_count || 0),
           itemLabel: isAd ? row.ad_name : report.target_type === "event" ? row.title : null,
+          details: notes || null,
         });
       }
     }
 
     toast({ title: "Flag cleared" });
-    loadAll();
+    return true;
   };
 
-  const handleClearFlags = async (item) => {
-    const label = item.type === "event" ? "activity" : item.type === "comment" ? "comment" : "ad";
+  const handleClearFlags = (item) => {
     const uncleared = (item.flags || []).filter((f) => f.admin_action !== "flag_cleared");
     if (uncleared.length === 0) {
       toast({ title: "No flags to clear" });
       return;
     }
-    if (!window.confirm(`Clear all ${uncleared.length} flags on this ${label}? They will be removed from the item’s flag count, but reports stay for admin history. Community auto-hide can apply again if flags build up.`)) return;
+    setNoteDialog({
+      open: true,
+      mode: "clear_flags",
+      context: { item, uncleared },
+      busy: false,
+    });
+  };
 
+  const executeClearFlags = async (item, uncleared, notes) => {
     for (const report of uncleared) {
       await clearFlagFromTarget(report);
       const { error } = await recordFlagAdminAction(report.id, "flag_cleared");
       if (error) {
         toast({ title: "Failed to clear flags", description: error.message, variant: "destructive" });
-        loadAll();
-        return;
+        return false;
       }
     }
 
-    // Second chance: clear any Override 3+ exemption so auto-hide can apply again
     const clearTable = item.type === "event" ? "events" : item.type === "comment" ? "comments" : "ad_library";
     const { error: exemptError } = await supabase.from(clearTable).update({
       flag_auto_hide_exempt: false,
@@ -1694,15 +1768,13 @@ export default function Admin() {
     }).eq("id", item.item.id);
     if (exemptError) {
       toast({ title: "Flags cleared, but failed to reset auto-hide override", description: exemptError.message, variant: "destructive" });
-      loadAll();
-      return;
+      return false;
     }
 
     const { error: caseError } = await recordDeactivatedCaseAction(item, ["flags_cleared", "reviewed"]);
     if (caseError) {
       toast({ title: "Flags cleared, but failed to record case history", description: caseError.message, variant: "destructive" });
-      loadAll();
-      return;
+      return false;
     }
 
     const clearOwnerId = resolveOwnerIdForFlagItem(item);
@@ -1714,11 +1786,12 @@ export default function Admin() {
         event: "cleared",
         flagCount: 0,
         itemLabel: resolveItemLabelForFlagItem(item),
+        details: notes || null,
       });
     }
 
     toast({ title: "Flags cleared", description: "Marked as reviewed." });
-    loadAll();
+    return true;
   };
 
   const handleReactivateFlag = async (flagId) => {
@@ -2324,6 +2397,136 @@ export default function Admin() {
       })),
     [pendingReactivations]
   );
+
+  const noteDialogConfig = (() => {
+    const mode = noteDialog.mode;
+    if (mode === "remove_activity") {
+      const title = noteDialog.context?.event?.title || "this activity";
+      return {
+        title: "Remove Activity",
+        description: `Remove "${title}" from the public site? The poster will see your note in My Messages and on My Activity Posts. Savers get a generic notice only.`,
+        noteLabel: "Note to Poster",
+        notePlaceholder: "Explain why this activity is being removed…",
+        noteRequired: true,
+        emailMode: "never",
+        confirmLabel: "Remove Activity",
+      };
+    }
+    if (mode === "deactivate_comment") {
+      return {
+        title: "Deactivate Comment",
+        description: "Hide this comment from the public site? The author will receive an inbox Message with your note.",
+        noteLabel: "Note to Author",
+        notePlaceholder: "Explain why this comment is being removed…",
+        noteRequired: true,
+        emailMode: "never",
+        confirmLabel: "Deactivate Comment",
+      };
+    }
+    if (mode === "deactivate_ad") {
+      return {
+        title: "Disable Ad Creative",
+        description: "Disable this ad creative across all zip placements using it? Billing stays active; the Supporter must assign a different approved creative.",
+        noteLabel: "Note to Supporter",
+        notePlaceholder: "Explain why this ad creative is being disabled…",
+        noteRequired: true,
+        emailMode: "always",
+        confirmLabel: "Disable Creative",
+      };
+    }
+    if (mode === "clear_flag") {
+      return {
+        title: "Clear Flag",
+        description: "Remove this flag from the item’s count? The report stays for admin history. The same reporter still cannot flag this item again.",
+        noteLabel: "Note to Owner",
+        notePlaceholder: "Optional note included in their inbox Message…",
+        noteRequired: false,
+        emailMode: "never",
+        confirmLabel: "Clear Flag",
+        confirmVariant: "mint",
+      };
+    }
+    if (mode === "clear_flags") {
+      const n = noteDialog.context?.uncleared?.length || 0;
+      return {
+        title: "Clear All Flags",
+        description: `Clear all ${n} flags on this item? Reports stay for admin history. Community auto-hide can apply again if flags build up.`,
+        noteLabel: "Note to Owner",
+        notePlaceholder: "Optional note included in their inbox Message…",
+        noteRequired: false,
+        emailMode: "never",
+        confirmLabel: "Clear Flags",
+        confirmVariant: "mint",
+      };
+    }
+    if (mode === "clear_user_flag") {
+      return {
+        title: "Clear User Flag",
+        description: "Remove this flag from the account’s count? The report stays for admin history. The same reporter still cannot flag this user again.",
+        noteLabel: "Note to User",
+        notePlaceholder: "Optional note included in their inbox Message…",
+        noteRequired: false,
+        emailMode: "never",
+        confirmLabel: "Clear Flag",
+        confirmVariant: "mint",
+      };
+    }
+    if (mode === "clear_user_flags") {
+      const n = noteDialog.context?.uncleared?.length || 0;
+      return {
+        title: "Clear All User Flags",
+        description: `Clear all ${n} flags on this user? Reports stay for admin history. Further flags could suspend the account again.`,
+        noteLabel: "Note to User",
+        notePlaceholder: "Optional note included in their inbox Message…",
+        noteRequired: false,
+        emailMode: "never",
+        confirmLabel: "Clear Flags",
+        confirmVariant: "mint",
+      };
+    }
+    return null;
+  })();
+
+  const handleNoteDialogConfirm = async (note) => {
+    setNoteDialog((prev) => ({ ...prev, busy: true }));
+    try {
+      const ctx = noteDialog.context || {};
+      let ok = false;
+      if (noteDialog.mode === "remove_activity") {
+        ok = await executeRemoveActivity(ctx.event, note, {
+          flagId: ctx.flagId || null,
+          deactivatedItem: ctx.deactivatedItem || null,
+        });
+      } else if (noteDialog.mode === "deactivate_comment") {
+        ok = await executeDeactivateComment(ctx.comment, note, {
+          flagId: ctx.flagId || null,
+          deactivatedItem: ctx.deactivatedItem || null,
+        });
+      } else if (noteDialog.mode === "deactivate_ad") {
+        ok = await executeDeactivateAd(ctx.targetId, note, {
+          flagId: ctx.flagId || null,
+          deactivatedItem: ctx.deactivatedItem || null,
+        });
+      } else if (noteDialog.mode === "clear_flag") {
+        ok = await executeClearFlag(ctx.flagId, ctx.report, note);
+      } else if (noteDialog.mode === "clear_flags") {
+        ok = await executeClearFlags(ctx.item, ctx.uncleared, note);
+      } else if (noteDialog.mode === "clear_user_flag") {
+        ok = await executeClearUserFlag(ctx.flagId, ctx.report, note);
+      } else if (noteDialog.mode === "clear_user_flags") {
+        ok = await executeClearUserFlags(ctx.card, ctx.uncleared, note);
+      }
+      if (ok) {
+        closeNoteDialog();
+        loadAll();
+      } else {
+        setNoteDialog((prev) => ({ ...prev, busy: false }));
+      }
+    } catch (err) {
+      toast({ title: "Action failed", description: err.message, variant: "destructive" });
+      setNoteDialog((prev) => ({ ...prev, busy: false }));
+    }
+  };
 
   if (loading) {
     return (
@@ -4608,12 +4811,13 @@ export default function Admin() {
         title="Disable User Account"
         description={
           disableDialog.isSupporter
-            ? `Disable ${disableDialog.userName}? This hides their active activities and comments (savers are notified), turns off digests, blocks registered features, cancels active ads (and Stripe auto-renew), releases zip slots, and clears their waitlist.`
-            : `Disable ${disableDialog.userName}? This hides their active activities and comments (savers are notified), turns off digests, blocks registered features, and they will see your note when they sign in.`
+            ? `Disable ${disableDialog.userName}? This hides their active activities and comments (savers are notified with a generic message), turns off digests, blocks registered features, cancels active ads (and Stripe auto-renew), releases zip slots, and clears their waitlist.`
+            : `Disable ${disableDialog.userName}? This hides their active activities and comments (savers are notified with a generic message), turns off digests, blocks registered features, and they will see your note when they sign in.`
         }
         noteLabel="Note to User"
         notePlaceholder="Explain why this account is being disabled…"
         confirmLabel="Disable Account"
+        emailMode="optional"
         loading={disableBusy}
         onConfirm={handleDisableUser}
       />
@@ -4624,13 +4828,34 @@ export default function Admin() {
           if (!open) setDeclineDialog({ open: false, request: null });
         }}
         title="Decline Reactivation Request"
-        description="This closes the request. The user will see your decline note and cannot submit another request."
+        description="This closes the request. The user will see your decline note on the Account Disabled page and cannot submit another request."
         noteLabel="Note to User"
         notePlaceholder="Explain why this request is being declined…"
         confirmLabel="Decline Request"
+        emailMode="never"
+        deliveryHint="They will see this note on the Account Disabled page (no email)."
         loading={disableBusy}
         onConfirm={handleDeclineReactivation}
       />
+
+      {noteDialogConfig ? (
+        <AdminNoteConfirmDialog
+          open={noteDialog.open}
+          onOpenChange={(open) => {
+            if (!open) closeNoteDialog();
+          }}
+          title={noteDialogConfig.title}
+          description={noteDialogConfig.description}
+          noteLabel={noteDialogConfig.noteLabel}
+          notePlaceholder={noteDialogConfig.notePlaceholder}
+          noteRequired={noteDialogConfig.noteRequired}
+          emailMode={noteDialogConfig.emailMode}
+          confirmLabel={noteDialogConfig.confirmLabel}
+          confirmVariant={noteDialogConfig.confirmVariant || "destructive"}
+          loading={noteDialog.busy}
+          onConfirm={handleNoteDialogConfirm}
+        />
+      ) : null}
 
       <ImagePreviewModal
         imageUrl={userContentPreviewUrl}

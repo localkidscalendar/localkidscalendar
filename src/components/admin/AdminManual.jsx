@@ -169,13 +169,14 @@ const categories = [
           "On approve: prior role restored only — digests, ads, Stripe, and archived content are not auto-restored",
         ],
         technicalOverview:
-          "Admin Users → Actions → Disable (or Flagged Users Manual Disable) calls /api/admin-disable-user. Content hide archives events (admin_notes + manually_deactivated case) and comments; trg_notify_on_content_hidden notifies savers; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
+          "Admin Users → Actions → Disable (or Flagged Users Manual Disable) uses AdminNoteConfirmDialog (required note + optional email) → /api/admin-disable-user. Content hide archives events/comments; trg_notify_on_content_hidden notifies savers with generic copy only; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
         technicalFeatures: [
           "Caller must be admin (or allowlisted admin email on the API)",
+          "Optional send_email delivers the disable note via Resend; Account Disabled page always shows the note",
           "Non-supporter path: role/digest + content hide",
           "Supporter path: banner_ads + Stripe cancel_at_period_end + ad_waitlist cleanup + processWaitlist",
           "authRoles.isAccountDisabled / isRegisteredUser gate registered-only features",
-          "ensure_disable_user_hides_content.sql keeps saver-note trigger using admin_notes on archive",
+          "ensure_admin_notes_savers_generic.sql — saver notices never include Admin’s poster/user notes",
         ],
       },
       {
@@ -407,9 +408,11 @@ const categories = [
           "Used by digests when Favorite Organizers is enabled",
         ],
         technicalOverview:
-          "saved_events and favorite_organizers tables. EventDetail / EventCard toggle UX with auth prompt when signed out.",
+          "saved_events and favorite_organizers tables. EventDetail Posted by card: icon-only Favorite (organizers) + Flag User in the upper-right (subtle muted icons). Organizers directory also favorites. Auth prompt when signed out.",
         technicalFeatures: [
           "Digest uses favorite_organizers.poster_user_id vs event.created_by_id",
+          "Community Member posters cannot be favorited — keeps Fav Organizers / digests organizer-focused",
+          "Cleanup migration removes favorite_organizers rows targeting community_member profiles",
         ],
       },
       {
@@ -462,13 +465,14 @@ const categories = [
           "User 3+ threshold: suspend account for Admin review (no Override 3+); Clear Flags or individual Clear Flag can reinstate below 3",
           "Override 3+: confirm, reinstate, set flag_auto_hide_exempt so further community flags do not auto-hide (users can still flag → Admin Flags + owner notice); case is marked Reviewed",
           "Clear Flags: second chance — flag count → 0 (reports retained), clears exemption so auto-hide can apply again; case is marked Reviewed",
+          "Clear Flag / Clear Flags / Manually Deactivate use AdminNoteConfirmDialog (optional notes on clear; required notes on deactivate; ads always email)",
+          "Activities trash and Flags Manually Deactivate (activities) share remove flow: deleted + admin_notes + activity_removed_admin; savers get generic copy only",
           "Owners cannot flag their own activity, comment, or ad creative; users cannot flag themselves or Admins",
           "Admin → Flags is the primary place for 3+ Override / Clear Flags (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
           "Admin → Flags → Flagged Users: Clear Flags / Manual Disable (existing disable path) when suspended or 3+; per-report Clear Flag; Reviewed",
           "Admin 3+ card: Override 3+, Clear Flags, Reviewed; after Override/Clear Flags/Reviewed: Mark Unreviewed",
           "Admin → Users → List of Users: Contributions / Flagged / Flags Filed counts (click # to expand); nested # Flags show reporter, reason, comments, timestamp; Clear search + role filters; Actions for Supporter and Disable",
           "Admin → Users shows a Suspended badge when suspended_at is set (and role is not disabled)",
-          "Manual delete/deactivate of activities and ad assets elsewhere in Admin is unchanged",
           "Ad asset cascade: disabling a creative affects all zip placements using it",
         ],
         technicalOverview:
@@ -990,15 +994,17 @@ const categories = [
         overview:
           "Safe previews of outbound-looking content: email HTML templates, the automated message catalog (including flag lifecycle notices), and site notices — without blasting users.",
         features: [
-          "Emails tester (send sample to the signed-in admin only)",
+          "Emails tester (send sample to the signed-in admin only) — topic titles with search + category pills; titles match Automated Messages when both channels send the same notice",
           "Automated Messages catalog — topic titles (Flags / Reviews / Billing / …) with search + category pills",
-          "Site Notices preview",
+          "Site Notices preview — topic titles (Site / Account) with search + category pills",
         ],
         technicalOverview:
-          "PreviewsPanels (Emails + Automated Messages from EMAIL_TEMPLATE_META / AUTOMATED_NOTICE_CATALOG) + SiteEmailsTester + SiteNoticesPreview under Admin → Previews.",
+          "PreviewsPanels (Emails + Automated Messages from EMAIL_TEMPLATE_META / AUTOMATED_NOTICE_CATALOG) + SiteEmailsTester + SiteNoticesPreview under Admin → Previews. Shared Category · Target · Event naming across all three.",
         technicalFeatures: [
           "Email send uses /api/send-email admin auth",
+          "Emails filter by EMAIL_TEMPLATE_CATEGORIES; overlapping keys prefer AUTOMATED_NOTICE_CATALOG titles",
           "Automated Messages list is catalog-driven — new notice keys appear automatically after catalog updates; filter by AUTOMATED_NOTICE_CATEGORIES",
+          "Site Notices filter by SITE_NOTICE_CATEGORIES (accountDisabledScenarios.js)",
         ],
       },
     ],
