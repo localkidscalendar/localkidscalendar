@@ -5,7 +5,7 @@ import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import FlagReportForm, { AD_FLAG_REASONS, FlagWithdrawDialog } from "@/components/shared/FlagReportForm";
 import { useToast } from "@/components/ui/use-toast";
 import { notifyAdAssetDisabled } from "@/lib/quarantineAdLibrary";
-import { alreadyFlaggedMessage, userHasFlaggedTarget, withdrawFlag } from "@/lib/flagReports";
+import { alreadyFlaggedMessage, getUserFlagReport, withdrawFlag } from "@/lib/flagReports";
 
 export function SupporterAdPlaceholder() {
   // Image area + footer match paid SupporterAdCard (h-48 + black bar ≈ default filler h-56).
@@ -38,6 +38,7 @@ export default function SupporterAdCard({ ad, user, onAssetFlagged }) {
   const { toast } = useToast();
   const [flagOpen, setFlagOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [flagAdminCleared, setFlagAdminCleared] = useState(false);
   const [authPrompt, setAuthPrompt] = useState(false);
   const isOwner = Boolean(user?.id && ad?.user_id && user.id === ad.user_id);
   const assetId = resolveAssetId(ad);
@@ -67,7 +68,9 @@ export default function SupporterAdCard({ ad, user, onAssetFlagged }) {
     if (!user) { setAuthPrompt(true); return; }
     if (isOwner) return;
     try {
-      if (await userHasFlaggedTarget("ad", flagTargetId, user.id)) {
+      const status = await getUserFlagReport("ad", flagTargetId, user.id);
+      if (status.exists) {
+        setFlagAdminCleared(status.adminCleared);
         setWithdrawOpen(true);
         return;
       }
@@ -189,8 +192,12 @@ export default function SupporterAdCard({ ad, user, onAssetFlagged }) {
       />
       <FlagWithdrawDialog
         open={withdrawOpen}
-        onOpenChange={setWithdrawOpen}
+        onOpenChange={(open) => {
+          setWithdrawOpen(open);
+          if (!open) setFlagAdminCleared(false);
+        }}
         targetLabel="ad creative"
+        adminCleared={flagAdminCleared}
         onConfirm={handleWithdrawFlag}
       />
 

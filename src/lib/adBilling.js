@@ -52,6 +52,9 @@ export async function createAdCheckout({
   waitlist_entry_id,
   success_url,
   cancel_url,
+  agree_terms,
+  agree_exact_zip,
+  agree_no_refunds,
 } = {}) {
   return postJson("/api/create-ad-checkout", {
     plan_type,
@@ -64,6 +67,9 @@ export async function createAdCheckout({
     waitlist_entry_id,
     success_url,
     cancel_url,
+    agree_terms,
+    agree_exact_zip,
+    agree_no_refunds,
   });
 }
 

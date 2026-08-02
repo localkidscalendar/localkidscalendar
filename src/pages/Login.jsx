@@ -69,7 +69,11 @@ export default function Login() {
     setError("");
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        // Force Google's account picker so Chrome doesn't silently reuse the last account.
+        queryParams: { prompt: "select_account" },
+      },
     });
     if (oauthError) {
       setError(

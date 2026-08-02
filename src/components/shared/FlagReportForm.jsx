@@ -159,12 +159,14 @@ export default function FlagReportForm({
 
 /**
  * Confirm dialog when the user already flagged an item and taps Flag again.
+ * When adminCleared is true, Remove Flag is hidden — Admin clear blocks withdraw + re-flag.
  */
 export function FlagWithdrawDialog({
   open = false,
   onOpenChange,
   targetLabel = "item",
   onConfirm,
+  adminCleared = false,
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -178,7 +180,7 @@ export function FlagWithdrawDialog({
   };
 
   const handleConfirm = async () => {
-    if (busy) return;
+    if (busy || adminCleared) return;
     setBusy(true);
     try {
       await onConfirm?.();
@@ -196,30 +198,44 @@ export function FlagWithdrawDialog({
             <Flag className="w-6 h-6 text-peach-500" />
           </div>
           <DialogTitle className="font-heading font-bold text-xl">
-            Already flagged
+            {adminCleared ? "Flag already cleared" : "Already flagged"}
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            You already flagged this {targetLabel}. Would you like to remove your flag?
+            {adminCleared
+              ? `An Admin already cleared your flag on this ${targetLabel}. You can't remove it or flag this ${targetLabel} again.`
+              : `You already flagged this ${targetLabel}. Would you like to remove your flag?`}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:gap-2 pt-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-xl"
-            onClick={handleClose}
-            disabled={busy}
-          >
-            Keep Flag
-          </Button>
-          <Button
-            type="button"
-            className="rounded-xl bg-peach-500 hover:bg-peach-600 text-white"
-            onClick={handleConfirm}
-            disabled={busy}
-          >
-            {busy ? "Removing…" : "Remove Flag"}
-          </Button>
+          {adminCleared ? (
+            <Button
+              type="button"
+              className="rounded-xl bg-peach-500 hover:bg-peach-600 text-white"
+              onClick={handleClose}
+            >
+              OK
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-xl"
+                onClick={handleClose}
+                disabled={busy}
+              >
+                Keep Flag
+              </Button>
+              <Button
+                type="button"
+                className="rounded-xl bg-peach-500 hover:bg-peach-600 text-white"
+                onClick={handleConfirm}
+                disabled={busy}
+              >
+                {busy ? "Removing…" : "Remove Flag"}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

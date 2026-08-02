@@ -3,6 +3,7 @@ import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, CheckCircle, Images, List, Shield, ChevronDown, ChevronUp,
@@ -173,6 +174,12 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
   const [joiningWaitlist, setJoiningWaitlist] = useState(false);
   const [approvedAssets, setApprovedAssets] = useState(null);
   const [libraryRefreshKey, setLibraryRefreshKey] = useState(0);
+  const [agreements, setAgreements] = useState({
+    terms: false,
+    exactZip: false,
+    noRefunds: false,
+  });
+  const allAgreementsChecked = agreements.terms && agreements.exactZip && agreements.noRefunds;
 
   useEffect(() => {
     supabase.from("ad_pricing_config").select("*").eq("config_key", "global").maybeSingle()
@@ -302,6 +309,14 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
 
   const handleSubmitRequest = async () => {
     if (!selectedAsset) return;
+    if (!allAgreementsChecked) {
+      toast({
+        title: "Please confirm all agreements",
+        description: "Check all three boxes on the Review step before continuing to payment.",
+        variant: "destructive",
+      });
+      return;
+    }
     const zip = form.zip_code.trim();
     // BETA MODE — Stage 2 whitelist (also enforced server-side)
     if (!isZipAllowed(zip, betaConfig)) {
@@ -322,6 +337,9 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
         waitlist_entry_id: prefill?.waitlist_entry_id || undefined,
         success_url: `${window.location.origin}/ad-manager?success=true`,
         cancel_url: `${window.location.origin}/ad-manager?cancelled=true`,
+        agree_terms: true,
+        agree_exact_zip: true,
+        agree_no_refunds: true,
       });
 
       if (result.admin_bypass) {
@@ -688,14 +706,51 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
             <p className="text-xs text-muted-foreground mt-1">Applied at Stripe Checkout if valid.</p>
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            By proceeding, you agree to the <a href="/advertiser-terms" target="_blank" rel="noreferrer" className="text-mint-500 underline">Supporter Terms & Conditions</a>. You'll be redirected to Stripe to complete payment before your ad goes live.
-          </p>
+          <div className="space-y-3 rounded-2xl border border-border bg-muted/30 p-4">
+            <p className="text-sm font-medium text-foreground">Before payment, confirm each item:</p>
+            <label htmlFor="agree-terms" className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                id="agree-terms"
+                checked={agreements.terms}
+                onCheckedChange={(checked) => setAgreements((a) => ({ ...a, terms: Boolean(checked) }))}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-muted-foreground leading-relaxed">
+                I agree to the{" "}
+                <a href="/advertiser-terms" target="_blank" rel="noreferrer" className="text-mint-500 underline">
+                  Supporter Terms &amp; Conditions
+                </a>
+                .
+              </span>
+            </label>
+            <label htmlFor="agree-exact-zip" className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                id="agree-exact-zip"
+                checked={agreements.exactZip}
+                onCheckedChange={(checked) => setAgreements((a) => ({ ...a, exactZip: Boolean(checked) }))}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-muted-foreground leading-relaxed">
+                I understand that my ad will show to users whose zip code — either their profile zip or a zip they&apos;ve manually entered — exactly matches the zip code that my ad is placed for (there is no surrounding mile radius involved; only this exact zip code is targeted).
+              </span>
+            </label>
+            <label htmlFor="agree-no-refunds" className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                id="agree-no-refunds"
+                checked={agreements.noRefunds}
+                onCheckedChange={(checked) => setAgreements((a) => ({ ...a, noRefunds: Boolean(checked) }))}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-muted-foreground leading-relaxed">
+                I understand there are no refunds after I&apos;m redirected to complete payment before my ad goes live.
+              </span>
+            </label>
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" className="rounded-xl flex-1" onClick={() => setStep(3)}>← Back</Button>
             <Button
               className="flex-1 rounded-xl bg-peach-400 hover:bg-peach-500 text-white font-semibold"
-              disabled={submitting}
+              disabled={submitting || !allAgreementsChecked}
               onClick={handleSubmitRequest}
             >
               {submitting

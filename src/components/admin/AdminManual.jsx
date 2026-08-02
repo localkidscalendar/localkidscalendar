@@ -12,6 +12,7 @@ import SearchClearField from "@/components/shared/SearchClearField";
  * Shape per section:
  *   id, title, overview, features[], technicalOverview, technicalFeatures[]
  * Optional: keywords[] — extra search terms not already in the prose
+ * Optional: flowCharts[] — { title, caption?, columns[], rows[][] } operator reference tables
  */
 
 const categories = [
@@ -162,11 +163,14 @@ const categories = [
           "Admins can disable a user with a required note (severe path, including from Flagged Users → Manual Disable). The user is treated as signed out for normal features, digests turn Off, their active activities and comments are archived (savers get the Saved Activity Removed notice), organizer directory listing is hidden, and they see an Account Disabled page with the note. They may submit one reactivation request for Admin review. Suspension from 3+ user flags is lighter and does not archive content or hide the organizer.",
         features: [
           "Always: role → disabled, digests Off, active activities/comments archived, note shown on Account Disabled",
-          "Savers of hidden activities get saved_activity_removed; favoriters of the organizer get favorited_organizer_removed",
+          "Optional email checkbox on the disable dialog (same note as the site notice)",
+          "Savers of hidden activities get a generic saved_activity_removed notice (never the Admin disable note)",
+          "Favoriters of the organizer get favorited_organizer_removed",
           "Organizer directory hides disabled accounts (suspended accounts still appear)",
           "Supporters also: slot-holding ads cancelled, Stripe set not to renew, waitlist cleared, waitlist processor runs",
           "Reactivation: one request per user lifetime (pending / reactivated / declined)",
           "On approve: prior role restored only — digests, ads, Stripe, and archived content are not auto-restored",
+          "Flow tables: Admin Manual → Admin Communication & Moderation Flows",
         ],
         technicalOverview:
           "Admin Users → Actions → Disable (or Flagged Users Manual Disable) uses AdminNoteConfirmDialog (required note + optional email) → /api/admin-disable-user. Content hide archives events/comments; trg_notify_on_content_hidden notifies savers with generic copy only; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
@@ -462,10 +466,14 @@ const categories = [
           "Owner inbox notices for flag 1/2/3 (with reason), reporter withdraw, Clear Flags (second chance), and Override 3+ (content)",
           "Preview all flag notice copy under Admin → Previews → Automated Messages",
           "Threshold: 3 different users → activity/comment status archived; Ad Asset → moderation flagged (all placements)",
-          "User 3+ threshold: suspend account for Admin review (no Override 3+); Clear Flags or individual Clear Flag can reinstate below 3",
+          "User 3+ threshold: suspend account for Admin review (no Override 3+); Clear Flags or individual Clear Flag can reinstate below 3; digests stay Off after unsuspend — Message tells them to re-enable in Account → Notifications",
           "Override 3+: confirm, reinstate, set flag_auto_hide_exempt so further community flags do not auto-hide (users can still flag → Admin Flags + owner notice); case is marked Reviewed",
-          "Clear Flags: second chance — flag count → 0 (reports retained), clears exemption so auto-hide can apply again; case is marked Reviewed",
+          "Clear Flags: second chance — flag count hard-reset to 0 (reports retained as cleared), clears exemption so auto-hide can apply again, reinstates content even after Manual Deactivate; case is marked Reviewed",
+          "Clear Flag (one): keeps report so that reporter cannot re-flag or withdraw; never undoes Manual Deactivate (use Clear Flags, Reactivate, or Override to bring content back)",
+          "Clear Flag / Clear Flags run as one server transaction (admin_clear_flag / admin_clear_all_flags) — same buttons, no mid-clear half-state",
           "Clear Flag / Clear Flags / Manually Deactivate use AdminNoteConfirmDialog (optional notes on clear; required notes on deactivate; ads always email)",
+          "Reactivate Flag (Admin): puts that reporter’s flag back into the count — they can withdraw again afterward",
+          "Suspended / disabled accounts cannot submit content flags (same account-blocked check as other registered actions)",
           "Activities trash and Flags Manually Deactivate (activities) share remove flow: deleted + admin_notes + activity_removed_admin; savers get generic copy only",
           "Owners cannot flag their own activity, comment, or ad creative; users cannot flag themselves or Admins",
           "Admin → Flags is the primary place for 3+ Override / Clear Flags (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
@@ -474,6 +482,7 @@ const categories = [
           "Admin → Users → List of Users: Contributions / Flagged / Flags Filed counts (click # to expand); nested # Flags show reporter, reason, comments, timestamp; Clear search + role filters; Actions for Supporter and Disable",
           "Admin → Users shows a Suspended badge when suspended_at is set (and role is not disabled)",
           "Ad asset cascade: disabling a creative affects all zip placements using it",
+          "Flow tables (notes / email / savers / suspend vs disable): Admin Manual → Admin Communication & Moderation Flows",
         ],
         technicalOverview:
           "flag_reports target_id for ads is ad_library id; user flags use target_type=user and target_id=profile id. Surfaces: UserFlagControl on Event Detail Posted by + OrganizerCard. notify_owner_flag_lifecycle + admin_notify_owner_flag_lifecycle (content); notify_owner_user_flag_lifecycle + admin_notify_owner_user_flag_lifecycle (users). profiles.user_flag_count / suspended_at. flag_auto_hide_exempt on events/comments/ad_library. Ad quarantine helpers in quarantineAdLibrary.js + submit_flag / withdraw_flag / disable_ad_asset RPCs. User helpers: submit_user_flag / withdraw_user_flag. Ensure scripts: ensure_user_flagging_and_suspension.sql then ensure_flag_auto_hide_override.sql.",
@@ -556,14 +565,14 @@ const categories = [
         id: "advertising-rules",
         title: "Rules & Terms",
         overview:
-          "Family-appropriate standards; TOS agreement at checkout; community flagging attaches to Ad Assets and can pull that creative from every zip.",
+          "Family-appropriate standards; three required Review checkboxes before Stripe; community flagging attaches to Ad Assets and can pull that creative from every zip.",
         features: [
-          "TOS on Advertiser Terms + checkout agreement fields",
+          "Review step requires: Supporter Terms, exact zip targeting (no mile radius), and no-refunds after redirect to payment",
           "3-flag auto disable on the Ad Asset (all placements)",
           "Clear unavailable messaging in Ad Manager",
         ],
         technicalOverview:
-          "AdvertiserTerms.jsx; banner_ads.tos_agreed / tos_agreed_date.",
+          "AdvertiserTerms.jsx; banner_ads.tos_accepted. /api/create-ad-checkout requires agree_terms, agree_exact_zip, agree_no_refunds.",
         technicalFeatures: [
           "InactiveAdCard explains past_due / flagged / admin disabled states",
         ],
@@ -989,6 +998,259 @@ const categories = [
         ],
       },
       {
+        id: "admin-communication-flows",
+        title: "Admin Communication & Moderation Flows",
+        keywords: [
+          "flow chart",
+          "flows",
+          "savers",
+          "optional email",
+          "AdminNoteConfirmDialog",
+          "manually deactivate",
+          "clear flag",
+          "suspend vs disable",
+          "activity trash",
+        ],
+        overview:
+          "Quick-reference tables for how Admin actions notify posters, Supporters, savers, and (when applicable) email. All note prompts use the shared AdminNoteConfirmDialog style. Detailed Admin notes go to the poster/user only — savers always get generic copy.",
+        features: [
+          "Shared dialog for disable, remove/deactivate, and clear-flag actions",
+          "Email only when the table says so (optional on account disable; always on ad creative disable)",
+          "Clearing a flag keeps the report row — the same reporter cannot re-flag or withdraw that report (unless Admin uses Reactivate Flag)",
+          "Clear all flags hard-resets counters to 0 and reinstates content (second chance). Clearing one flag never undoes Manual Deactivate",
+          "See also: Flagging & Admin Disposition; Disable Account & Reactivation Requests",
+        ],
+        flowCharts: [
+          {
+            title: "Admin dialog actions (notes / email / savers)",
+            caption:
+              "Inbox = My Messages. Site notice = Account Disabled page. Savers never receive Admin’s detailed comments.",
+            columns: ["Action", "Where", "Notes", "Poster / owner", "Email", "Savers"],
+            rows: [
+              [
+                "Disable user",
+                "Users or Flags → Flagged Users",
+                "Required",
+                "Site notice (Account Disabled)",
+                "Optional checkbox",
+                "Generic “saved activity removed” if posts hidden; favoriters get organizer-removed",
+              ],
+              [
+                "Remove activity",
+                "Activities trash or Flags → Manually Deactivate",
+                "Required",
+                "Inbox Message + My Posts note",
+                "No",
+                "Generic only",
+              ],
+              [
+                "Deactivate comment",
+                "Flags → Manually Deactivate",
+                "Required",
+                "Inbox Message",
+                "No",
+                "—",
+              ],
+              [
+                "Disable ad creative",
+                "Flags Manually Deactivate or Ads → Ban",
+                "Required",
+                "Inbox Message",
+                "Always (required)",
+                "—",
+              ],
+              [
+                "Clear flag / Clear all flags",
+                "Flags (content or users)",
+                "Optional",
+                "Inbox Message (notes appended when provided)",
+                "No",
+                "—",
+              ],
+              [
+                "Decline reactivation",
+                "Users → Reactivation Requests",
+                "Required",
+                "Site notice on Account Disabled",
+                "No",
+                "—",
+              ],
+            ],
+          },
+          {
+            title: "Content flagging lifecycle (activity / comment / ad)",
+            caption: "Registered users flag content. Distinct reporters count toward 3. Owner gets inbox notices throughout.",
+            columns: ["Step", "What happens", "Owner Message", "Email", "Savers"],
+            rows: [
+              [
+                "Flag 1 or 2",
+                "Count increases; content stays live (unless already Admin-hidden)",
+                "Flagged (reason + N of 3)",
+                "No",
+                "—",
+              ],
+              [
+                "Flag 3 (auto)",
+                "Activity/comment archived; ad creative disabled across zips (unless Override 3+ exempt)",
+                "Removed / disabled at 3+",
+                "Ads: yes (community 3+ path)",
+                "Activity: generic saved-removed notice",
+              ],
+              [
+                "Reporter withdraws",
+                "Their report removed; count decreases; may restore auto-hidden content below 3",
+                "Flag withdrawn",
+                "No",
+                "—",
+              ],
+              [
+                "Admin Clear Flag",
+                "Count −1; report kept (no re-flag / no withdraw by same user); optional Admin note",
+                "Partial clear (+ optional note)",
+                "No",
+                "—",
+              ],
+              [
+                "Admin Clear Flags (3+ card)",
+                "Count → 0 hard-reset; second chance (reinstates even after Manual Deactivate); optional note",
+                "Cleared / reinstated (+ optional note)",
+                "No",
+                "—",
+              ],
+              [
+                "Admin Override 3+",
+                "Live again; exempt from community auto-hide; users can still flag for Admin review",
+                "Override / reinstated",
+                "No",
+                "—",
+              ],
+              [
+                "Admin Manually Deactivate",
+                "Same dialog family as Activities trash for activities; required notes",
+                "Admin removal Message",
+                "Ads always; activities/comments no",
+                "Activity: generic only",
+              ],
+            ],
+          },
+          {
+            title: "User (account) flagging lifecycle",
+            caption: "Flag User from Posted by / Organizer card — reports the person, not a listing.",
+            columns: ["Step", "What happens", "Target user Message", "Email", "Public content"],
+            rows: [
+              [
+                "Flag 1 or 2",
+                "user_flag_count increases",
+                "Account flagged (reason + N of 3)",
+                "No",
+                "Unchanged",
+              ],
+              [
+                "Flag 3",
+                "Account suspended (guest actions; Messages OK)",
+                "Suspended for Admin review",
+                "No",
+                "Activities/comments/ads stay; organizer still in directory",
+              ],
+              [
+                "Reporter withdraws / Admin Clear below 3",
+                "May clear suspension",
+                "Withdrawn or partial clear (+ optional Admin note)",
+                "No",
+                "Unchanged",
+              ],
+              [
+                "Admin Clear all flags",
+                "Count → 0; reinstated; optional note",
+                "Flags cleared (+ optional note)",
+                "No",
+                "Unchanged",
+              ],
+              [
+                "Admin Manual Disable",
+                "Full disable path (see Disable table) — not the same as suspend",
+                "Account Disabled site notice (+ optional email)",
+                "Optional",
+                "Active posts archived; savers get generic notices",
+              ],
+            ],
+          },
+          {
+            title: "Taking an activity down — three paths",
+            caption: "These are different intents. Users tab has no per-activity trash — only Disable User (cascade).",
+            columns: ["Path", "Intent", "Status / notes", "Poster", "Savers"],
+            rows: [
+              [
+                "Activities → Trash",
+                "Remove one listing",
+                "deleted + required admin_notes",
+                "Inbox with Reason",
+                "Generic only",
+              ],
+              [
+                "Flags → Manually Deactivate (activity)",
+                "Hide flagged listing (same product outcome as trash)",
+                "deleted + required admin_notes",
+                "Inbox with Reason",
+                "Generic only",
+              ],
+              [
+                "Users → Disable",
+                "Disable the account",
+                "Their active activities archived with fixed “account disabled” note",
+                "Account Disabled page (your disable note)",
+                "Generic only (not the disable note)",
+              ],
+            ],
+          },
+          {
+            title: "Suspended vs Disabled",
+            columns: ["", "Suspended (3+ user flags)", "Disabled (Admin)"],
+            rows: [
+              ["Role", "Stays CM / Organizer", "role → disabled"],
+              ["Sign-in", "Yes — Messages only for registered actions", "Account Disabled page"],
+              ["Digests", "Forced Off (stay Off after unsuspend — user re-enables)", "Forced Off"],
+              ["Public activities / comments", "Stay visible", "Active ones archived"],
+              ["Organizer directory", "Still listed", "Hidden"],
+              ["Ads", "Keep running; Ad Manager frozen", "Slot-holding ads cancelled (Supporters)"],
+              ["Primary notice", "Inbox (suspended)", "Site notice (+ optional email)"],
+              ["Savers / favoriters", "No cascade", "Generic saver + favoriter notices when content/organizer hidden"],
+            ],
+          },
+          {
+            title: "Reactivation request flow",
+            caption: "One request per user lifetime. Approve restores role only — not digests, ads, Stripe, or archived content.",
+            columns: ["Step", "What happens", "User sees", "Email"],
+            rows: [
+              [
+                "User submits request",
+                "Row in Reactivation Requests (pending)",
+                "Confirmation on Account Disabled",
+                "No",
+              ],
+              [
+                "Admin Approve",
+                "Prior role restored; request → reactivated",
+                "Can sign in / use site again",
+                "No",
+              ],
+              [
+                "Admin Decline",
+                "Required note → disabled_note; request → declined",
+                "Updated site notice (Account Disabled)",
+                "No",
+              ],
+            ],
+          },
+        ],
+        technicalOverview:
+          "UI: AdminNoteConfirmDialog (emailMode optional | always | never). Disable: /api/admin-disable-user send_email. Activity remove: notifyActivityRemovedAdmin + DB saver trigger (generic). Ads: sendAdAssetDisabledEmail + notifyAdCreativeDisabledAdmin. Clear flags: admin_clear_flag / admin_clear_all_flags (atomic) → notify_* with optional p_details. Savers: notify_savers_activity_removed ignores Admin detail text (ensure_admin_notes_savers_generic.sql).",
+        technicalFeatures: [
+          "Keep these tables in sync when changing AdminNoteConfirmDialog modes or notify helpers",
+          "Previews → Automated Messages / Site Notices / Emails for sample copy",
+        ],
+      },
+      {
         id: "admin-previews",
         title: "Previews Tab",
         overview:
@@ -1012,6 +1274,14 @@ const categories = [
 ];
 
 function sectionSearchText(section, categoryLabel) {
+  const chartText = (section.flowCharts || [])
+    .flatMap((chart) => [
+      chart.title,
+      chart.caption,
+      ...(chart.columns || []),
+      ...(chart.rows || []).flat(),
+    ])
+    .filter(Boolean);
   return [
     categoryLabel,
     section.title,
@@ -1020,6 +1290,7 @@ function sectionSearchText(section, categoryLabel) {
     ...(section.features || []),
     ...(section.technicalFeatures || []),
     ...(section.keywords || []),
+    ...chartText,
   ]
     .join(" ")
     .toLowerCase();
@@ -1051,6 +1322,49 @@ function filterCategories(query) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Operator reference table for Admin Manual flowCharts. */
+function ManualFlowChart({ chart, searchTerms }) {
+  if (!chart?.columns?.length || !chart?.rows?.length) return null;
+  return (
+    <div className="space-y-2">
+      {chart.title ? (
+        <h5 className="font-medium text-sm text-foreground">
+          <HighlightedText text={chart.title} terms={searchTerms} />
+        </h5>
+      ) : null}
+      {chart.caption ? (
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          <HighlightedText text={chart.caption} terms={searchTerms} />
+        </p>
+      ) : null}
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="w-full text-left text-xs border-collapse min-w-[36rem]">
+          <thead>
+            <tr className="bg-muted/60 border-b border-border">
+              {chart.columns.map((col) => (
+                <th key={col} className="px-3 py-2 font-semibold text-foreground whitespace-nowrap align-bottom">
+                  <HighlightedText text={col} terms={searchTerms} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {chart.rows.map((row, ri) => (
+              <tr key={ri} className="border-b border-border last:border-0 odd:bg-white even:bg-muted/20">
+                {chart.columns.map((_, ci) => (
+                  <td key={ci} className="px-3 py-2 text-muted-foreground align-top leading-relaxed">
+                    <HighlightedText text={row[ci] ?? ""} terms={searchTerms} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 /** Split text into plain + highlighted parts for active search terms (case-insensitive). */
@@ -1183,6 +1497,14 @@ export default function AdminManual() {
                         ))}
                       </ul>
                     </div>
+                    {section.flowCharts?.length ? (
+                      <div className="space-y-5">
+                        <h4 className="font-medium text-sm text-foreground">Flows</h4>
+                        {section.flowCharts.map((chart) => (
+                          <ManualFlowChart key={chart.title || chart.columns.join("-")} chart={chart} searchTerms={searchTerms} />
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="bg-muted/40 rounded-xl p-4">
                       <h4 className="font-medium text-sm text-foreground mb-2 flex items-center gap-2">
                         <ExternalLink className="w-3.5 h-3.5" />

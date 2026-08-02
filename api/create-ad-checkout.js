@@ -47,6 +47,9 @@ export default async function handler(req, res) {
       waitlist_entry_id: waitlistEntryId,
       success_url: successUrlOverride,
       cancel_url: cancelUrlOverride,
+      agree_terms: agreeTerms,
+      agree_exact_zip: agreeExactZip,
+      agree_no_refunds: agreeNoRefunds,
     } = req.body || {};
 
     if (!planType || !["monthly", "annual"].includes(planType)) {
@@ -55,6 +58,12 @@ export default async function handler(req, res) {
     const zipCode = (zipCodeRaw || "").trim();
     if (!/^\d{5}$/.test(zipCode)) {
       return res.status(400).json({ error: "A valid 5-digit zip_code is required" });
+    }
+
+    if (!agreeTerms || !agreeExactZip || !agreeNoRefunds) {
+      return res.status(400).json({
+        error: "Please confirm all Review agreements (Terms, exact zip targeting, and no refunds) before payment.",
+      });
     }
 
     // BETA MODE — Stage 2 zip whitelist (same rules as client)

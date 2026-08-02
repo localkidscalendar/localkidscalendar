@@ -46,7 +46,6 @@ import {
   notifyAdCreativeDisabledAdmin,
   notifyBecameSupporter,
   notifyOwnerFlagLifecycle,
-  notifyOwnerUserFlagLifecycle,
 } from "@/lib/userMessages";
 import moment from "moment";
 
@@ -776,15 +775,37 @@ export default function Admin() {
     } catch {}
   };
 
-  const isManuallyDeactivatedTarget = (targetId, targetType) =>
-    flags.some(
-      (f) =>
-        f.target_id === targetId &&
-        f.target_type === targetType &&
-        f.admin_action === "manually_deactivated"
-    );
+  const isManuallyDeactivatedTarget = async (targetId, targetType) => {
+    if (
+      flags.some(
+        (f) =>
+          f.target_id === targetId &&
+          f.target_type === targetType &&
+          f.admin_action === "manually_deactivated"
+      )
+    ) {
+      return true;
+    }
+    const table =
+      targetType === "event"
+        ? "events"
+        : targetType === "comment"
+          ? "comments"
+          : targetType === "ad"
+            ? "ad_library"
+            : null;
+    if (!table) return false;
+    const { data } = await supabase
+      .from(table)
+      .select("flag_case_admin_action")
+      .eq("id", targetId)
+      .maybeSingle();
+    return data?.flag_case_admin_action === "manually_deactivated";
+  };
 
   const syncTargetStatusWithFlagThreshold = async (table, targetId, targetType, nextCount, currentStatus) => {
+    const manuallyDeactivated = await isManuallyDeactivatedTarget(targetId, targetType);
+
     if (targetType === "ad") {
       if (nextCount >= 3) {
         const { data: asset } = await supabase
@@ -801,7 +822,7 @@ export default function Admin() {
         }
         return;
       }
-      if (currentStatus === "flagged" && !isManuallyDeactivatedTarget(targetId, targetType)) {
+      if (currentStatus === "flagged" && !manuallyDeactivated) {
         await reactivateAdAsset(targetId);
       }
       return;
@@ -825,56 +846,10 @@ export default function Admin() {
     }
 
     // Below threshold: undo auto-hide, but keep Admin Manual Deactivate in place
-    if (currentStatus === "archived" && !isManuallyDeactivatedTarget(targetId, targetType)) {
+    if (currentStatus === "archived" && !manuallyDeactivated) {
       updates.status = "active";
       await supabase.from(table).update(updates).eq("id", targetId);
     }
-  };
-
-  const clearFlagFromTarget = async (report) => {
-    const isAd = report.target_type === "ad";
-    const table =
-      report.target_type === "event"
-        ? "events"
-        : report.target_type === "comment"
-          ? "comments"
-          : isAd
-            ? "ad_library"
-            : null;
-    if (!table) return;
-
-    const { data: row } = await supabase
-      .from(table)
-      .select(isAd ? "flag_count, flagged_by, moderation_status" : "flag_count, flagged_by, status")
-      .eq("id", report.target_id)
-      .maybeSingle();
-    if (!row) return;
-
-    const nextBy = (row.flagged_by || []).filter((id) => id !== report.reporter_id);
-    // Prefer array length as source of truth after removing this reporter
-    const resolvedCount = nextBy.length;
-
-    await supabase.from(table).update({
-      flag_count: resolvedCount,
-      flagged_by: nextBy,
-      updated_at: new Date().toISOString(),
-    }).eq("id", report.target_id);
-
-    if (isAd) {
-      await supabase.from("banner_ads").update({
-        flag_count: resolvedCount,
-        flagged_by: nextBy,
-        updated_at: new Date().toISOString(),
-      }).eq("ad_library_id", report.target_id);
-    }
-
-    await syncTargetStatusWithFlagThreshold(
-      table,
-      report.target_id,
-      report.target_type,
-      resolvedCount,
-      isAd ? row.moderation_status : row.status
-    );
   };
 
   const restoreFlagOnTarget = async (report) => {
@@ -1295,33 +1270,6 @@ export default function Admin() {
     return result;
   };
 
-  const syncUserFlagCounters = async (profileId, { excludeFlagId = null } = {}) => {
-    const remaining = flags.filter(
-      (f) =>
-        f.target_type === "user" &&
-        f.target_id === profileId &&
-        f.id !== excludeFlagId &&
-        f.admin_action !== "flag_cleared"
-    );
-    const nextBy = remaining.map((f) => String(f.reporter_id)).filter(Boolean);
-    const nextCount = nextBy.length;
-    const profile = users.find((u) => u.id === profileId);
-    const wasSuspended = Boolean(profile?.suspended_at);
-    const updates = {
-      user_flag_count: nextCount,
-      user_flagged_by: nextBy,
-      updated_at: new Date().toISOString(),
-    };
-    if (nextCount < 3 && wasSuspended) {
-      updates.suspended_at = null;
-    }
-    const { error } = await supabase.from("profiles").update(updates).eq("id", profileId);
-    if (!error) {
-      setUsers((prev) => prev.map((u) => (u.id === profileId ? { ...u, ...updates } : u)));
-    }
-    return { error, nextCount, unsuspended: nextCount < 3 && wasSuspended };
-  };
-
   const handleClearUserFlag = (flagId) => {
     const report = flags.find((f) => f.id === flagId);
     if (!report || report.target_type !== "user") return;
@@ -1334,27 +1282,14 @@ export default function Admin() {
   };
 
   const executeClearUserFlag = async (flagId, report, notes) => {
-    const { error } = await recordFlagAdminAction(flagId, "flag_cleared", "flagged_user");
+    const { error } = await supabase.rpc("admin_clear_flag", {
+      p_flag_id: flagId,
+      p_details: notes || null,
+    });
     if (error) {
       toast({ title: "Failed to clear flag", description: error.message, variant: "destructive" });
       return false;
     }
-
-    const { error: syncError, nextCount } = await syncUserFlagCounters(report.target_id, {
-      excludeFlagId: flagId,
-    });
-    if (syncError) {
-      toast({ title: "Flag cleared, but failed to update count", description: syncError.message, variant: "destructive" });
-      return false;
-    }
-
-    await notifyOwnerUserFlagLifecycle({
-      userId: report.target_id,
-      event: "partial_cleared",
-      flagCount: nextCount,
-      details: notes || null,
-    });
-
     toast({ title: "Flag cleared" });
     return true;
   };
@@ -1374,39 +1309,15 @@ export default function Admin() {
   };
 
   const executeClearUserFlags = async (card, uncleared, notes) => {
-    for (const report of uncleared) {
-      const { error } = await recordFlagAdminAction(report.id, "flag_cleared", "flagged_user");
-      if (error) {
-        toast({ title: "Failed to clear flags", description: error.message, variant: "destructive" });
-        return false;
-      }
-    }
-
-    const now = new Date().toISOString();
-    const { error: profileError } = await supabase.from("profiles").update({
-      user_flag_count: 0,
-      user_flagged_by: [],
-      suspended_at: null,
-      updated_at: now,
-    }).eq("id", card.userId);
-    if (profileError) {
-      toast({ title: "Flags cleared, but failed to reset account counters", description: profileError.message, variant: "destructive" });
-      return false;
-    }
-
-    const { error: caseError } = await recordUserFlagCaseAction(card.userId, ["flags_cleared", "reviewed"]);
-    if (caseError) {
-      toast({ title: "Flags cleared, but failed to record case history", description: caseError.message, variant: "destructive" });
-      return false;
-    }
-
-    await notifyOwnerUserFlagLifecycle({
-      userId: card.userId,
-      event: "cleared",
-      flagCount: 0,
-      details: notes || null,
+    const { error } = await supabase.rpc("admin_clear_all_flags", {
+      p_target_type: "user",
+      p_target_id: card.userId,
+      p_details: notes || null,
     });
-
+    if (error) {
+      toast({ title: "Failed to clear flags", description: error.message, variant: "destructive" });
+      return false;
+    }
     toast({ title: "Flags cleared", description: "Account reinstated and marked as reviewed." });
     return true;
   };
@@ -1703,36 +1614,14 @@ export default function Admin() {
   };
 
   const executeClearFlag = async (flagId, report, notes) => {
-    await clearFlagFromTarget(report);
-
-    const { error } = await recordFlagAdminAction(flagId, "flag_cleared");
+    const { error } = await supabase.rpc("admin_clear_flag", {
+      p_flag_id: flagId,
+      p_details: notes || null,
+    });
     if (error) {
       toast({ title: "Failed to clear flag", description: error.message, variant: "destructive" });
       return false;
     }
-
-    const isAd = report.target_type === "ad";
-    const table = report.target_type === "event" ? "events" : report.target_type === "comment" ? "comments" : "ad_library";
-    const { data: row } = await supabase
-      .from(table)
-      .select(isAd ? "flag_count, user_id, ad_name" : "flag_count, created_by_id, title, content")
-      .eq("id", report.target_id)
-      .maybeSingle();
-    if (row) {
-      const ownerId = isAd ? row.user_id : row.created_by_id;
-      if (ownerId) {
-        await notifyOwnerFlagLifecycle({
-          userId: ownerId,
-          targetType: report.target_type,
-          targetId: report.target_id,
-          event: "partial_cleared",
-          flagCount: Number(row.flag_count || 0),
-          itemLabel: isAd ? row.ad_name : report.target_type === "event" ? row.title : null,
-          details: notes || null,
-        });
-      }
-    }
-
     toast({ title: "Flag cleared" });
     return true;
   };
@@ -1752,44 +1641,15 @@ export default function Admin() {
   };
 
   const executeClearFlags = async (item, uncleared, notes) => {
-    for (const report of uncleared) {
-      await clearFlagFromTarget(report);
-      const { error } = await recordFlagAdminAction(report.id, "flag_cleared");
-      if (error) {
-        toast({ title: "Failed to clear flags", description: error.message, variant: "destructive" });
-        return false;
-      }
-    }
-
-    const clearTable = item.type === "event" ? "events" : item.type === "comment" ? "comments" : "ad_library";
-    const { error: exemptError } = await supabase.from(clearTable).update({
-      flag_auto_hide_exempt: false,
-      updated_at: new Date().toISOString(),
-    }).eq("id", item.item.id);
-    if (exemptError) {
-      toast({ title: "Flags cleared, but failed to reset auto-hide override", description: exemptError.message, variant: "destructive" });
+    const { error } = await supabase.rpc("admin_clear_all_flags", {
+      p_target_type: item.type,
+      p_target_id: item.item.id,
+      p_details: notes || null,
+    });
+    if (error) {
+      toast({ title: "Failed to clear flags", description: error.message, variant: "destructive" });
       return false;
     }
-
-    const { error: caseError } = await recordDeactivatedCaseAction(item, ["flags_cleared", "reviewed"]);
-    if (caseError) {
-      toast({ title: "Flags cleared, but failed to record case history", description: caseError.message, variant: "destructive" });
-      return false;
-    }
-
-    const clearOwnerId = resolveOwnerIdForFlagItem(item);
-    if (clearOwnerId) {
-      await notifyOwnerFlagLifecycle({
-        userId: clearOwnerId,
-        targetType: item.type,
-        targetId: item.item.id,
-        event: "cleared",
-        flagCount: 0,
-        itemLabel: resolveItemLabelForFlagItem(item),
-        details: notes || null,
-      });
-    }
-
     toast({ title: "Flags cleared", description: "Marked as reviewed." });
     return true;
   };

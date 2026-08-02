@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import FlagReportForm, { FlagWithdrawDialog } from "@/components/shared/FlagReportForm";
 import {
   alreadyFlaggedMessage,
+  getUserFlagReport,
   submitUserFlag,
-  userHasFlaggedTarget,
   withdrawUserFlag,
 } from "@/lib/flagReports";
 import { toast } from "@/components/ui/use-toast";
@@ -31,6 +31,7 @@ export default function UserFlagControl({
   className = "",
 }) {
   const [alreadyFlagged, setAlreadyFlagged] = useState(false);
+  const [adminCleared, setAdminCleared] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -38,13 +39,17 @@ export default function UserFlagControl({
   const refresh = useCallback(async () => {
     if (!currentUserId || !targetUserId) {
       setAlreadyFlagged(false);
+      setAdminCleared(false);
       return;
     }
     setChecking(true);
     try {
-      setAlreadyFlagged(await userHasFlaggedTarget("user", targetUserId, currentUserId));
+      const status = await getUserFlagReport("user", targetUserId, currentUserId);
+      setAlreadyFlagged(status.exists);
+      setAdminCleared(status.adminCleared);
     } catch {
       setAlreadyFlagged(false);
+      setAdminCleared(false);
     } finally {
       setChecking(false);
     }
@@ -80,6 +85,7 @@ export default function UserFlagControl({
       throw error;
     }
     setAlreadyFlagged(true);
+    setAdminCleared(false);
     toast({
       title: data?.suspended ? "Report submitted — account suspended for review" : "Report submitted",
       description: "Thank you for helping keep the community safe.",
@@ -93,6 +99,7 @@ export default function UserFlagControl({
       throw error;
     }
     setAlreadyFlagged(false);
+    setAdminCleared(false);
     toast({
       title: "Flag removed",
       description: data?.restored ? "Their account is no longer suspended." : undefined,
@@ -141,6 +148,7 @@ export default function UserFlagControl({
         open={withdrawOpen}
         onOpenChange={setWithdrawOpen}
         targetLabel={label}
+        adminCleared={adminCleared}
         onConfirm={handleWithdraw}
       />
     </>

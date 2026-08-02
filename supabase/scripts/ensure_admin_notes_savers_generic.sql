@@ -397,7 +397,7 @@ begin
       E'A community flag on your account was withdrawn. Current flags: %s of 3.%s',
       trim(to_char(v_count, '999')),
       case
-        when v_count < 3 then E'\n\nIf your account was suspended, it has been reinstated for normal use.'
+        when v_count < 3 then E'\n\nIf your account was suspended, it has been reinstated for normal use. Weekly digests stay Off — turn them back on anytime in Account → Notifications if you want them.'
         else ''
       end
     );
@@ -406,7 +406,7 @@ begin
     v_template := 'user_flags_cleared';
     v_subject := 'Flags on your account were cleared';
     v_body :=
-      E'An Admin cleared community flag(s) on your account and reinstated normal access. Further flags could suspend your account again for review.';
+      E'An Admin cleared community flag(s) on your account and reinstated normal access. Further flags could suspend your account again for review.\n\nWeekly digests stay Off — turn them back on anytime in Account → Notifications if you want them.';
 
   elsif p_event = 'partial_cleared' then
     v_template := 'user_flag_partial_cleared';
@@ -415,7 +415,7 @@ begin
       E'An Admin cleared a community flag on your account. Current flags: %s of 3.%s',
       trim(to_char(v_count, '999')),
       case
-        when v_count < 3 then E'\n\nIf your account was suspended, it has been reinstated for normal use.'
+        when v_count < 3 then E'\n\nIf your account was suspended, it has been reinstated for normal use. Weekly digests stay Off — turn them back on anytime in Account → Notifications if you want them.'
         else ''
       end
     );

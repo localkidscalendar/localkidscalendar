@@ -14,7 +14,7 @@ import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import HistoryBackLink from "@/components/shared/HistoryBackLink";
 import FlagReportForm, { FlagWithdrawDialog } from "@/components/shared/FlagReportForm";
 import UserFlagControl from "@/components/shared/UserFlagControl";
-import { alreadyFlaggedMessage, userHasFlaggedTarget, withdrawFlag } from "@/lib/flagReports";
+import { alreadyFlaggedMessage, getUserFlagReport, withdrawFlag } from "@/lib/flagReports";
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -30,12 +30,14 @@ export default function EventDetail() {
   const [shareOpen, setShareOpen] = useState(false);
   const [flagOpen, setFlagOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [eventFlagAdminCleared, setEventFlagAdminCleared] = useState(false);
   const [posterUser, setPosterUser] = useState(null);
   const [posterOrganizer, setPosterOrganizer] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [authPrompt, setAuthPrompt] = useState(null); // string message or null
   const [flaggingCommentId, setFlaggingCommentId] = useState(null);
   const [withdrawCommentId, setWithdrawCommentId] = useState(null);
+  const [commentFlagAdminCleared, setCommentFlagAdminCleared] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editingCommentText, setEditingCommentText] = useState("");
   const [savingCommentId, setSavingCommentId] = useState(null);
@@ -356,7 +358,9 @@ export default function EventDetail() {
       return;
     }
     try {
-      if (await userHasFlaggedTarget("event", id, user.id)) {
+      const status = await getUserFlagReport("event", id, user.id);
+      if (status.exists) {
+        setEventFlagAdminCleared(status.adminCleared);
         setWithdrawOpen(true);
         return;
       }
@@ -373,7 +377,9 @@ export default function EventDetail() {
       return;
     }
     try {
-      if (await userHasFlaggedTarget("comment", commentId, user.id)) {
+      const status = await getUserFlagReport("comment", commentId, user.id);
+      if (status.exists) {
+        setCommentFlagAdminCleared(status.adminCleared);
         setWithdrawCommentId(commentId);
         return;
       }
@@ -788,8 +794,12 @@ export default function EventDetail() {
       />
       <FlagWithdrawDialog
         open={withdrawOpen}
-        onOpenChange={setWithdrawOpen}
+        onOpenChange={(open) => {
+          setWithdrawOpen(open);
+          if (!open) setEventFlagAdminCleared(false);
+        }}
         targetLabel="activity"
+        adminCleared={eventFlagAdminCleared}
         onConfirm={handleWithdrawEventFlag}
       />
       <FlagReportForm
@@ -800,8 +810,14 @@ export default function EventDetail() {
       />
       <FlagWithdrawDialog
         open={Boolean(withdrawCommentId)}
-        onOpenChange={(open) => { if (!open) setWithdrawCommentId(null); }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWithdrawCommentId(null);
+            setCommentFlagAdminCleared(false);
+          }
+        }}
         targetLabel="comment"
+        adminCleared={commentFlagAdminCleared}
         onConfirm={handleWithdrawCommentFlag}
       />
       <ShareModal open={shareOpen} onOpenChange={setShareOpen} url={window.location.href} title={event.title} />
