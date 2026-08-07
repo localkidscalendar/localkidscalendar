@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, ChevronDown, ChevronUp, Pencil, Trash2, HelpCircle, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, HelpCircle, Loader2 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import LoadingState from "@/components/shared/LoadingState";
 import moment from "moment";
@@ -15,12 +16,36 @@ const emptyForm = {
   discount_percent: "",
   plan_type: "both",
   renewals_applicable: 1,
+  renewals_ongoing: false,
   max_uses_per_user: 1,
   restricted_email: "",
   expires_date: "",
 };
 
 const PLAN_LABELS = { monthly: "Monthly only", annual: "Annual only", both: "Monthly & Annual" };
+const STATUS_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "active", label: "Active" },
+  { id: "inactive", label: "Inactive" },
+];
+
+function getEffectiveStatus(dc) {
+  const isExpiredByDate = dc.expires_date && moment(dc.expires_date).isBefore(moment(), "day");
+  if (isExpiredByDate && dc.status === "active") return "expired";
+  return dc.status;
+}
+
+function isActiveCode(dc) {
+  return getEffectiveStatus(dc) === "active";
+}
+
+function sortedUsageRecords(records) {
+  return [...records].sort((a, b) => {
+    const aTime = a?.used_date ? new Date(a.used_date).getTime() : 0;
+    const bTime = b?.used_date ? new Date(b.used_date).getTime() : 0;
+    return aTime - bTime;
+  });
+}
 
 export default function DiscountCodesPanel({ toast }) {
   const [codes, setCodes] = useState([]);
@@ -31,6 +56,7 @@ export default function DiscountCodesPanel({ toast }) {
   const [form, setForm] = useState(emptyForm);
   const [expandedUsers, setExpandedUsers] = useState(null);
   const [codesPage, setCodesPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => { load(); }, []);
 
@@ -50,6 +76,16 @@ export default function DiscountCodesPanel({ toast }) {
     setLoading(false);
   };
 
+  const filteredCodes = useMemo(() => {
+    if (statusFilter === "active") return codes.filter(isActiveCode);
+    if (statusFilter === "inactive") return codes.filter((dc) => !isActiveCode(dc));
+    return codes;
+  }, [codes, statusFilter]);
+
+  useEffect(() => {
+    setCodesPage(1);
+  }, [statusFilter]);
+
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm);
@@ -57,12 +93,14 @@ export default function DiscountCodesPanel({ toast }) {
   };
 
   const openEdit = (dc) => {
+    const renewals = Number(dc.renewals_applicable ?? 1);
     setEditingId(dc.id);
     setForm({
       code: dc.code,
       discount_percent: dc.discount_percent,
       plan_type: dc.plan_type || "both",
-      renewals_applicable: dc.renewals_applicable ?? 1,
+      renewals_applicable: renewals > 0 ? renewals : 1,
+      renewals_ongoing: renewals <= 0,
       max_uses_per_user: dc.max_uses_per_user ?? 1,
       restricted_email: dc.restricted_email || "",
       expires_date: dc.expires_date || "",
@@ -78,17 +116,22 @@ export default function DiscountCodesPanel({ toast }) {
   };
 
   const handleSave = async () => {
-    if (!form.code.trim() || !form.discount_percent || !form.expires_date) return;
+    if (!form.code.trim() || !form.discount_percent) return;
+    if (!form.renewals_ongoing && !(Number(form.renewals_applicable) >= 1)) {
+      toast?.({ title: "Enter how many billing cycles the discount applies to", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         code: form.code.trim().toUpperCase(),
         discount_percent: Number(form.discount_percent),
         plan_type: form.plan_type,
-        renewals_applicable: Number(form.renewals_applicable) || 1,
+        // 0 = ongoing on the subscription (Stripe forever) while the code was used at checkout
+        renewals_applicable: form.renewals_ongoing ? 0 : (Number(form.renewals_applicable) || 1),
         max_uses_per_user: Number(form.max_uses_per_user) || 1,
         restricted_email: form.restricted_email.trim().toLowerCase() || null,
-        expires_date: form.expires_date,
+        expires_date: form.expires_date || null,
         updated_at: new Date().toISOString(),
       };
       if (editingId) {
@@ -145,6 +188,12 @@ export default function DiscountCodesPanel({ toast }) {
     return "bg-red-50 text-red-500";
   };
 
+  const renewalsLabel = (n) => {
+    const count = Number(n ?? 1);
+    if (count <= 0) return "Ongoing";
+    return String(count);
+  };
+
   const renderForm = () => (
     <div className="bg-muted/40 rounded-2xl border border-border p-4 space-y-4">
       <h4 className="font-heading font-semibold text-sm">{editingId ? "Edit Discount Code" : "Create New Discount Code"}</h4>
@@ -174,10 +223,10 @@ export default function DiscountCodesPanel({ toast }) {
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
           </div>
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <Label>Applies To Plan</Label>
           <Select value={form.plan_type} onValueChange={(v) => setForm((f) => ({ ...f, plan_type: v }))}>
-            <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="mt-1 rounded-xl max-w-md"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="both">Monthly &amp; Annual</SelectItem>
               <SelectItem value="monthly">Monthly only</SelectItem>
@@ -185,27 +234,47 @@ export default function DiscountCodesPanel({ toast }) {
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label>Expiration Date *</Label>
+        <div className="sm:col-span-2">
+          <Label>Expiration Date</Label>
           <Input
             type="date"
-            className="mt-1"
+            className="mt-1 max-w-md"
             value={form.expires_date}
+            data-empty={!form.expires_date ? "true" : "false"}
             onChange={(e) => setForm((f) => ({ ...f, expires_date: e.target.value }))}
           />
-          <p className="text-xs text-muted-foreground mt-1">Code will stop working after this date</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Leave blank for no end date — new checkouts can use the code until you Deactivate it
+          </p>
         </div>
-        <div>
+        <div className="sm:col-span-2 space-y-2">
           <Label>Renewals Discount Applies To</Label>
-          <Input
-            type="number"
-            min={1}
-            className="mt-1"
-            placeholder="e.g. 3"
-            value={form.renewals_applicable}
-            onChange={(e) => setForm((f) => ({ ...f, renewals_applicable: e.target.value }))}
-          />
-          <p className="text-xs text-muted-foreground mt-1">Billing cycles the discount applies (1 = first payment only)</p>
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="renewals-ongoing"
+              checked={form.renewals_ongoing}
+              onCheckedChange={(checked) => setForm((f) => ({ ...f, renewals_ongoing: Boolean(checked) }))}
+              className="mt-0.5"
+            />
+            <Label htmlFor="renewals-ongoing" className="text-sm font-normal cursor-pointer leading-snug">
+              Ongoing on the subscription (all renewals after checkout)
+            </Label>
+          </div>
+          {!form.renewals_ongoing && (
+            <Input
+              type="number"
+              min={1}
+              className="mt-1 max-w-xs"
+              placeholder="e.g. 3"
+              value={form.renewals_applicable}
+              onChange={(e) => setForm((f) => ({ ...f, renewals_applicable: e.target.value }))}
+            />
+          )}
+          <p className="text-xs text-muted-foreground">
+            {form.renewals_ongoing
+              ? "Subscribers who check out with this code keep the discount on renewals. Deactivating the code only blocks new checkouts — it does not remove an ongoing discount already on a live subscription."
+              : "Number of billing cycles including the first payment (1 = first payment only)."}
+          </p>
         </div>
         <div>
           <Label>Max Uses Per User</Label>
@@ -237,7 +306,7 @@ export default function DiscountCodesPanel({ toast }) {
         <Button
           size="sm"
           className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
-          disabled={!form.code.trim() || !form.discount_percent || !form.expires_date || saving}
+          disabled={!form.code.trim() || !form.discount_percent || saving}
           onClick={handleSave}
         >
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
@@ -250,10 +319,30 @@ export default function DiscountCodesPanel({ toast }) {
   return (
     <div className="space-y-5">
 
-      <div className="flex items-center justify-between">
-        <h3 className="font-heading font-semibold text-sm">All Discount Codes ({codes.length})</h3>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-2">
+          <h3 className="font-heading font-semibold text-sm">
+            Discount Codes ({filteredCodes.length}{statusFilter !== "all" ? ` of ${codes.length}` : ""})
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_FILTERS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setStatusFilter(opt.id)}
+                className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                  statusFilter === opt.id
+                    ? "border-mint-300 bg-mint-50 text-mint-700"
+                    : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
         {!showForm && (
-          <Button size="sm" className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white" onClick={openCreate}>
+          <Button size="sm" className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white shrink-0" onClick={openCreate}>
             <Plus className="w-3.5 h-3.5 mr-1" /> Create New Discount Code
           </Button>
         )}
@@ -271,13 +360,21 @@ export default function DiscountCodesPanel({ toast }) {
           actionLabel="Create Discount Code"
           onAction={openCreate}
         />
+      ) : filteredCodes.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-8">
+          No {statusFilter} discount codes.
+        </p>
       ) : (
         <div className="space-y-3">
-          {codes.slice((codesPage - 1) * PAGE_SIZE, codesPage * PAGE_SIZE).map((dc) => {
+          {filteredCodes.slice((codesPage - 1) * PAGE_SIZE, codesPage * PAGE_SIZE).map((dc) => {
             const isExpanded = expandedUsers === dc.id;
-            const usedRecords = Array.isArray(dc.used_by_records) ? dc.used_by_records : [];
-            const isExpiredByDate = dc.expires_date && moment(dc.expires_date).isBefore(moment(), "day");
-            const effectiveStatus = isExpiredByDate && dc.status === "active" ? "expired" : dc.status;
+            const usedRecords = sortedUsageRecords(
+              Array.isArray(dc.used_by_records) ? dc.used_by_records : []
+            );
+            const usageCount = Number(dc.times_used || usedRecords.length || 0);
+            const effectiveStatus = getEffectiveStatus(dc);
+            const renewalsCount = Number(dc.renewals_applicable ?? 1);
+            const isExpiredByDate = effectiveStatus === "expired";
 
             return (
               <div key={dc.id} className="bg-muted/20 rounded-2xl border border-border overflow-hidden">
@@ -306,8 +403,12 @@ export default function DiscountCodesPanel({ toast }) {
                           <p>Applies to</p>
                         </div>
                         <div>
-                          <span className="font-medium text-foreground">{dc.renewals_applicable ?? 1}</span>
-                          <p>Renewal{(dc.renewals_applicable ?? 1) !== 1 ? "s" : ""} applicable</p>
+                          <span className="font-medium text-foreground">{renewalsLabel(renewalsCount)}</span>
+                          <p>
+                            {renewalsCount <= 0
+                              ? "On renewals"
+                              : `Renewal${renewalsCount !== 1 ? "s" : ""} applicable`}
+                          </p>
                         </div>
                         <div>
                           <span className="font-medium text-foreground">{dc.max_uses_per_user ?? 1}</span>
@@ -315,7 +416,7 @@ export default function DiscountCodesPanel({ toast }) {
                         </div>
                         <div>
                           <span className={`font-medium ${isExpiredByDate ? "text-destructive" : "text-foreground"}`}>
-                            {dc.expires_date ? moment(dc.expires_date).format("MMM D, YYYY") : "—"}
+                            {dc.expires_date ? moment(dc.expires_date).format("MMM D, YYYY") : "No expiration"}
                           </span>
                           <p>Expires</p>
                         </div>
@@ -324,27 +425,41 @@ export default function DiscountCodesPanel({ toast }) {
                           <p>Date created</p>
                         </div>
                         <div>
-                          <button
-                            type="button"
-                            className={`font-medium ${usedRecords.length > 0 ? "underline underline-offset-2 text-mint-600 hover:text-mint-700 cursor-pointer" : "text-foreground cursor-default"}`}
-                            onClick={() => usedRecords.length > 0 && setExpandedUsers((prev) => (prev === dc.id ? null : dc.id))}
-                            disabled={usedRecords.length === 0}
-                          >
-                            {dc.times_used || 0} time{(dc.times_used || 0) !== 1 ? "s" : ""}
-                          </button>
+                          <span className="font-medium text-foreground">
+                            {usageCount} time{usageCount !== 1 ? "s" : ""}
+                          </span>
                           <p>Applied</p>
                         </div>
                       </div>
+
+                      {usedRecords.length > 0 && (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-mint-600 hover:underline"
+                            onClick={() => setExpandedUsers((prev) => (prev === dc.id ? null : dc.id))}
+                          >
+                            {isExpanded
+                              ? "Hide Usage History"
+                              : `Usage History (${usedRecords.length})`}
+                          </button>
+                          {isExpanded && (
+                            <div className="mt-1 space-y-0.5 pl-0.5 text-xs text-muted-foreground">
+                              {usedRecords.map((r, i) => (
+                                <p key={`${dc.id}-use-${i}`}>
+                                  • {r.user_name || "Unknown user"}
+                                  {r.used_date
+                                    ? ` — ${moment.utc(r.used_date).local().format("MMM D, YYYY h:mm A")}`
+                                    : ""}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                      {usedRecords.length > 0 && (
-                        <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground"
-                          onClick={() => setExpandedUsers((prev) => (prev === dc.id ? null : dc.id))}>
-                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          Usage
-                        </Button>
-                      )}
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
                         title="Edit" onClick={() => openEdit(dc)}>
                         <Pencil className="w-3.5 h-3.5" />
@@ -363,26 +478,10 @@ export default function DiscountCodesPanel({ toast }) {
                     </div>
                   </div>
                 </div>
-
-                {isExpanded && usedRecords.length > 0 && (
-                  <div className="border-t border-border bg-muted/30 px-4 py-3">
-                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Usage Detail</p>
-                    <div className="space-y-1.5">
-                      {usedRecords.map((r, i) => (
-                        <div key={i} className="flex items-center gap-3 text-xs bg-background rounded-lg px-3 py-2 border border-border">
-                          <span className="font-medium flex-1 min-w-0 truncate">{r.user_name || "Unknown user"}</span>
-                          <span className="text-muted-foreground shrink-0">{r.ad_name || "—"}</span>
-                          <span className="text-muted-foreground shrink-0">Zip: {r.zip_code || "—"}</span>
-                          <span className="text-muted-foreground shrink-0">{r.used_date ? moment.utc(r.used_date).local().format("MMM D, YYYY") : "—"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}
-          <Paginator total={codes.length} page={codesPage} onPage={setCodesPage} />
+          <Paginator total={filteredCodes.length} page={codesPage} onPage={setCodesPage} />
         </div>
       )}
     </div>

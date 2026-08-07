@@ -189,6 +189,7 @@ export default async function handler(req, res) {
     // Discount code validation
     let discountPercent = 0;
     let discountCodeId = null;
+    let discountRenewalsApplicable = 1;
     if (discountCode) {
       const { data: dc } = await admin
         .from("discount_codes")
@@ -206,6 +207,7 @@ export default async function handler(req, res) {
         if (notExpired && planMatches && notMaxedForUser && emailMatches) {
           discountPercent = Number(dc.discount_percent);
           discountCodeId = dc.id;
+          discountRenewalsApplicable = Number(dc.renewals_applicable ?? 1);
         }
       }
     }
@@ -273,7 +275,21 @@ export default async function handler(req, res) {
     if (userEmail) sessionParams.customer_email = userEmail;
 
     if (discountPercent > 0) {
-      const coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: "once" });
+      // renewals_applicable: 1 = first invoice only; N>1 = N billing cycles; <=0 = ongoing
+      const cycles = Number.isFinite(discountRenewalsApplicable) ? discountRenewalsApplicable : 1;
+      let coupon;
+      if (cycles <= 0) {
+        coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: "forever" });
+      } else if (cycles === 1) {
+        coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: "once" });
+      } else {
+        const durationInMonths = planType === "annual" ? cycles * 12 : cycles;
+        coupon = await stripe.coupons.create({
+          percent_off: discountPercent,
+          duration: "repeating",
+          duration_in_months: durationInMonths,
+        });
+      }
       sessionParams.discounts = [{ coupon: coupon.id }];
     }
 

@@ -3277,7 +3277,7 @@ export default function Admin() {
           {adsSection === "ads-discounts" && (
             <>
               <AdminSectionHeader title="Discount Codes" icon={Tag} />
-              <AdminPanelShell wipNote="Admin CRUD works; applying codes at Stripe checkout returns after beta.">
+              <AdminPanelShell>
                 <DiscountCodesPanel toast={toast} />
               </AdminPanelShell>
             </>

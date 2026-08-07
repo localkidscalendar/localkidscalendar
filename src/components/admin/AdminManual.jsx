@@ -621,16 +621,20 @@ const categories = [
         id: "advertising-discounts",
         title: "Discount Codes",
         overview:
-          "Admin percentage codes for monthly/annual/both, with expiry, max uses, per-user limits, and optional single-email restriction. Checkout shows struck-through original price.",
+          "Admin percentage codes for monthly/annual/both, with optional expiry, max uses, per-user limits, and optional single-email restriction. Checkout shows struck-through original price and applies a Stripe coupon. Leave Expiration blank to keep a code available until Deactivate; set renewals to Ongoing for lasting Stripe discounts on that subscription.",
         features: [
           "Percent off with plan targeting",
+          "Optional expiration (blank = until deactivated) and Ongoing renewals checkbox",
           "Usage limits and personal codes",
+          "All / Active / Inactive filter pills",
+          "Usage History expand link (user name + timestamp, chronological)",
           "Live discount preview at plan step",
         ],
         technicalOverview:
-          "discount_codes validated in create-ad-checkout; usage stamped on banner_ads.",
+          "discount_codes validated in create-ad-checkout (null expires_date never expires by date; status must be active). Stripe coupon duration: once (1 cycle), repeating (N cycles), or forever (renewals_applicable ≤ 0). Deactivate blocks new checkouts only. Successful checkout appends used_by_records via stripe-webhook.",
         technicalFeatures: [
-          "DiscountCodesPanel in Admin → Ads → Discounts",
+          "DiscountCodesPanel in Admin → Ads → Discounts; empty date uses data-empty muted placeholder styling",
+          "stripe-webhook checkout.session.completed increments times_used and appends used_by_records (user_name, used_date)",
         ],
       },
       {

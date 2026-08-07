@@ -205,6 +205,7 @@ export default function AdminAdRatesPanel({ toast }) {
             <Input
               type="date"
               value={form.effective_date}
+              data-empty={!form.effective_date ? "true" : "false"}
               onChange={(e) => setForm((f) => ({ ...f, effective_date: e.target.value }))}
               className="rounded-xl max-w-xs"
             />

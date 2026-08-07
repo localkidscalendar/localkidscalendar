@@ -78,15 +78,54 @@ async function handleCheckoutCompleted(admin, session) {
   if (meta.discount_code_id) {
     const { data: dc } = await admin
       .from("discount_codes")
-      .select("times_used, used_by_user_ids")
+      .select("times_used, used_by_user_ids, used_by_records")
       .eq("id", meta.discount_code_id)
       .maybeSingle();
     if (dc) {
+      let userName = "Unknown user";
+      if (meta.user_id) {
+        const { data: profile } = await admin
+          .from("profiles")
+          .select("first_name, last_name, email")
+          .eq("id", meta.user_id)
+          .maybeSingle();
+        if (profile) {
+          userName =
+            [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() ||
+            profile.email ||
+            "Unknown user";
+        }
+      }
+
+      let adName = null;
+      let zipCode = meta.zip_code || null;
+      const { data: adRow } = await admin
+        .from("banner_ads")
+        .select("business_name, zip_code")
+        .eq("id", adId)
+        .maybeSingle();
+      if (adRow) {
+        adName = adRow.business_name || null;
+        zipCode = adRow.zip_code || zipCode;
+      }
+
+      const usageRecord = {
+        user_id: meta.user_id || null,
+        user_name: userName,
+        ad_name: adName,
+        zip_code: zipCode,
+        used_date: new Date().toISOString(),
+      };
+
       await admin
         .from("discount_codes")
         .update({
           times_used: Number(dc.times_used || 0) + 1,
-          used_by_user_ids: [...(dc.used_by_user_ids || []), meta.user_id],
+          used_by_user_ids: [...(dc.used_by_user_ids || []), meta.user_id].filter(Boolean),
+          used_by_records: [
+            ...(Array.isArray(dc.used_by_records) ? dc.used_by_records : []),
+            usageRecord,
+          ],
         })
         .eq("id", meta.discount_code_id);
     }
