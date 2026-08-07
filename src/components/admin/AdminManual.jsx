@@ -33,13 +33,83 @@ const categories = [
           "Email: Resend; payments: Stripe; image review: OpenAI Moderation API + custom vision when a key is configured; uploads resized client-side before Storage/OpenAI",
         ],
         technicalOverview:
-          "Client uses @/lib/supabaseClient.js. Privileged server work uses SUPABASE_SERVICE_ROLE_KEY via createAdminClient() in api/_lib/stripeHelpers.js. Crons are declared in vercel.json and authenticated with CRON_SECRET (or x-vercel-cron).",
+          "Client uses @/lib/supabaseClient.js. Privileged server work uses SUPABASE_SERVICE_ROLE_KEY via createAdminClient() in api/_lib/stripeHelpers.js. Crons are declared in vercel.json (see Scheduled Jobs section for Pacific Time table) and authenticated with CRON_SECRET (or x-vercel-cron).",
         technicalFeatures: [
           "Env (Vite): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY; optional VITE_API_BASE_URL / VITE_APP_URL (production site https://localkidscalendar.com; *.vercel.app still works)",
           "Env (server): SUPABASE_*, RESEND_*, STRIPE_*, OPENAI_API_KEY, CRON_SECRET, EMAIL_SENDING_ENABLED, RESEND_WEBHOOK_SECRET, APP_URL/VITE_APP_URL for email links",
           "Migrations live under supabase/migrations/; production SQL is often applied via the Supabase SQL Editor",
           "Legacy base44/ folder may still exist in the repo but is not the live path for Admin/email/ads",
           "After connecting the custom domain: set Supabase Auth Site URL + Redirect URLs, Google OAuth origins, Vercel VITE_APP_URL/APP_URL, and Resend domain verification",
+        ],
+      },
+      {
+        id: "cron-schedules",
+        title: "Scheduled Jobs (Crons)",
+        keywords: [
+          "cron",
+          "schedule",
+          "pacific",
+          "pt",
+          "waitlist",
+          "digest",
+          "renewal",
+          "grace period",
+          "plan change",
+          "vercel.json",
+        ],
+        overview:
+          "Vercel Cron Jobs call secured /api/cron-* routes on a fixed daily schedule. Times below are Pacific Time (PDT). In winter (PST) they run one hour earlier on the clock. Schedules in vercel.json are stored in UTC.",
+        features: [
+          "All five jobs run once per day (waitlist is no longer every 30 minutes)",
+          "Weekly digests: cron runs every day at 8:00 AM PT, but emails only send on Tuesdays",
+          "Auth: CRON_SECRET bearer and/or x-vercel-cron header",
+          "See also: Ad Waitlist; Weekly Activity Digests; Payments / Plan changes",
+        ],
+        flowCharts: [
+          {
+            title: "Daily cron schedule (Pacific Time)",
+            caption:
+              "PDT shown. Winter (PST): subtract one hour. Source of truth for UTC expressions: vercel.json.",
+            columns: ["Pacific Time (PDT)", "Job", "What it does", "UTC (vercel.json)"],
+            rows: [
+              [
+                "7:00 AM",
+                "Waitlist",
+                "Expire stale offers; advance open zip slots to the next person in line",
+                "0 14 * * *",
+              ],
+              [
+                "8:00 AM",
+                "Weekly digests",
+                "Send matching activity digests (Tuesday only; other days no-op)",
+                "0 15 * * *",
+              ],
+              [
+                "9:00 AM",
+                "Renewal reminders",
+                "In-app “renewing soon” for ads ~21 days from renewal",
+                "0 16 * * *",
+              ],
+              [
+                "9:30 AM",
+                "Ad plan changes",
+                "Lock in pending monthly ↔ annual switches near renewal; update Stripe when possible",
+                "30 16 * * *",
+              ],
+              [
+                "10:00 AM",
+                "Grace-period cleanup",
+                "Expire past_due ads after 7-day grace; advance waitlist",
+                "0 17 * * *",
+              ],
+            ],
+          },
+        ],
+        technicalOverview:
+          "vercel.json → crons[].path. Handlers: cron-process-waitlist, cron-send-notification-emails, cron-renewal-reminders, cron-process-ad-plan-changes, cron-grace-period-cleanup. Keep Admin JWT routes separate (CRON_SECRET rejects admin tokens on cron-only paths).",
+        technicalFeatures: [
+          "Waitlist also advances from other flows (e.g. grace cleanup, Admin disable, manual Admin waitlist tools) — cron is the daily sweep",
+          "Update this table whenever vercel.json schedules change",
         ],
       },
       {
@@ -472,13 +542,13 @@ const categories = [
           "Clear Flag (one): keeps report so that reporter cannot re-flag or withdraw; never undoes Manual Deactivate (use Clear Flags, Reactivate, or Override to bring content back)",
           "Clear Flag / Clear Flags run as one server transaction (admin_clear_flag / admin_clear_all_flags) — same buttons, no mid-clear half-state",
           "Clear Flag / Clear Flags / Manually Deactivate use AdminNoteConfirmDialog (optional notes on clear; required notes on deactivate; ads always email)",
-          "Reactivate Flag (Admin): puts that reporter’s flag back into the count — they can withdraw again afterward",
           "Suspended / disabled accounts cannot submit content flags (same account-blocked check as other registered actions)",
           "Activities trash and Flags Manually Deactivate (activities) share remove flow: deleted + admin_notes + activity_removed_admin; savers get generic copy only",
           "Owners cannot flag their own activity, comment, or ad creative; users cannot flag themselves or Admins",
           "Admin → Flags is the primary place for 3+ Override / Clear Flags (All Activities shows a Flag shortcut that opens Flags with the activity title in search)",
-          "Admin → Flags → Flagged Users: Clear Flags / Manual Disable (existing disable path) when suspended or 3+; per-report Clear Flag; Reviewed",
-          "Admin 3+ card: Override 3+, Clear Flags, Reviewed; after Override/Clear Flags/Reviewed: Mark Unreviewed",
+          "Admin → Flags → Flagged Content: one card per activity/comment/ad (nested reports); case actions Clear Flags → Manually Deactivate or Override 3+ → Reviewed; per-report Clear Flag",
+          "Admin → Flags → Flagged Users: one card per user (nested reports); case actions Clear Flags → Manual Disable → Reviewed; per-report Clear Flag",
+          "After Override / Clear Flags / Reviewed (content or users): Mark Unreviewed",
           "Admin → Users → List of Users: Contributions / Flagged / Flags Filed counts (click # to expand); nested # Flags show reporter, reason, comments, timestamp; Clear search + role filters; Actions for Supporter and Disable",
           "Admin → Users shows a Suspended badge when suspended_at is set (and role is not disabled)",
           "Ad asset cascade: disabling a creative affects all zip placements using it",
@@ -493,9 +563,9 @@ const categories = [
           "User withdraw deletes their report and decrements counters; may restore auto-hidden content below 3 (not Admin manual deactivate)",
           "3+ hide trigger still notifies activity savers; owner 3+ message comes from submit_flag (avoids duplicates)",
           "Community 3-flag on ads can still email via notify-ad-asset-disabled (idempotent disable_notified_at)",
-          "Admin → Flags → Flagged Content filters: All / Activities / Comments / Ads, plus a combinable 3+ toggle for 3+ Deactivation cards only",
+          "Admin → Flags → Flagged Content: grouped by target item; filters All / Activities / Comments / Ads + combinable 3+ toggle; open badge counts unresolved content cases",
           "Admin → Flags → Flagged Users filters: All / Community Members / Organizers / 3+",
-          "Admin → Flags → Flagging Activity: report-only leaderboard of Flagging vs Being Flagged (separate rows; Flagging includes user-target reports; Being Flagged = content received + user flags); filters All / Flagging / Being Flagged; click name → Users list by exact email",
+          "Admin → Flags → Top Flagging Activity Ranking: report-only leaderboard of Flagging vs Being Flagged (separate rows; Flagging includes user-target reports; Being Flagged = content received + user flags); filters All / Flagging / Being Flagged; click name → Users list by exact email",
           "banner_ads.flag_count mirrors the asset for Ad Manager display",
         ],
       },
@@ -619,7 +689,7 @@ const categories = [
         id: "advertising-waitlist",
         title: "Ad Waitlist",
         overview:
-          "When a zip is full, Supporters join a waitlist. When a slot opens, the next person gets an offer (email + in-app) with a 24-hour window. Up to 3 offer attempts; then the queue moves on. Cron checks about every 30 minutes.",
+          "When a zip is full, Supporters join a waitlist. When a slot opens, the next person gets an offer (email + in-app) with a 24-hour window. Up to 3 offer attempts; then the queue moves on. Cron runs daily at 7:00 AM PT (see Scheduled Jobs).",
         features: [
           "FIFO-style queue per zip",
           "24-hour offer window",
@@ -627,7 +697,7 @@ const categories = [
           "Admin can override / re-offer",
         ],
         technicalOverview:
-          "ad_waitlist + /api/cron-process-waitlist (*/30) + processWaitlistCore. Manual /api/offer-waitlist-spot and expire helpers.",
+          "ad_waitlist + /api/cron-process-waitlist (7:00 AM PT / 0 14 * * * UTC) + processWaitlistCore. Manual /api/offer-waitlist-spot and expire helpers. Full table: Scheduled Jobs (Crons).",
         technicalFeatures: [
           "Statuses: waiting, offered, accepted, expired, declined, cancelled",
           "AdminWaitlistPanel under Ads → Waitlist",
@@ -640,12 +710,12 @@ const categories = [
           "Stripe Checkout + subscriptions. Failed renewal → Past Due with a 7-day grace period, then cleanup. From 14 days before renewal, Ad Manager shows cancel-outcome messaging. ~21 days before renewal, in-app renewal reminders can fire.",
         features: [
           "Stripe monthly/annual",
-          "7-day grace on payment failure",
+          "7-day grace on payment failure (cron cleanup 10:00 AM PT)",
           "14-day cancel warning UI",
-          "21-day renewal-soon notices (in-app)",
+          "21-day renewal-soon notices (in-app; cron 9:00 AM PT)",
         ],
         technicalOverview:
-          "api/stripe-webhook.js; cancel-ad-renewal; cron-grace-period-cleanup; cron-renewal-reminders; adBillingNotices.js.",
+          "api/stripe-webhook.js; cancel-ad-renewal; cron-grace-period-cleanup (10:00 AM PT); cron-renewal-reminders (9:00 AM PT); adBillingNotices.js. Full table: Scheduled Jobs (Crons).",
         technicalFeatures: [
           "invoice.payment_failed → notifyPaymentFailed (message + email)",
           "invoice.payment_succeeded → renew notices / plan switches as applicable",
@@ -661,9 +731,10 @@ const categories = [
           "Effect at renewal, not immediately",
           "21-day rate lock-in",
           "Cancel pending change supported",
+          "Cron locks pending switches daily at 9:30 AM PT",
         ],
         technicalOverview:
-          "/api/request-ad-plan-change + /api/cron-process-ad-plan-changes (LOCK_IN_DAYS = 21).",
+          "/api/request-ad-plan-change + /api/cron-process-ad-plan-changes (9:30 AM PT / LOCK_IN_DAYS = 21). Full table: Scheduled Jobs (Crons).",
         technicalFeatures: [
           "Pending fields on banner_ads; Stripe price update at renewal",
         ],
@@ -695,16 +766,16 @@ const categories = [
         title: "Weekly Activity Digests",
         keywords: ["tuesday", "resend", "digest", "monday"],
         overview:
-          "Opt-in weekly emails of matching activities for Community Members. Cron runs daily at 8:00am Pacific but only sends on Tuesdays. Default preference is Off. Emails include up to 8 activity cards plus supporter/filler ads for the user’s zip.",
+          "Opt-in weekly emails of matching activities for Community Members. Cron runs daily at 8:00 AM PT but only sends on Tuesdays (see Scheduled Jobs). Default preference is Off. Emails include up to 8 activity cards plus supporter/filler ads for the user’s zip.",
         features: [
           "Weekly only (no daily/monthly)",
-          "Tuesday ~8am PT",
+          "Tuesday send at ~8:00 AM PT (cron runs daily)",
           "Skip when zero matching activities",
           "Skips organizers and admins as digest recipients",
           "Manage Preferences + unsubscribe link in footer",
         ],
         technicalOverview:
-          "vercel.json cron → /api/cron-send-notification-emails → sendMatchingDigests. HTML from buildDigestHtml. Send via sendViaResend.",
+          "vercel.json cron → /api/cron-send-notification-emails (8:00 AM PT) → sendMatchingDigests. HTML from buildDigestHtml. Send via sendViaResend. Full table: Scheduled Jobs (Crons).",
         technicalFeatures: [
           "frequenciesForToday() returns ['weekly'] only on Tuesday America/Los_Angeles",
           "Prefs frequency must be weekly; include_fav_organizers / include_other_activities drive matching",
@@ -824,7 +895,7 @@ const categories = [
         id: "automated-notices",
         title: "Automated In-App Notices",
         overview:
-          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, and the full community-flag lifecycle for content and user accounts). Previewed under Admin → Previews → Automated Messages without sending — search + category pills (Welcome / Flags / Reviews / Admin Removals / Billing / Saved); titles use topic format (e.g. Flags · Activity · Flagged). Comment flag notices have no action button (authors edit/delete on the activity page).",
+          "Catalog of system messages (welcome, supporter welcome, billing, photo/ad decisions, and the full community-flag lifecycle for content and user accounts). Previewed under Admin → Previews → Automated Messages without sending — search + category pills (Welcome / Flags / Reviews / Admin Removals / Billing / Saved); titles use topic format (e.g. Flags · Activity · Flagged). Comment flag notices and user-account flag notices have no action button (already on My Messages / edit comments on the activity page).",
         features: [
           "Catalog-driven copy in userMessagesCatalog.js",
           "Content flag lifecycle: flagged (1/2), removed at 3, flag withdrawn, Clear Flags (second chance), Override 3+ — for activities, comments, and Ad Assets",
@@ -926,17 +997,17 @@ const categories = [
           "Activities — All/Active/Inactive pills; status + reason (Active, User deactivated, Admin removed, Community flags); expandable admin notes; View always aligned with a reserved action slot; Trash on active; Restore only for Admin removed (confirm); Flag icon on community-flagged rows opens Flags with title search + Activities filter",
           "Ads — supporter ads, zip config, waitlist, rates, discounts, fillers",
           "Beta — stage gates / zip whitelist",
-          "Contact Us — inbound messages",
+          "Contact Us — inbound messages (unread count on tab + subject subtabs)",
           "FAQs — manage public FAQ entries",
-          "Flags — Flagged Content, Flagged Users, Flagging Activity (primary restore path for 3-flag archived activities)",
-          "Manual — this document (keep updated when product/admin rules change)",
+          "Flags — Flagged Content, Flagged Users, Top Flagging Activity Ranking (parent open-count badge splits onto Content + Users subtabs)",
+          "Manual — this document (keep updated when product/admin rules change; includes cron schedule in PT)",
           "Mass Messages — compose, archive, digest controls",
           "Previews — emails, automated messages, site notices",
-          "Reviews — activity photos + ad creatives needing humans",
+          "Reviews — activity photos + ad creatives needing humans (queue counts on tab + subtabs)",
           "Users — List of Users (default), Reactivation Requests, Zip Code Reports",
         ],
         technicalOverview:
-          "Admin.jsx tabs + AdminSubNav section arrays (ADS_SECTIONS, FLAGS_SECTIONS, USER_SECTIONS, PREVIEW_SECTIONS, REVIEW_SECTIONS, MASS_MESSAGE_SECTIONS, …). All Activities helpers: getActivityStatusMeta, openFlagsForActivity, handleReactivateItem (admin notes required for events). Users list: openUserInUsersList from Flagging Activity; USER_LIST_FILTERS + Contributions/Flagged/Flags Filed panels.",
+          "Admin.jsx tabs + AdminSubNav section arrays (ADS_SECTIONS, FLAGS_SECTIONS, USER_SECTIONS, PREVIEW_SECTIONS, REVIEW_SECTIONS, MASS_MESSAGE_SECTIONS, …). All Activities helpers: getActivityStatusMeta, openFlagsForActivity, handleReactivateItem (admin notes required for events). Users list: openUserInUsersList from Top Flagging Activity Ranking; USER_LIST_FILTERS + Contributions/Flagged/Flags Filed panels.",
         technicalFeatures: [
           "Hard gate: if user.role !== 'admin' navigate home",
           "Consistent AdminSectionHeader + AdminPanelShell chrome",
@@ -1016,7 +1087,7 @@ const categories = [
         features: [
           "Shared dialog for disable, remove/deactivate, and clear-flag actions",
           "Email only when the table says so (optional on account disable; always on ad creative disable)",
-          "Clearing a flag keeps the report row — the same reporter cannot re-flag or withdraw that report (unless Admin uses Reactivate Flag)",
+          "Clearing a flag keeps the report row — the same reporter cannot re-flag or withdraw that report",
           "Clear all flags hard-resets counters to 0 and reinstates content (second chance). Clearing one flag never undoes Manual Deactivate",
           "See also: Flagging & Admin Disposition; Disable Account & Reactivation Requests",
         ],
@@ -1111,7 +1182,7 @@ const categories = [
                 "—",
               ],
               [
-                "Admin Clear Flags (3+ card)",
+                "Admin Clear Flags (case card)",
                 "Count → 0 hard-reset; second chance (reinstates even after Manual Deactivate); optional note",
                 "Cleared / reinstated (+ optional note)",
                 "No",

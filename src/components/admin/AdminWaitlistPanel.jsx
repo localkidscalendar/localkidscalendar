@@ -294,7 +294,7 @@ export default function AdminWaitlistPanel({ toast }) {
       <p className="text-xs text-muted-foreground">
         Shows people currently <strong>waiting</strong> or <strong>offered</strong> only. Accepted, cancelled, and
         expired rows stay in the database but are not listed here. Offers do not increase Custom Zip capacity. A cron
-        job also expires stale offers and advances the queue every 30 minutes.
+        job also expires stale offers and advances the queue once daily at 7:00 AM PT.
       </p>
       <div className="flex items-center gap-3">
         <SearchClearField

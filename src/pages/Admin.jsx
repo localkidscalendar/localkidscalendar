@@ -91,7 +91,7 @@ const MASS_MESSAGE_SECTIONS = [
 const FLAGS_SECTIONS = [
   { id: "flags-flagged-content", label: "Flagged Content" },
   { id: "flags-flagged-users", label: "Flagged Users" },
-  { id: "flags-users-flagging", label: "Flagging Activity" },
+  { id: "flags-users-flagging", label: "Top Flagging Activity Ranking" },
 ];
 
 const FLAGGED_USER_ROLE_FILTERS = [
@@ -674,16 +674,46 @@ export default function Admin() {
       const titles = {};
 
       if (eventIds.length) {
-        const { data } = await supabase.from("events").select("id, title, zip_code, status").in("id", eventIds);
+        const { data } = await supabase
+          .from("events")
+          .select("id, title, zip_code, status, flag_count, flag_case_admin_action, flag_case_admin_history, created_by_id, org_name, updated_at, created_at")
+          .in("id", eventIds);
         (data || []).forEach((e) => {
-          titles[e.id] = { type: "event", title: e.title, zip_code: e.zip_code, status: e.status };
+          titles[e.id] = {
+            type: "event",
+            title: e.title,
+            zip_code: e.zip_code,
+            status: e.status,
+            flag_count: e.flag_count,
+            flag_case_admin_action: e.flag_case_admin_action,
+            flag_case_admin_history: e.flag_case_admin_history,
+            created_by_id: e.created_by_id,
+            org_name: e.org_name,
+            updated_at: e.updated_at,
+            created_at: e.created_at,
+          };
         });
       }
 
       if (commentIds.length) {
-        const { data: comments } = await supabase.from("comments").select("id, content, event_id, status").in("id", commentIds);
+        const { data: comments } = await supabase
+          .from("comments")
+          .select("id, content, event_id, status, flag_count, flag_case_admin_action, flag_case_admin_history, created_by_id, author_name, updated_at, created_at")
+          .in("id", commentIds);
         for (const c of comments || []) {
-          titles[c.id] = { type: "comment", content: c.content, event_id: c.event_id, status: c.status };
+          titles[c.id] = {
+            type: "comment",
+            content: c.content,
+            event_id: c.event_id,
+            status: c.status,
+            flag_count: c.flag_count,
+            flag_case_admin_action: c.flag_case_admin_action,
+            flag_case_admin_history: c.flag_case_admin_history,
+            created_by_id: c.created_by_id,
+            author_name: c.author_name,
+            updated_at: c.updated_at,
+            created_at: c.created_at,
+          };
           if (c.event_id && !titles[c.event_id]) {
             const { data: e } = await supabase.from("events").select("id, title, zip_code, status").eq("id", c.event_id).maybeSingle();
             if (e) titles[e.id] = { type: "event", title: e.title, zip_code: e.zip_code, status: e.status };
@@ -695,15 +725,24 @@ export default function Admin() {
         // Flags target Ad Library assets; fall back to placements for any unmigrated rows.
         const { data: assets } = await supabase
           .from("ad_library")
-          .select("id, ad_name, moderation_status, image_url, link_url")
+          .select("id, ad_name, business_name, moderation_status, status, image_url, link_url, flag_count, flag_case_admin_action, flag_case_admin_history, user_id, updated_at, created_at")
           .in("id", adIds);
         (assets || []).forEach((a) => {
           titles[a.id] = {
             type: "ad",
             title: a.ad_name || "Ad Asset",
-            status: a.moderation_status,
+            ad_name: a.ad_name,
+            business_name: a.business_name,
+            status: a.moderation_status || a.status,
+            moderation_status: a.moderation_status,
             image_url: a.image_url,
             link_url: a.link_url,
+            flag_count: a.flag_count,
+            flag_case_admin_action: a.flag_case_admin_action,
+            flag_case_admin_history: a.flag_case_admin_history,
+            user_id: a.user_id,
+            updated_at: a.updated_at,
+            created_at: a.created_at,
           };
         });
         const { data: placements } = await supabase
@@ -773,132 +812,6 @@ export default function Admin() {
       }));
       setDeletedItems([...itemsWithFlags, ...commentsWithFlags, ...adsWithFlags]);
     } catch {}
-  };
-
-  const isManuallyDeactivatedTarget = async (targetId, targetType) => {
-    if (
-      flags.some(
-        (f) =>
-          f.target_id === targetId &&
-          f.target_type === targetType &&
-          f.admin_action === "manually_deactivated"
-      )
-    ) {
-      return true;
-    }
-    const table =
-      targetType === "event"
-        ? "events"
-        : targetType === "comment"
-          ? "comments"
-          : targetType === "ad"
-            ? "ad_library"
-            : null;
-    if (!table) return false;
-    const { data } = await supabase
-      .from(table)
-      .select("flag_case_admin_action")
-      .eq("id", targetId)
-      .maybeSingle();
-    return data?.flag_case_admin_action === "manually_deactivated";
-  };
-
-  const syncTargetStatusWithFlagThreshold = async (table, targetId, targetType, nextCount, currentStatus) => {
-    const manuallyDeactivated = await isManuallyDeactivatedTarget(targetId, targetType);
-
-    if (targetType === "ad") {
-      if (nextCount >= 3) {
-        const { data: asset } = await supabase
-          .from("ad_library")
-          .select("flag_auto_hide_exempt")
-          .eq("id", targetId)
-          .maybeSingle();
-        if (asset?.flag_auto_hide_exempt) return;
-        if (currentStatus !== "flagged") {
-          await disableAdAsset(
-            targetId,
-            "Ad creative flagged by 3+ community members and disabled across all zip placements."
-          );
-        }
-        return;
-      }
-      if (currentStatus === "flagged" && !manuallyDeactivated) {
-        await reactivateAdAsset(targetId);
-      }
-      return;
-    }
-
-    const hiddenStatus = "archived";
-    const updates = { updated_at: new Date().toISOString() };
-
-    if (nextCount >= 3) {
-      const { data: row } = await supabase
-        .from(table)
-        .select("flag_auto_hide_exempt")
-        .eq("id", targetId)
-        .maybeSingle();
-      if (row?.flag_auto_hide_exempt) return;
-      if (currentStatus !== hiddenStatus) {
-        updates.status = hiddenStatus;
-        await supabase.from(table).update(updates).eq("id", targetId);
-      }
-      return;
-    }
-
-    // Below threshold: undo auto-hide, but keep Admin Manual Deactivate in place
-    if (currentStatus === "archived" && !manuallyDeactivated) {
-      updates.status = "active";
-      await supabase.from(table).update(updates).eq("id", targetId);
-    }
-  };
-
-  const restoreFlagOnTarget = async (report) => {
-    if (!report?.reporter_id) return;
-    const isAd = report.target_type === "ad";
-    const table =
-      report.target_type === "event"
-        ? "events"
-        : report.target_type === "comment"
-          ? "comments"
-          : isAd
-            ? "ad_library"
-            : null;
-    if (!table) return;
-
-    const { data: row } = await supabase
-      .from(table)
-      .select(isAd ? "flag_count, flagged_by, moderation_status" : "flag_count, flagged_by, status")
-      .eq("id", report.target_id)
-      .maybeSingle();
-    if (!row) return;
-
-    const flaggedBy = row.flagged_by || [];
-    if (flaggedBy.includes(report.reporter_id)) return;
-
-    const nextBy = [...flaggedBy, report.reporter_id];
-    const resolvedCount = nextBy.length;
-
-    await supabase.from(table).update({
-      flag_count: resolvedCount,
-      flagged_by: nextBy,
-      updated_at: new Date().toISOString(),
-    }).eq("id", report.target_id);
-
-    if (isAd) {
-      await supabase.from("banner_ads").update({
-        flag_count: resolvedCount,
-        flagged_by: nextBy,
-        updated_at: new Date().toISOString(),
-      }).eq("ad_library_id", report.target_id);
-    }
-
-    await syncTargetStatusWithFlagThreshold(
-      table,
-      report.target_id,
-      report.target_type,
-      resolvedCount,
-      isAd ? row.moderation_status : row.status
-    );
   };
 
   const handleAdStatus = async (id, status) => {
@@ -1174,10 +1087,7 @@ export default function Admin() {
   const getFlagHistory = (report) =>
     Array.isArray(report?.admin_action_history) ? report.admin_action_history : [];
 
-  // Flagged Content cards: only this report's own actions (never Deactivated Content case history)
-  const getFlaggedCardHistory = (report) =>
-    getFlagHistory(report).filter((entry) => entry?.scope !== "deactivated_content");
-
+  // Flagged Content cards use case history on the target item
   const getDeactivatedCaseHistory = (item) =>
     Array.isArray(item?.item?.flag_case_admin_history) ? item.item.flag_case_admin_history : [];
 
@@ -1510,48 +1420,7 @@ export default function Admin() {
     loadAll();
   };
 
-  const handleManuallyDeactivate = (flagId, targetId, targetType) => {
-    if (targetType === "ad") {
-      setNoteDialog({
-        open: true,
-        mode: "deactivate_ad",
-        context: { targetId, flagId },
-        busy: false,
-      });
-      return;
-    }
-    if (targetType === "comment") {
-      void (async () => {
-        const { data: comment } = await supabase.from("comments").select("id, created_by_id").eq("id", targetId).maybeSingle();
-        if (!comment) {
-          toast({ title: "Comment not found", variant: "destructive" });
-          return;
-        }
-        setNoteDialog({
-          open: true,
-          mode: "deactivate_comment",
-          context: { comment, flagId },
-          busy: false,
-        });
-      })();
-      return;
-    }
-    void (async () => {
-      const { data: event } = await supabase.from("events").select("*").eq("id", targetId).maybeSingle();
-      if (!event) {
-        toast({ title: "Activity not found", variant: "destructive" });
-        return;
-      }
-      setNoteDialog({
-        open: true,
-        mode: "remove_activity",
-        context: { event, flagId },
-        busy: false,
-      });
-    })();
-  };
-
-  const handleReactivateFromFlag = async (flagId, targetId, targetType) => {
+  const handleReactivateFromFlag = async (flagId, targetId, targetType, deactivatedItem = null) => {
     let error;
     if (targetType === "ad") {
       ({ error } = await reactivateAdAsset(targetId));
@@ -1567,6 +1436,14 @@ export default function Admin() {
     }
     if (flagId) {
       const { error: historyError } = await recordFlagAdminAction(flagId, "reactivated");
+      if (historyError) {
+        toast({ title: "Reactivated, but failed to record admin action", description: historyError.message, variant: "destructive" });
+        loadAll();
+        return;
+      }
+    }
+    if (deactivatedItem) {
+      const { error: historyError } = await recordDeactivatedCaseAction(deactivatedItem, "reactivated");
       if (historyError) {
         toast({ title: "Reactivated, but failed to record admin action", description: historyError.message, variant: "destructive" });
         loadAll();
@@ -1654,42 +1531,6 @@ export default function Admin() {
     return true;
   };
 
-  const handleReactivateFlag = async (flagId) => {
-    const report = flags.find((f) => f.id === flagId);
-    if (!report) return;
-
-    await restoreFlagOnTarget(report);
-
-    const { error } = await recordFlagAdminAction(flagId, "flag_reactivated");
-    if (error) {
-      toast({ title: "Failed to reactivate flag", description: error.message, variant: "destructive" });
-      return;
-    }
-
-    toast({ title: "Flag reactivated" });
-    loadAll();
-  };
-
-  const handleReviewedFlag = async (flagId) => {
-    const { error } = await recordFlagAdminAction(flagId, "reviewed");
-    if (error) {
-      toast({ title: "Failed to mark reviewed", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: "Marked as reviewed" });
-    loadAll();
-  };
-
-  const handleMarkUnreviewed = async (flagId) => {
-    const { error } = await recordFlagAdminAction(flagId, "unreviewed");
-    if (error) {
-      toast({ title: "Failed to mark unreviewed", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: "Marked as unreviewed" });
-    loadAll();
-  };
-
   const resolveReporterName = (f) => {
     const profile = users.find((u) => u.id === f.reporter_id);
     const fromProfile = profile
@@ -1706,30 +1547,7 @@ export default function Admin() {
     );
   };
 
-  const resolveContributorName = (f) => {
-    if (f.target_type === "event") {
-      const ev = events.find((e) => e.id === f.target_id);
-      if (ev?.org_name) return ev.org_name;
-      if (ev?.created_by_id && organizerMap[ev.created_by_id]) return organizerMap[ev.created_by_id];
-    }
-    return f.target_contributor_name || "—";
-  };
-
   const isFlagOpen = (f) => !f.admin_action && !f.reviewed;
-
-  const getReportedFlagOrdinal = (report) => {
-    const related = flags
-      .filter((f) => f.target_type === report.target_type && f.target_id === report.target_id)
-      .sort(
-        (a, b) =>
-          new Date(a.created_at || a.created_date || 0) - new Date(b.created_at || b.created_date || 0)
-      );
-    const index = related.findIndex((f) => f.id === report.id);
-    return {
-      position: index >= 0 ? index + 1 : 1,
-      total: related.length || 1,
-    };
-  };
 
   const formatFlagSubmittedAt = (createdDate) => {
     const local = moment.utc(createdDate).local();
@@ -1743,76 +1561,117 @@ export default function Admin() {
     return `${label} — ${when}${by}`;
   };
 
-  const getDeactivationSortAt = (item) => {
-    const sorted = [...(item.flags || [])].sort(
-      (a, b) =>
-        new Date(a.created_at || a.created_date || 0) - new Date(b.created_at || b.created_date || 0)
-    );
-    if (sorted.length >= 3) {
-      return sorted[2].created_at || sorted[2].created_date;
-    }
-    const latest = sorted[sorted.length - 1];
-    return latest?.created_at || latest?.created_date || item.item.updated_at || item.item.created_at;
-  };
-
-  const flaggedFeedItems = useMemo(() => {
+  const flaggedContentCards = useMemo(() => {
     const contentFlags = flags.filter((f) => f.target_type !== "user");
-    const flagEntries = contentFlags.map((f) => ({
-      kind: "flag",
-      id: `flag-${f.id}`,
-      sortAt: f.created_at || f.created_date,
-      targetType: f.target_type,
-      flag: f,
-    }));
+    const byTarget = {};
+    contentFlags.forEach((f) => {
+      const key = `${f.target_type}:${f.target_id}`;
+      if (!byTarget[key]) byTarget[key] = [];
+      byTarget[key].push(f);
+    });
 
-    const deactivationEntries = deletedItems.map((item) => ({
-      kind: "deactivation",
-      id: `deact-${item.type}-${item.item.id}`,
-      sortAt: getDeactivationSortAt(item),
-      targetType: item.type === "event" ? "event" : item.type === "comment" ? "comment" : "ad",
-      item,
-    }));
+    // Include 3+ targets even if somehow reports are missing from the feed
+    deletedItems.forEach((item) => {
+      const targetType = item.type === "event" ? "event" : item.type === "comment" ? "comment" : "ad";
+      const key = `${targetType}:${item.item.id}`;
+      if (!byTarget[key]) byTarget[key] = [...(item.flags || [])];
+    });
 
-    let list = [...flagEntries, ...deactivationEntries];
+    let list = Object.entries(byTarget).map(([key, targetFlags]) => {
+      const colon = key.indexOf(":");
+      const targetType = key.slice(0, colon);
+      const targetId = key.slice(colon + 1);
+      const itemType = targetType === "event" ? "event" : targetType === "comment" ? "comment" : "ad";
+      const sortedFlags = [...targetFlags].sort(
+        (a, b) =>
+          new Date(b.created_at || b.created_date || 0) - new Date(a.created_at || a.created_date || 0)
+      );
+      const uncleared = sortedFlags.filter((f) => f.admin_action !== "flag_cleared");
+      const fromDeleted = deletedItems.find((d) => d.type === itemType && d.item.id === targetId);
+      const meta = eventMap[targetId] || {};
+      const fromEvents = itemType === "event" ? events.find((e) => e.id === targetId) : null;
+
+      const baseItem = fromDeleted?.item || {
+        id: targetId,
+        ...(itemType === "event"
+          ? {
+              title: meta.title || fromEvents?.title || "Activity",
+              status: meta.status || fromEvents?.status || "active",
+              org_name: meta.org_name || fromEvents?.org_name,
+              created_by_id: meta.created_by_id || fromEvents?.created_by_id,
+              zip_code: meta.zip_code || fromEvents?.zip_code,
+            }
+          : itemType === "comment"
+            ? {
+                content: meta.content || "",
+                event_id: meta.event_id,
+                status: meta.status || "active",
+                created_by_id: meta.created_by_id,
+                author_name: meta.author_name,
+              }
+            : {
+                ad_name: meta.ad_name || meta.title || "Ad Asset",
+                business_name: meta.business_name,
+                moderation_status: meta.moderation_status || meta.status,
+                status: meta.status || meta.moderation_status,
+                image_url: meta.image_url,
+                link_url: meta.link_url,
+                user_id: meta.user_id,
+              }),
+        flag_count: meta.flag_count ?? fromDeleted?.item?.flag_count ?? uncleared.length,
+        flag_case_admin_action: meta.flag_case_admin_action ?? fromDeleted?.item?.flag_case_admin_action ?? null,
+        flag_case_admin_history: meta.flag_case_admin_history || fromDeleted?.item?.flag_case_admin_history || [],
+        updated_at: meta.updated_at || fromDeleted?.item?.updated_at,
+        created_at: meta.created_at || fromDeleted?.item?.created_at,
+      };
+
+      const moderationItem = {
+        type: itemType,
+        item: baseItem,
+        flags: sortedFlags,
+        eventTitle:
+          fromDeleted?.eventTitle
+          || (itemType === "comment" && baseItem.event_id
+            ? eventMap[baseItem.event_id]?.title || "—"
+            : undefined),
+      };
+
+      const flagCount = Number(baseItem.flag_count ?? uncleared.length);
+      const caseAction = baseItem.flag_case_admin_action || null;
+      const hidden = isDeactivatedItemHidden(moderationItem);
+      const is3Plus = flagCount >= 3 || Boolean(fromDeleted) || hidden;
+
+      return {
+        key,
+        targetType,
+        targetId,
+        moderationItem,
+        flags: sortedFlags,
+        uncleared,
+        flagCount,
+        caseAction,
+        hidden,
+        is3Plus,
+        sortAt:
+          sortedFlags[0]?.created_at
+          || sortedFlags[0]?.created_date
+          || baseItem.updated_at
+          || baseItem.created_at,
+      };
+    });
 
     if (flag3PlusOnly) {
-      list = list.filter((entry) => entry.kind === "deactivation");
+      list = list.filter((card) => card.is3Plus);
     }
 
     if (flagTypeFilter !== "all") {
-      list = list.filter((entry) => entry.targetType === flagTypeFilter);
+      list = list.filter((card) => card.targetType === flagTypeFilter);
     }
 
     if (flagSearch.trim()) {
       const q = flagSearch.trim().toLowerCase();
-      list = list.filter((entry) => {
-        if (entry.kind === "flag") {
-          const f = entry.flag;
-          const title =
-            f.target_type === "event"
-              ? eventMap[f.target_id]?.title || ""
-              : f.target_type === "comment"
-                ? `${eventMap[f.target_id]?.content || ""} ${eventMap[eventMap[f.target_id]?.event_id]?.title || ""}`
-                : eventMap[f.target_id]?.title || f.target_contributor_name || "";
-          const historyText = getFlaggedCardHistory(f)
-            .map((e) => `${adminActionLabel[e?.action] || e?.action || ""} ${e?.by || ""}`)
-            .join(" ");
-          const hay = [
-            title,
-            f.reporter_name,
-            f.target_contributor_name,
-            f.reason,
-            f.details,
-            resolveReporterName(f),
-            resolveContributorName(f),
-            adminActionLabel[f.admin_action] || "",
-            historyText,
-            "flag",
-          ].join(" ").toLowerCase();
-          return hay.includes(q);
-        }
-
-        const item = entry.item;
+      list = list.filter((card) => {
+        const item = card.moderationItem;
         const historyText = getDeactivatedCaseHistory(item)
           .map((e) => `${adminActionLabel[e?.action] || e?.action || ""} ${e?.by || ""}`)
           .join(" ");
@@ -1821,21 +1680,25 @@ export default function Admin() {
             ? item.item.title || ""
             : item.type === "comment"
               ? `${item.item.content || ""} ${item.eventTitle || ""}`
-              : `${item.item.business_name || ""} ${item.item.link_url || ""}`;
+              : `${item.item.ad_name || ""} ${item.item.business_name || ""} ${item.item.link_url || ""}`;
         const hay = [
           title,
           resolveDeactivatedContributor(item),
-          ...(item.flags || []).flatMap((f) => [resolveReporterName(f), f.reason, f.details]),
-          adminActionLabel[item.item.flag_case_admin_action] || "",
+          ...card.flags.flatMap((f) => [resolveReporterName(f), f.reason, f.details, f.reporter_name]),
+          adminActionLabel[card.caseAction] || "",
           historyText,
-          "3+ deactivation",
-          "deactivation",
+          card.is3Plus ? "3+ deactivation" : "",
+          "flag",
         ].join(" ").toLowerCase();
         return hay.includes(q);
       });
     }
 
-    list.sort((a, b) => new Date(b.sortAt || 0) - new Date(a.sortAt || 0));
+    list.sort((a, b) => {
+      if (a.hidden !== b.hidden) return a.hidden ? -1 : 1;
+      if ((b.flagCount || 0) !== (a.flagCount || 0)) return (b.flagCount || 0) - (a.flagCount || 0);
+      return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+    });
     return list;
   }, [flags, deletedItems, flagTypeFilter, flag3PlusOnly, flagSearch, eventMap, users, organizerMap, events]);
 
@@ -1921,20 +1784,29 @@ export default function Admin() {
     return list;
   }, [flags, users, organizerMap, flaggedUserRoleFilter, flaggedUserSearch]);
 
-  const openFlagCount = useMemo(() => {
-    const openSingles = flags.filter((f) => f.target_type !== "user" && isFlagOpen(f)).length;
-    const openUserCases = flaggedUserCards.filter((c) => {
-      if (c.role === "disabled") return false;
-      if (c.caseAction === "reviewed" || c.caseAction === "flags_cleared") return false;
-      return c.suspended || c.uncleared.length > 0;
-    }).length;
-    const openDeactivations = deletedItems.filter((item) => {
-      const action = item.item.flag_case_admin_action || null;
-      const hidden = isDeactivatedItemHidden(item);
-      return hidden && action !== "reviewed" && action !== "flags_cleared";
-    }).length;
-    return openSingles + openDeactivations + openUserCases;
-  }, [flags, deletedItems, flaggedUserCards]);
+  const openFlaggedContentCount = useMemo(
+    () =>
+      flaggedContentCards.filter((c) => {
+        if (c.caseAction === "reviewed" || c.caseAction === "flags_cleared") return false;
+        return c.hidden || c.uncleared.length > 0;
+      }).length,
+    [flaggedContentCards]
+  );
+
+  const openFlaggedUsersCount = useMemo(
+    () =>
+      flaggedUserCards.filter((c) => {
+        if (c.role === "disabled") return false;
+        if (c.caseAction === "reviewed" || c.caseAction === "flags_cleared") return false;
+        return c.suspended || c.uncleared.length > 0;
+      }).length,
+    [flaggedUserCards]
+  );
+
+  const openFlagCount = useMemo(
+    () => openFlaggedContentCount + openFlaggedUsersCount,
+    [openFlaggedContentCount, openFlaggedUsersCount]
+  );
 
   const flaggingActivityRows = useMemo(() => {
     const ownerByKey = {};
@@ -2233,6 +2105,20 @@ export default function Admin() {
         };
       }),
     [messages]
+  );
+
+  const flagsSectionNav = useMemo(
+    () =>
+      FLAGS_SECTIONS.map((section) => ({
+        ...section,
+        badge:
+          section.id === "flags-flagged-content"
+            ? openFlaggedContentCount
+            : section.id === "flags-flagged-users"
+              ? openFlaggedUsersCount
+              : 0,
+      })),
+    [openFlaggedContentCount, openFlaggedUsersCount]
   );
 
   const reviewSectionNav = useMemo(
@@ -2591,7 +2477,7 @@ export default function Admin() {
 
         <TabsContent value="flags">
           <AdminSubNav
-            sections={FLAGS_SECTIONS}
+            sections={flagsSectionNav}
             value={flagsSection}
             onChange={setFlagsSection}
             label="Flags sections"
@@ -2642,7 +2528,7 @@ export default function Admin() {
                     </button>
                   </div>
                 </div>
-                {flaggedFeedItems.length === 0 ? (
+                {flaggedContentCards.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-12">
                     {flagSearch.trim() || flagTypeFilter !== "all" || flag3PlusOnly
                       ? "No flags match your search or filters"
@@ -2650,371 +2536,40 @@ export default function Admin() {
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {flaggedFeedItems
+                    {flaggedContentCards
                       .slice((flaggedContentPage - 1) * PAGE_SIZE, flaggedContentPage * PAGE_SIZE)
-                      .map((entry) => {
-                        if (entry.kind === "flag") {
-                          const f = entry.flag;
-                          const open = isFlagOpen(f);
-                          const action = f.admin_action || (f.reviewed ? "reviewed" : null);
-                          const history = getFlaggedCardHistory(f);
-                          const historyOpen = expandedFlagHistory.has(f.id);
-                          const targetMeta = eventMap[f.target_id];
-                          const typeLabel = f.target_type === "event" ? "Activity" : f.target_type === "comment" ? "Comment" : "Ad";
-                          const hasReviewPane = f.target_type === "comment" || f.target_type === "ad";
-                          const reportedFlags = getReportedFlagOrdinal(f);
-
-                          const actionButtons = (
-                            <div className="flex flex-wrap gap-1.5">
-                              {action === "manually_deactivated" ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
-                                  onClick={() => handleReactivateFromFlag(f.id, f.target_id, f.target_type)}
-                                >
-                                  Reactivate
-                                </Button>
-                              ) : action === "flag_cleared" ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
-                                  onClick={() => handleReactivateFlag(f.id)}
-                                >
-                                  Reactivate Flag
-                                </Button>
-                              ) : action === "reviewed" ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
-                                  onClick={() => handleMarkUnreviewed(f.id)}
-                                >
-                                  Mark Unreviewed
-                                </Button>
-                              ) : open ? (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="rounded-lg text-xs h-7 text-destructive border-destructive/20"
-                                    onClick={() => handleManuallyDeactivate(f.id, f.target_id, f.target_type)}
-                                  >
-                                    Manually Deactivate
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="rounded-lg text-xs h-7 text-gray-600 border-gray-200"
-                                    onClick={() => handleClearFlag(f.id)}
-                                  >
-                                    Clear Flag
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
-                                    onClick={() => handleReviewedFlag(f.id)}
-                                  >
-                                    Reviewed
-                                  </Button>
-                                </>
-                              ) : null}
-                            </div>
-                          );
-
-                          return (
-                            <div
-                              key={entry.id}
-                              className={`rounded-xl border p-3 shadow-sm ${
-                                open ? "border-peach-200 bg-peach-50/50" : "border-border bg-white"
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-3 mb-2">
-                                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                    f.target_type === "event"
-                                      ? "bg-mint-100 text-mint-600"
-                                      : f.target_type === "comment"
-                                        ? "bg-amber-100 text-amber-600"
-                                        : "bg-peach-100 text-peach-600"
-                                  }`}>
-                                    {typeLabel}
-                                  </span>
-                                  {action && (
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                      action === "manually_deactivated"
-                                        ? "bg-red-100 text-red-600"
-                                        : action === "flag_cleared"
-                                          ? "bg-gray-100 text-gray-600"
-                                          : "bg-mint-100 text-mint-700"
-                                    }`}>
-                                      {adminActionLabel[action] || "Reviewed"}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-[11px] text-muted-foreground shrink-0 text-right leading-5">
-                                  {formatFlagSubmittedAt(f.created_date || f.created_at)}
-                                </p>
-                              </div>
-
-                              <div className={`grid gap-3 ${hasReviewPane ? "lg:grid-cols-[minmax(0,1fr)_minmax(200px,280px)]" : ""}`}>
-                                <div className="min-w-0 space-y-2">
-                                  {f.target_type === "event" ? (
-                                    <Link to={`/event/${f.target_id}`} className="text-sm font-semibold text-mint-600 hover:underline block truncate">
-                                      {targetMeta?.title || "Activity"}
-                                    </Link>
-                                  ) : f.target_type === "comment" ? (
-                                    targetMeta?.event_id ? (
-                                      <Link
-                                        to={`/event/${targetMeta.event_id}`}
-                                        className="text-sm font-semibold text-mint-600 hover:underline block truncate"
-                                      >
-                                        {eventMap[targetMeta.event_id]?.title || "Activity"}
-                                      </Link>
-                                    ) : (
-                                      <p className="text-sm font-semibold">Comment</p>
-                                    )
-                                  ) : (
-                                    <p className="text-sm font-semibold truncate">
-                                      {targetMeta?.title || f.target_contributor_name || "Ad Asset"}
-                                    </p>
-                                  )}
-
-                                  <div className="text-xs text-muted-foreground space-y-0.5">
-                                    <p>
-                                      <span className="font-medium text-foreground/80">
-                                        {f.target_type === "comment" ? "Comment by" : f.target_type === "ad" ? "Ad Asset" : "Contributor"}:
-                                      </span>{" "}
-                                      {resolveContributorName(f)}
-                                    </p>
-                                    <p>
-                                      <span className="font-medium text-foreground/80">Flagged By:</span> {resolveReporterName(f)}
-                                    </p>
-                                    <p>
-                                      <span className="font-medium text-foreground/80">Reported Flags:</span>{" "}
-                                      {reportedFlags.position} of {reportedFlags.total}
-                                    </p>
-                                    <p>
-                                      <span className="font-medium text-foreground/80">Reason:</span>{" "}
-                                      <span className="capitalize">{f.reason || "—"}</span>
-                                    </p>
-                                    {f.details && (
-                                      <p>
-                                        <span className="font-medium text-foreground/80">Comments:</span> {f.details}
-                                      </p>
-                                    )}
-                                    {history.length > 0 && (
-                                      <div className="pt-1">
-                                        <button
-                                          type="button"
-                                          className="text-xs font-medium text-mint-600 hover:underline"
-                                          onClick={() => {
-                                            setExpandedFlagHistory((prev) => {
-                                              const next = new Set(prev);
-                                              if (next.has(f.id)) next.delete(f.id);
-                                              else next.add(f.id);
-                                              return next;
-                                            });
-                                          }}
-                                        >
-                                          {historyOpen ? "Hide Admin History" : `Admin History (${history.length})`}
-                                        </button>
-                                        {historyOpen && (
-                                          <div className="mt-1 space-y-0.5 pl-0.5">
-                                            {history.map((histEntry, idx) => (
-                                              <p key={`${f.id}-hist-${idx}`}>
-                                                • {formatAdminHistoryEntry(histEntry)}
-                                              </p>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {actionButtons}
-                                </div>
-
-                                {f.target_type === "comment" && (
-                                  <div className="rounded-lg border border-border/70 bg-white/80 p-2.5 min-w-0">
-                                    <p className="text-[11px] font-medium text-foreground/70 mb-1">Comment</p>
-                                    <p className="text-xs text-foreground whitespace-pre-wrap break-words max-h-36 overflow-y-auto">
-                                      {targetMeta?.content || "—"}
-                                    </p>
-                                  </div>
-                                )}
-
-                                {f.target_type === "ad" && (
-                                  <div className="rounded-lg border border-border/70 bg-white/80 p-2.5 min-w-0 space-y-2">
-                                    <p className="text-[11px] font-medium text-foreground/70">Ad Creative</p>
-                                    {targetMeta?.image_url ? (
-                                      <a
-                                        href={targetMeta.image_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        title="View full size"
-                                        className="shrink-0 w-20 aspect-[2/1] rounded-lg border border-border bg-muted/30 overflow-hidden flex items-center justify-center hover:ring-2 hover:ring-mint-300 transition"
-                                      >
-                                        <img
-                                          src={targetMeta.image_url}
-                                          alt={targetMeta?.title || "Ad creative"}
-                                          className="max-w-full max-h-full object-contain"
-                                        />
-                                      </a>
-                                    ) : (
-                                      <div className="shrink-0 w-20 aspect-[2/1] rounded-lg border border-dashed border-border bg-muted/20" />
-                                    )}
-                                    {targetMeta?.link_url ? (
-                                      <p className="text-[11px] break-all">
-                                        <span className="font-medium text-foreground/80">URL:</span>{" "}
-                                        <a
-                                          href={targetMeta.link_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-mint-600 hover:underline"
-                                        >
-                                          {targetMeta.link_url}
-                                        </a>
-                                      </p>
-                                    ) : (
-                                      <p className="text-xs text-muted-foreground">No URL</p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        // 3+ Deactivation card
-                        const item = entry.item;
+                      .map((card) => {
+                        const item = card.moderationItem;
                         const typeLabel = item.type === "event" ? "Activity" : item.type === "comment" ? "Comment" : "Ad";
                         const hasReviewPane = item.type === "comment" || item.type === "ad";
                         const history = getDeactivatedCaseHistory(item);
-                        const historyKey = `case-${item.item.id}`;
+                        const historyKey = `content-case-${card.key}`;
                         const historyOpen = expandedFlagHistory.has(historyKey);
-                        const action = item.item.flag_case_admin_action || null;
-                        const hidden = isDeactivatedItemHidden(item);
-                        const highlighted = hidden && action !== "reviewed" && action !== "flags_cleared";
-                        const stampedAt = entry.sortAt || item.item.updated_at || item.item.created_at;
-                        const commentText = (item.item.content || "")
+                        const caseAction = card.caseAction;
+                        const hidden = card.hidden;
+                        const highlighted =
+                          (hidden || card.uncleared.length > 0)
+                          && caseAction !== "reviewed"
+                          && caseAction !== "flags_cleared";
+                        const commentText = ((item.item.content || "")
                           .replace(/\n\n\[DEMO 3+\][\s\S]*$/, "")
-                          .trim();
-                        const totalFlags = item.flags?.length || Number(item.item.flag_count || 0);
-
-                        const actionButtons = (
-                          <div className="flex flex-wrap gap-1.5">
-                            {action === "reviewed" ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
-                                onClick={() => handleDeactivatedMarkUnreviewed(item)}
-                              >
-                                Mark Unreviewed
-                              </Button>
-                            ) : !hidden || action === "reactivated" || action === "overridden" ? (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-lg text-xs h-7 text-destructive border-destructive/20"
-                                  onClick={() => handleDeactivatedManuallyDeactivate(item)}
-                                >
-                                  Manually Deactivate
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-lg text-xs h-7 text-gray-600 border-gray-200"
-                                  onClick={() => handleClearFlags(item)}
-                                >
-                                  Clear Flags
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
-                                  onClick={() => handleDeactivatedReviewed(item)}
-                                >
-                                  Reviewed
-                                </Button>
-                              </>
-                            ) : (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
-                                  onClick={() => handleDeactivatedOverride(item)}
-                                >
-                                  Override 3+
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-lg text-xs h-7 text-gray-600 border-gray-200"
-                                  onClick={() => handleClearFlags(item)}
-                                >
-                                  Clear Flags
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
-                                  onClick={() => handleDeactivatedReviewed(item)}
-                                >
-                                  Reviewed
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        );
+                          .trim());
 
                         return (
                           <div
-                            key={entry.id}
+                            key={card.key}
                             className={`rounded-xl border p-3 shadow-sm ${
                               highlighted
-                                ? "border-violet-300 bg-violet-50/60"
-                                : "border-violet-200 bg-violet-50/30"
+                                ? hidden
+                                  ? "border-violet-300 bg-violet-50/60"
+                                  : "border-peach-300 bg-peach-50/50"
+                                : hidden
+                                  ? "border-violet-200 bg-violet-50/30"
+                                  : "border-border bg-white"
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3 mb-2">
-                              <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-200 text-violet-800">
-                                  3+ Deactivation
-                                </span>
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  item.type === "event"
-                                    ? "bg-mint-100 text-mint-600"
-                                    : item.type === "comment"
-                                      ? "bg-amber-100 text-amber-600"
-                                      : "bg-peach-100 text-peach-600"
-                                }`}>
-                                  {typeLabel}
-                                </span>
-                                {action && (
-                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                    action === "manually_deactivated"
-                                      ? "bg-red-100 text-red-600"
-                                      : action === "flags_cleared"
-                                        ? "bg-gray-100 text-gray-600"
-                                        : "bg-mint-100 text-mint-700"
-                                  }`}>
-                                    {adminActionLabel[action] || "Reviewed"}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-muted-foreground shrink-0 text-right leading-5">
-                                {formatFlagSubmittedAt(stampedAt)}
-                              </p>
-                            </div>
-
-                            <div className={`grid gap-3 ${hasReviewPane ? "lg:grid-cols-[minmax(0,1fr)_minmax(200px,280px)]" : ""}`}>
-                              <div className="min-w-0 space-y-2">
+                              <div className="min-w-0">
                                 {item.type === "event" ? (
                                   <Link to={`/event/${item.item.id}`} className="text-sm font-semibold text-mint-600 hover:underline block truncate">
                                     {item.item.title || "Activity"}
@@ -3035,56 +2590,145 @@ export default function Admin() {
                                     {item.item.ad_name || item.item.business_name || "Ad Asset"}
                                   </p>
                                 )}
-
-                                <div className="text-xs text-muted-foreground space-y-0.5">
-                                  <p>
-                                    <span className="font-medium text-foreground/80">
-                                      {item.type === "comment" ? "Comment by" : item.type === "ad" ? "Ad Asset" : "Contributor"}:
-                                    </span>{" "}
-                                    {resolveDeactivatedContributor(item)}
-                                  </p>
-                                  <p>
-                                    <span className="font-medium text-foreground/80">Flagged By ({totalFlags}):</span>
-                                  </p>
-                                  {totalFlags === 0 ? (
-                                    <p>—</p>
-                                  ) : (
-                                    (item.flags || []).map((flag, idx) => (
-                                      <p key={flag.id || idx}>
-                                        • {resolveReporterName(flag)} ({flag.reason})
-                                      </p>
-                                    ))
+                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                    item.type === "event"
+                                      ? "bg-mint-100 text-mint-600"
+                                      : item.type === "comment"
+                                        ? "bg-amber-100 text-amber-600"
+                                        : "bg-peach-100 text-peach-600"
+                                  }`}>
+                                    {typeLabel}
+                                  </span>
+                                  {card.is3Plus && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-200 text-violet-800">
+                                      3+ Deactivation
+                                    </span>
                                   )}
-                                  {history.length > 0 && (
-                                    <div className="pt-1">
-                                      <button
-                                        type="button"
-                                        className="text-xs font-medium text-mint-600 hover:underline"
-                                        onClick={() => {
-                                          setExpandedFlagHistory((prev) => {
-                                            const next = new Set(prev);
-                                            if (next.has(historyKey)) next.delete(historyKey);
-                                            else next.add(historyKey);
-                                            return next;
-                                          });
-                                        }}
-                                      >
-                                        {historyOpen ? "Hide Admin History" : `Admin History (${history.length})`}
-                                      </button>
-                                      {historyOpen && (
-                                        <div className="mt-1 space-y-0.5 pl-0.5">
-                                          {history.map((histEntry, idx) => (
-                                            <p key={`${historyKey}-hist-${idx}`}>
-                                              • {formatAdminHistoryEntry(histEntry)}
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      card.flagCount >= 3
+                                        ? "bg-destructive/10 text-destructive"
+                                        : "bg-peach-50 text-peach-500"
+                                    }`}
+                                  >
+                                    {card.flagCount} Flag{card.flagCount === 1 ? "" : "s"}
+                                  </span>
+                                  {hidden && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                      Auto-hidden
+                                    </span>
+                                  )}
+                                  {caseAction && (
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      caseAction === "manually_deactivated"
+                                        ? "bg-red-100 text-red-600"
+                                        : caseAction === "flags_cleared" || caseAction === "flag_cleared"
+                                          ? "bg-gray-100 text-gray-600"
+                                          : "bg-mint-100 text-mint-700"
+                                    }`}>
+                                      {adminActionLabel[caseAction] || "Reviewed"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground shrink-0 text-right leading-5">
+                                {formatFlagSubmittedAt(card.sortAt)}
+                              </p>
+                            </div>
+
+                            <div className={`grid gap-3 mb-3 ${hasReviewPane ? "lg:grid-cols-[minmax(0,1fr)_minmax(200px,280px)]" : ""}`}>
+                              <div className="min-w-0 text-xs text-muted-foreground space-y-2">
+                                <p>
+                                  <span className="font-medium text-foreground/80">
+                                    {item.type === "comment" ? "Comment by" : item.type === "ad" ? "Ad Asset" : "Contributor"}:
+                                  </span>{" "}
+                                  {resolveDeactivatedContributor(item)}
+                                </p>
+                                <p className="font-medium text-foreground/80">Flags ({card.flags.length}):</p>
+                                {card.flags.map((f) => {
+                                  const reportAction = f.admin_action || (f.reviewed ? "reviewed" : null);
+                                  const reportOpen = isFlagOpen(f);
+                                  return (
+                                    <div
+                                      key={f.id}
+                                      className={`rounded-lg border p-2.5 ${
+                                        reportOpen ? "border-peach-200 bg-peach-50/40" : "border-border/70 bg-white/80"
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0 space-y-0.5">
+                                          <p>
+                                            <span className="font-medium text-foreground/80">Flagged By:</span>{" "}
+                                            {resolveReporterName(f)}
+                                          </p>
+                                          <p>
+                                            <span className="font-medium text-foreground/80">Reason:</span>{" "}
+                                            <span className="capitalize">{f.reason || "—"}</span>
+                                          </p>
+                                          {f.details && (
+                                            <p>
+                                              <span className="font-medium text-foreground/80">Details:</span> {f.details}
                                             </p>
-                                          ))}
+                                          )}
+                                          <p className="text-[11px] text-muted-foreground">
+                                            {formatFlagSubmittedAt(f.created_date || f.created_at)}
+                                          </p>
+                                        </div>
+                                        {reportAction && (
+                                          <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                            reportAction === "flag_cleared"
+                                              ? "bg-gray-100 text-gray-600"
+                                              : reportAction === "manually_deactivated"
+                                                ? "bg-red-100 text-red-600"
+                                                : "bg-mint-100 text-mint-700"
+                                          }`}>
+                                            {adminActionLabel[reportAction] || "Reviewed"}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {reportOpen && (
+                                        <div className="flex flex-wrap gap-1.5 mt-2">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="rounded-lg text-xs h-7 text-gray-600 border-gray-200"
+                                            onClick={() => handleClearFlag(f.id)}
+                                          >
+                                            Clear Flag
+                                          </Button>
                                         </div>
                                       )}
                                     </div>
-                                  )}
-                                </div>
-
-                                {actionButtons}
+                                  );
+                                })}
+                                {history.length > 0 && (
+                                  <div className="pt-1">
+                                    <button
+                                      type="button"
+                                      className="text-xs font-medium text-mint-600 hover:underline"
+                                      onClick={() => {
+                                        setExpandedFlagHistory((prev) => {
+                                          const next = new Set(prev);
+                                          if (next.has(historyKey)) next.delete(historyKey);
+                                          else next.add(historyKey);
+                                          return next;
+                                        });
+                                      }}
+                                    >
+                                      {historyOpen ? "Hide Admin History" : `Admin History (${history.length})`}
+                                    </button>
+                                    {historyOpen && (
+                                      <div className="mt-1 space-y-0.5 pl-0.5">
+                                        {history.map((histEntry, idx) => (
+                                          <p key={`${historyKey}-hist-${idx}`}>
+                                            • {formatAdminHistoryEntry(histEntry)}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
 
                               {item.type === "comment" && (
@@ -3134,11 +2778,75 @@ export default function Admin() {
                                 </div>
                               )}
                             </div>
+
+                            <div className="flex flex-wrap gap-1.5">
+                              {caseAction === "manually_deactivated" ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
+                                  onClick={() =>
+                                    handleReactivateFromFlag(null, item.item.id, item.type === "event" ? "event" : item.type === "comment" ? "comment" : "ad", item)
+                                  }
+                                >
+                                  Reactivate
+                                </Button>
+                              ) : caseAction === "reviewed" || caseAction === "flags_cleared" ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
+                                  onClick={() => handleDeactivatedMarkUnreviewed(item)}
+                                >
+                                  Mark Unreviewed
+                                </Button>
+                              ) : (
+                                <>
+                                  {card.uncleared.length > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="rounded-lg text-xs h-7 text-gray-600 border-gray-200"
+                                      onClick={() => handleClearFlags(item)}
+                                    >
+                                      Clear Flags
+                                    </Button>
+                                  )}
+                                  {hidden ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
+                                      onClick={() => handleDeactivatedOverride(item)}
+                                    >
+                                      Override 3+
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="rounded-lg text-xs h-7 text-destructive border-destructive/20"
+                                      onClick={() => handleDeactivatedManuallyDeactivate(item)}
+                                    >
+                                      Manually Deactivate
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
+                                    onClick={() => handleDeactivatedReviewed(item)}
+                                  >
+                                    Reviewed
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
-                    {flaggedFeedItems.length > PAGE_SIZE && (
-                      <Paginator total={flaggedFeedItems.length} page={flaggedContentPage} onPage={setFlaggedContentPage} />
+                    {flaggedContentCards.length > PAGE_SIZE && (
+                      <Paginator total={flaggedContentCards.length} page={flaggedContentPage} onPage={setFlaggedContentPage} />
                     )}
                   </div>
                 )}
@@ -3425,7 +3133,7 @@ export default function Admin() {
 
           {flagsSection === "flags-users-flagging" && (
             <>
-              <AdminSectionHeader title="Flagging Activity" icon={Users} />
+              <AdminSectionHeader title="Top Flagging Activity Ranking" icon={Users} />
               <AdminPanelShell>
                 <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
                   <SearchClearField

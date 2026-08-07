@@ -1,3 +1,5 @@
+-- User-flag inbox notices: no action button (user is already on My Messages).
+
 -- After suspension lift: digests stay Off; tell the user clearly in reinstatement messages.
 
 create or replace function public.notify_owner_user_flag_lifecycle(
