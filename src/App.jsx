@@ -33,6 +33,8 @@ import TipsOrganizers from '@/pages/TipsOrganizers';
 import TipsSupporters from '@/pages/TipsSupporters';
 import Supporters from '@/pages/Supporters';
 import AdvertiserTerms from '@/pages/AdvertiserTerms';
+import TermsOfService from '@/pages/TermsOfService';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import AdManager from '@/pages/AdManager';
 import AdManagerPreview from '@/pages/AdManagerPreview';
 import AccountDisabled from '@/pages/AccountDisabled';
@@ -91,6 +93,8 @@ const AuthenticatedApp = () => {
         <Route path="/tips-organizers" element={<TipsOrganizers />} />
         <Route path="/tips-supporters" element={<TipsSupporters />} />
         <Route path="/supporters" element={<Supporters />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/advertiser-terms" element={<AdvertiserTerms />} />
         <Route path="/ad-manager" element={<AdManager />} />
         <Route path="/ad-manager-preview" element={<AdManagerPreview />} />

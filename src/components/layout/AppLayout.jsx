@@ -24,10 +24,12 @@ const DISABLED_ALLOWED_PREFIXES = [
   "/invite-community-member",
   "/invite-supporter",
   "/advertiser-terms",
+  "/terms",
+  "/privacy",
 ];
 
-/** Incomplete OAuth/email profiles may only read Community Rules while finishing signup. */
-const INCOMPLETE_ALLOWED_PREFIXES = ["/about"];
+/** Incomplete OAuth/email profiles may read Community Rules and legal pages while finishing signup. */
+const INCOMPLETE_ALLOWED_PREFIXES = ["/about", "/terms", "/privacy"];
 
 function isPathAllowedWhileDisabled(pathname) {
   if (pathname === "/") return true;

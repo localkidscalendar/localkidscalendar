@@ -669,7 +669,11 @@ export default function PostEvent() {
           <label className="flex items-start gap-3 cursor-pointer pt-4 border-t border-border">
             <input type="checkbox" className="mt-0.5 accent-mint-500" checked={form.rules_agreed} onChange={(e) => updateField("rules_agreed", e.target.checked)} />
             <span className="text-xs text-muted-foreground">
-              I agree to <a href="/about#community-rules" target="_blank" className="text-mint-500 underline">Our Community Rules</a> and understand my activity may be removed if it doesn't comply.
+              I agree to{" "}
+              <a href="/about#community-rules" target="_blank" rel="noreferrer" className="text-mint-500 underline">Our Community Rules</a>
+              {" "}and the{" "}
+              <a href="/terms" target="_blank" rel="noreferrer" className="text-mint-500 underline">Terms of Service</a>
+              , and understand my activity may be removed if it doesn&apos;t comply.
             </span>
           </label>
 

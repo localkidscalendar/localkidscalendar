@@ -21,7 +21,13 @@ const COMMUNITY_RULES = [
   },
   {
     title: "Protect Privacy",
-    text: "Never share personal information about children or families without permission. Be mindful of what you post in photos and comments. We value your privacy and do not sell your personal data; we only use information to facilitate local community connections.",
+    text: (
+      <>
+        Never share personal information about children or families without permission. Be mindful of what you post in photos and comments. See our{" "}
+        <Link to="/privacy" className="text-mint-500 hover:underline">Privacy Policy</Link>
+        {" "}for how we handle account and site data — we do not sell your personal information.
+      </>
+    ),
   },
   {
     title: "No Personal Solicitation",
@@ -171,7 +177,10 @@ export default function About() {
           <h2 className="font-heading font-bold text-xl">Our Community Rules</h2>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          To keep LocalKidsCalendar.com a safe, welcoming, and valuable resource for all families and organizers, we ask everyone to follow these guidelines and policies (Terms of Service and Privacy):
+          To keep LocalKidsCalendar.com a safe, welcoming, and valuable resource for all families and organizers, we ask everyone to follow these guidelines. They work alongside our{" "}
+          <Link to="/terms" className="text-mint-500 hover:underline">Terms of Service</Link>
+          {" "}and{" "}
+          <Link to="/privacy" className="text-mint-500 hover:underline">Privacy Policy</Link>.
         </p>
         <div className="bg-white rounded-2xl border border-border p-6 sm:p-8">
           <div className="space-y-4">

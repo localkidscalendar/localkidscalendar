@@ -73,9 +73,17 @@ export default function Footer({ user }) {
         <div className="mt-8 pt-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex flex-col items-center sm:items-start gap-1">
             <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} LocalKidsCalendar.com · United States</p>
-            <Link to="/about#community-rules" className="text-xs text-muted-foreground hover:text-foreground underline transition-colors">
-              Our Community Rules (Terms of Service and Privacy)
-            </Link>
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-1">
+              <Link to="/terms" className="text-xs text-muted-foreground hover:text-foreground underline transition-colors">
+                Terms of Service
+              </Link>
+              <Link to="/privacy" className="text-xs text-muted-foreground hover:text-foreground underline transition-colors">
+                Privacy Policy
+              </Link>
+              <Link to="/about#community-rules" className="text-xs text-muted-foreground hover:text-foreground underline transition-colors">
+                Our Community Rules
+              </Link>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground flex items-center gap-1">
             Made with <Heart className="w-3 h-3 text-red-500 fill-red-500" /> for local communities

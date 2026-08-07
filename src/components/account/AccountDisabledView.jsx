@@ -343,10 +343,19 @@ export default function AccountDisabledView({
           </Button>
         </div>
         <p className="text-center text-xs text-muted-foreground">
-          Questions about site expectations?{" "}
+          Questions about site expectations? See{" "}
           <Link to="/about#community-rules" className="underline underline-offset-2 hover:text-foreground">
             Our Community Rules
           </Link>
+          {", "}
+          <Link to="/terms" className="underline underline-offset-2 hover:text-foreground">
+            Terms of Service
+          </Link>
+          {", and "}
+          <Link to="/privacy" className="underline underline-offset-2 hover:text-foreground">
+            Privacy Policy
+          </Link>
+          .
         </p>
       </div>
     </div>

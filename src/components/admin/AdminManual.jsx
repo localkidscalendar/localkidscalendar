@@ -28,7 +28,7 @@ const categories = [
           "LocalKidsCalendar runs as a React (Vite) front end on Vercel, with Supabase for auth and Postgres data, and Vercel serverless API routes for Stripe, Resend email, OpenAI moderation, and cron jobs. Base44 is no longer the runtime for the live site.",
         features: [
           "Front end: React + Vite + Tailwind + shared UI components (shadcn-style)",
-          "Auth & database: Supabase Auth + Postgres tables with Row Level Security",
+          "Auth & database: Supabase Auth + Postgres tables with Row Level Security (owners edit own rows; privileged columns locked)",
           "Server: Vercel /api/* routes (checkout, webhooks, digests, photo/ad review, disable user)",
           "Email: Resend; payments: Stripe; image review: OpenAI Moderation API + custom vision when a key is configured; uploads resized client-side before Storage/OpenAI",
         ],
@@ -38,6 +38,8 @@ const categories = [
           "Env (Vite): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY; optional VITE_API_BASE_URL / VITE_APP_URL (production site https://localkidscalendar.com; *.vercel.app still works)",
           "Env (server): SUPABASE_*, RESEND_*, STRIPE_*, OPENAI_API_KEY, CRON_SECRET, EMAIL_SENDING_ENABLED, RESEND_WEBHOOK_SECRET, APP_URL/VITE_APP_URL for email links",
           "Migrations live under supabase/migrations/; production SQL is often applied via the Supabase SQL Editor",
+          "RLS ownership on profiles/events/comments/saves/ads/messages; event-media INSERT requires path `{userId}/…`; BEFORE UPDATE triggers lock flag/billing/inbox privileged columns for non-admins (ensure_harden_owner_write_guards.sql)",
+          "Legal pages: /terms and /privacy from legalContent.js (Nevada governing law); Supporter TOS remains /advertiser-terms; Community Rules stay on About",
           "Legacy base44/ folder may still exist in the repo but is not the live path for Admin/email/ads",
           "After connecting the custom domain: set Supabase Auth Site URL + Redirect URLs, Google OAuth origins, Vercel VITE_APP_URL/APP_URL, and Resend domain verification",
         ],
@@ -183,8 +185,8 @@ const categories = [
           "Sign-up: email/password or Google OAuth (Register and Login both offer Google)",
           "One profile form for email step 2 and Google/incomplete finish (?complete=1)",
           "Account type: Community Member or Organizer — locked after registration completes",
-          "Register asks for names/org + zip (not distance); Community Rules agreement required",
-          "Incomplete signed-in users cannot browse the site until they finish Register (About / Community Rules still allowed)",
+          "Register asks for names/org + zip (not distance); agreement required for Terms of Service, Privacy Policy, and Community Rules",
+          "Incomplete signed-in users cannot browse the site until they finish Register (About / Community Rules / Terms / Privacy still allowed)",
           "Email verification / password reset via Supabase Auth email (branded From requires Custom SMTP — see Email / Auth SMTP)",
           "Register header uses the site /logo.png (same mark as Login)",
           "First-line bot defense on email Register: honeypot + ~3s minimum before profile step submit",
@@ -357,7 +359,7 @@ const categories = [
         id: "posting-activity",
         title: "Posting an Activity",
         overview:
-          "Community Members and Organizers post activities with dates, ages, cost, location, categories (up to three), and optional photo. End date is required and cannot be before start date (clamped on change; iOS pickers may not gray out earlier days). Community Rules must be accepted. Validation toasts appear near the bottom on mobile so they stay visible by Submit.",
+          "Community Members and Organizers post activities with dates, ages, cost, location, categories (up to three), and optional photo. End date is required and cannot be before start date (clamped on change; iOS pickers may not gray out earlier days). Community Rules and Terms of Service must be accepted. Validation toasts appear near the bottom on mobile so they stay visible by Submit.",
         features: [
           "Categories / types for camps, classes, sports, etc.",
           "Organizer posts show org branding / highlight styling",
@@ -389,7 +391,7 @@ const categories = [
           "Help tips / Supporter copy explain best display fit and automatic resizing",
         ],
         technicalOverview:
-          "Shared helper src/lib/imageProcess.js (processImageForUpload). Wired in PostEvent.jsx, ProfileTab.jsx, AdLibraryManager.jsx, AdminDefaultAdsPanel.jsx. Uploads go to the public event-media bucket.",
+          "Shared helper src/lib/imageProcess.js (processImageForUpload). Wired in PostEvent.jsx, ProfileTab.jsx, AdLibraryManager.jsx, AdminDefaultAdsPanel.jsx. Uploads go to the public event-media bucket under `{auth.uid()}/…` (RLS enforces the folder).",
         technicalFeatures: [
           "Presets: activityPhoto ≤1600×1200 JPEG; adCreative ≤1200×800 JPEG; defaultAd ≤1200×934 JPEG; logo ≤512×512 PNG (falls back to JPEG if still large)",
           "MAX_ORIGINAL_BYTES = 15 MB; MAX_OUTPUT_BYTES_DEFAULT = 2 MB; logo maxOutputBytes = 512 KB",

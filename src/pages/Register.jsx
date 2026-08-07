@@ -173,7 +173,7 @@ export default function Register() {
     setError("");
     if (password !== confirmPassword) return setError("Passwords do not match.");
     if (password.length < 6) return setError("Password must be at least 6 characters.");
-    if (!agreedToRules) return setError("You must agree to the Community Rules to continue.");
+    if (!agreedToRules) return setError("You must agree to the Terms of Service, Privacy Policy, and Community Rules to continue.");
     setStep(2);
   };
 
@@ -239,7 +239,7 @@ export default function Register() {
 
     const finishingExisting = Boolean(user && !isProfileComplete(user));
     if (finishingExisting && !agreedToRules) {
-      return setError("You must agree to the Community Rules to continue.");
+      return setError("You must agree to the Terms of Service, Privacy Policy, and Community Rules to continue.");
     }
     if (!finishingExisting && (hpField || Date.now() - formLoadTime < 3000)) {
       return setError("Something went wrong. Please try again.");
@@ -411,18 +411,34 @@ export default function Register() {
               </div>
 
               <div className="rounded-xl border border-mint-200 bg-mint-50 p-3 text-sm text-mint-700">
-                Before joining, please{" "}
+                Before joining, please review our{" "}
+                <Link to="/terms" target="_blank" className="font-semibold underline underline-offset-2 hover:text-mint-600">
+                  Terms of Service
+                </Link>
+                {", "}
+                <Link to="/privacy" target="_blank" className="font-semibold underline underline-offset-2 hover:text-mint-600">
+                  Privacy Policy
+                </Link>
+                {", and "}
                 <Link to="/about#community-rules" target="_blank" className="font-semibold underline underline-offset-2 hover:text-mint-600">
-                  review our Community Rules (Terms of Service and Privacy)
+                  Community Rules
                 </Link>
                 . All members are expected to post accurate, family-friendly content and treat others with respect.
               </div>
               <div className="flex items-start gap-3">
                 <Checkbox id="rules" checked={agreedToRules} onCheckedChange={setAgreedToRules} className="mt-0.5" />
                 <Label htmlFor="rules" className="text-sm font-normal cursor-pointer leading-snug text-foreground">
-                  I have read and agree to our{" "}
+                  I have read and agree to the{" "}
+                  <Link to="/terms" target="_blank" className="text-mint-600 underline underline-offset-2 hover:text-mint-700" onClick={(e) => e.stopPropagation()}>
+                    Terms of Service
+                  </Link>
+                  {", "}
+                  <Link to="/privacy" target="_blank" className="text-mint-600 underline underline-offset-2 hover:text-mint-700" onClick={(e) => e.stopPropagation()}>
+                    Privacy Policy
+                  </Link>
+                  {", and "}
                   <Link to="/about#community-rules" target="_blank" className="text-mint-600 underline underline-offset-2 hover:text-mint-700" onClick={(e) => e.stopPropagation()}>
-                    Community Rules (Terms of Service and Privacy)
+                    Community Rules
                   </Link>
                 </Label>
               </div>
@@ -551,18 +567,34 @@ export default function Register() {
               {showCompleteFlow && (
                 <>
                   <div className="rounded-xl border border-mint-200 bg-mint-50 p-3 text-sm text-mint-700">
-                    Before joining, please{" "}
+                    Before joining, please review our{" "}
+                    <Link to="/terms" target="_blank" className="font-semibold underline underline-offset-2 hover:text-mint-600">
+                      Terms of Service
+                    </Link>
+                    {", "}
+                    <Link to="/privacy" target="_blank" className="font-semibold underline underline-offset-2 hover:text-mint-600">
+                      Privacy Policy
+                    </Link>
+                    {", and "}
                     <Link to="/about#community-rules" target="_blank" className="font-semibold underline underline-offset-2 hover:text-mint-600">
-                      review our Community Rules (Terms of Service and Privacy)
+                      Community Rules
                     </Link>
                     .
                   </div>
                   <div className="flex items-start gap-3">
                     <Checkbox id="rules-complete" checked={agreedToRules} onCheckedChange={setAgreedToRules} className="mt-0.5" />
                     <Label htmlFor="rules-complete" className="text-sm font-normal cursor-pointer leading-snug text-foreground">
-                      I have read and agree to our{" "}
+                      I have read and agree to the{" "}
+                      <Link to="/terms" target="_blank" className="text-mint-600 underline underline-offset-2 hover:text-mint-700" onClick={(e) => e.stopPropagation()}>
+                        Terms of Service
+                      </Link>
+                      {", "}
+                      <Link to="/privacy" target="_blank" className="text-mint-600 underline underline-offset-2 hover:text-mint-700" onClick={(e) => e.stopPropagation()}>
+                        Privacy Policy
+                      </Link>
+                      {", and "}
                       <Link to="/about#community-rules" target="_blank" className="text-mint-600 underline underline-offset-2 hover:text-mint-700" onClick={(e) => e.stopPropagation()}>
-                        Community Rules (Terms of Service and Privacy)
+                        Community Rules
                       </Link>
                     </Label>
                   </div>

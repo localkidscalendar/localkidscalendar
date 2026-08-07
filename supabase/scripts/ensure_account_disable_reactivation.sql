@@ -88,8 +88,37 @@ create policy "Admins can update reactivation requests"
 grant select, insert on public.account_reactivation_requests to authenticated;
 grant update on public.account_reactivation_requests to authenticated;
 
--- Prevent non-admins from changing their own role (or clearing disable fields).
+-- Privilege helper (also defined in ensure_harden_owner_write_guards.sql)
+create or replace function public.is_privileged_db_actor()
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if coalesce(auth.jwt() ->> 'role', '') = 'service_role' then
+    return true;
+  end if;
+  if current_user in ('postgres', 'supabase_admin', 'supabase_auth_admin') then
+    return true;
+  end if;
+  if auth.uid() is null then
+    return true;
+  end if;
+  return exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  );
+end;
+$$;
+
+grant execute on function public.is_privileged_db_actor() to authenticated;
+grant execute on function public.is_privileged_db_actor() to service_role;
+
+-- Prevent non-admins from changing their own role / disable / user-flag fields.
 -- Exception: incomplete profiles (no zip yet) may choose community_member or organizer once.
+-- Keep in sync with ensure_harden_owner_write_guards.sql
 create or replace function public.prevent_non_admin_role_change()
 returns trigger
 language plpgsql
@@ -97,14 +126,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if auth.uid() is null then
-    return new;
-  end if;
-
-  if exists (
-    select 1 from public.profiles p
-    where p.id = auth.uid() and p.role = 'admin'
-  ) then
+  if public.is_privileged_db_actor() then
     return new;
   end if;
 
@@ -115,6 +137,16 @@ begin
      or new.disabled_by is distinct from old.disabled_by
   then
     raise exception 'Only admins can change account disable / role fields';
+  end if;
+
+  -- Suspension + community user-flag case fields
+  if new.user_flag_count is distinct from old.user_flag_count
+     or new.user_flagged_by is distinct from old.user_flagged_by
+     or new.suspended_at is distinct from old.suspended_at
+     or new.user_flag_case_admin_action is distinct from old.user_flag_case_admin_action
+     or new.user_flag_case_admin_history is distinct from old.user_flag_case_admin_history
+  then
+    raise exception 'Only admins or system routines can change user flag / suspension fields';
   end if;
 
   if new.role is distinct from old.role then
