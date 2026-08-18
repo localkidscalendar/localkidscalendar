@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { BellOff, ExternalLink, Loader2, ImageIcon, MapPin, Clock, XCircle, AlertCircle, PartyPopper, ArrowUpDown, ArrowUp, ArrowDown, BarChart3, Eye, MousePointerClick, CheckCircle, RefreshCw, List, Images } from "lucide-react";
+import { BellOff, CreditCard, ExternalLink, Loader2, ImageIcon, MapPin, Clock, XCircle, AlertCircle, PartyPopper, ArrowUpDown, ArrowUp, ArrowDown, BarChart3, Eye, MousePointerClick, CheckCircle, RefreshCw, List, Images } from "lucide-react";
 import moment from "moment";
 
 const STATUS_CONFIG = {
@@ -172,6 +172,12 @@ function MockAdCard({ ad }) {
               </span>
             )}
           </div>
+          {ad.status === "active" && ad.stripe_subscription_id ? (
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-3">
+              <CreditCard className="w-3 h-3 shrink-0" />
+              Visa •••• 4242 · Exp 12/27
+            </p>
+          ) : null}
 
           {/* 14-day window warning */}
           {ad.status === "active" && !nonRenewSet && withinCancellationWindow && (
@@ -195,43 +201,52 @@ function MockAdCard({ ad }) {
             ))}
           </div>
 
-          {/* Non-renew button */}
-          {ad.status === "active" && !nonRenewSet && ad.stripe_subscription_id && (
-            <div className="mb-3">
-              {!showNonRenewConfirm ? (
-                <Button variant="outline" size="sm" className="rounded-xl h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => setShowNonRenewConfirm(true)}>
-                  <BellOff className="w-3 h-3 mr-1" /> Set Non-renew
-                </Button>
-              ) : (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-2">
-                  {withinCancellationWindow ? (
-                    <>
-                      <p className="font-semibold text-amber-800">⚠️ Your next renewal charge cannot be avoided</p>
-                      <p className="text-amber-700">
-                        Because your renewal date (<strong>{renewalDate?.format("MMM D, YYYY")}</strong>) is within 14 days, the upcoming charge has already been committed by our payment processor.
-                      </p>
-                      <p className="text-amber-700">
-                        Your ad will remain active through that paid term and will automatically expire on <strong>{nextTermEnd}</strong>, at which point the zip code slot will be released.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-semibold text-amber-800">Confirm Non-renew</p>
-                      <p className="text-amber-700">
-                        Your ad will continue running until <strong>{ad.plan_end_date ? moment(ad.plan_end_date).format("MMM D, YYYY") : renewalDate?.format("MMM D, YYYY")}</strong> and will not be charged again. The zip code slot will be released when your term ends.
-                      </p>
-                    </>
-                  )}
-                  <div className="flex gap-2 pt-1">
-                    <Button size="sm" className="rounded-xl h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white" onClick={handleMockNonRenew}>
-                      {withinCancellationWindow ? "Understood — Set Non-renew" : "Confirm Non-renew"}
-                    </Button>
-                    <Button variant="ghost" size="sm" className="rounded-xl h-7 text-xs" onClick={() => setShowNonRenewConfirm(false)}>Cancel</Button>
-                  </div>
-                </div>
-              )}
+          {/* Payment method + Non-renew */}
+          {ad.status === "active" && ad.stripe_subscription_id ? (
+            <div className="flex flex-wrap gap-2 mb-3">
+              <Button variant="outline" size="sm" className="rounded-xl h-7 text-xs">
+                <CreditCard className="w-3 h-3 mr-1" /> Update Payment Method
+              </Button>
+              {!nonRenewSet ? (
+                !showNonRenewConfirm ? (
+                  <Button variant="outline" size="sm" className="rounded-xl h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => setShowNonRenewConfirm(true)}>
+                    <BellOff className="w-3 h-3 mr-1" /> Set Non-renew
+                  </Button>
+                ) : null
+              ) : null}
             </div>
-          )}
+          ) : null}
+
+          {ad.status === "active" && !nonRenewSet && ad.stripe_subscription_id && showNonRenewConfirm ? (
+            <div className="mb-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-2">
+                {withinCancellationWindow ? (
+                  <>
+                    <p className="font-semibold text-amber-800">⚠️ Your next renewal charge cannot be avoided</p>
+                    <p className="text-amber-700">
+                      Because your renewal date (<strong>{renewalDate?.format("MMM D, YYYY")}</strong>) is within 14 days, the upcoming charge has already been committed by our payment processor.
+                    </p>
+                    <p className="text-amber-700">
+                      Your ad will remain active through that paid term and will automatically expire on <strong>{nextTermEnd}</strong>, at which point the zip code slot will be released.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-amber-800">Confirm Non-renew</p>
+                    <p className="text-amber-700">
+                      Your ad will continue running until <strong>{ad.plan_end_date ? moment(ad.plan_end_date).format("MMM D, YYYY") : renewalDate?.format("MMM D, YYYY")}</strong> and will not be charged again. The zip code slot will be released when your term ends.
+                    </p>
+                  </>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" className="rounded-xl h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white" onClick={handleMockNonRenew}>
+                    {withinCancellationWindow ? "Understood — Set Non-renew" : "Confirm Non-renew"}
+                  </Button>
+                  <Button variant="ghost" size="sm" className="rounded-xl h-7 text-xs" onClick={() => setShowNonRenewConfirm(false)}>Cancel</Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {nonRenewSet && ad.status === "active" && (
             <p className="text-xs text-amber-600 mb-3">

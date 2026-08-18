@@ -1,13 +1,19 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import moment from "moment";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import {
-  Loader2, ImagePlus, TrendingUp, BellOff,
+  Loader2, ImagePlus, TrendingUp, BellOff, CreditCard,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
-import { cancelAdRenewal, requestAdPlanChange } from "@/lib/adBilling";
+import {
+  cancelAdRenewal,
+  formatMaskedCard,
+  getAdPaymentMethod,
+  openBillingPortal,
+  requestAdPlanChange,
+} from "@/lib/adBilling";
 
 const STATUS_CONFIG = {
   pending_payment: { label: "Pending Payment", color: "bg-yellow-100 text-yellow-700" },
@@ -30,6 +36,9 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   const [showNonRenewConfirm, setShowNonRenewConfirm] = useState(false);
   const [nonRenewLoading, setNonRenewLoading] = useState(false);
   const [planSwitchLoading, setPlanSwitchLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [cardLoading, setCardLoading] = useState(false);
+  const [cardLabel, setCardLabel] = useState(null);
 
   const cfg = STATUS_CONFIG[ad.status] || STATUS_CONFIG.pending_review;
   const renewalDate = ad.next_renewal_date ? moment(ad.next_renewal_date) : null;
@@ -42,6 +51,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   const clicks = Number(ad.clicks || 0);
   const ctr = impressions > 0 ? `${((clicks / impressions) * 100).toFixed(1)}%` : "0.0%";
   const billingLive = !!ad.stripe_subscription_id;
+  const hasBillingAccount = Boolean(ad.stripe_customer_id);
   const upgradePending = Boolean(ad.upgrade_to_annual_pending);
   const downgradePending = Boolean(ad.downgrade_to_monthly_pending);
   const planChangePending = upgradePending || downgradePending;
@@ -109,6 +119,40 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
       toast({ title: "Could not cancel plan switch", description: err.message, variant: "destructive" });
     }
     setPlanSwitchLoading(false);
+  };
+
+  useEffect(() => {
+    if (!ad.stripe_customer_id) {
+      setCardLabel(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setCardLoading(true);
+    getAdPaymentMethod({ ad_id: ad.id })
+      .then((card) => {
+        if (!cancelled) setCardLabel(formatMaskedCard(card));
+      })
+      .catch(() => {
+        if (!cancelled) setCardLabel(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCardLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [ad.id, ad.stripe_customer_id]);
+
+  const handleOpenBillingPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const url = await openBillingPortal({
+        ad_id: ad.id,
+        return_url: typeof window !== "undefined" ? window.location.href : undefined,
+      });
+      window.location.href = url;
+    } catch (err) {
+      toast({ title: "Could not open billing portal", description: err.message, variant: "destructive" });
+      setPortalLoading(false);
+    }
   };
 
   const handleNonRenew = async () => {
@@ -188,52 +232,75 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
             ) : null}
             {renewalLine}
           </p>
-        </div>
-        <div className="flex flex-wrap justify-end gap-1.5 shrink-0 max-w-[11rem] sm:max-w-none">
-          {!showChangeCreative ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-xl h-7 text-xs"
-              onClick={() => setShowChangeCreative(true)}
-            >
-              <ImagePlus className="w-3 h-3 mr-1" /> Change Creative
-            </Button>
-          ) : null}
-          {planChangePending ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-xl h-7 text-xs"
-              disabled={planSwitchLoading}
-              onClick={handleCancelPlanSwitch}
-            >
-              {planSwitchLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <TrendingUp className="w-3 h-3 mr-1" />}
-              Cancel Plan Switch
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-xl h-7 text-xs"
-              disabled={planSwitchLoading || ad.auto_renew === false}
-              onClick={handlePlanSwitch}
-            >
-              {planSwitchLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <TrendingUp className="w-3 h-3 mr-1" />}
-              Switch To {targetPlanLabel}
-            </Button>
-          )}
-          {ad.auto_renew !== false && !showNonRenewConfirm ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-xl h-7 text-xs"
-              onClick={() => setShowNonRenewConfirm(true)}
-            >
-              <BellOff className="w-3 h-3 mr-1" /> Set Non-Renew
-            </Button>
+          {hasBillingAccount ? (
+            <p className="text-[11px] text-muted-foreground flex items-start gap-1.5 min-w-0">
+              <CreditCard className="w-3 h-3 shrink-0 mt-0.5" />
+              <span className="min-w-0 break-words">
+                {cardLoading
+                  ? "Loading card on file…"
+                  : cardLabel || "Payment method on file"}
+              </span>
+            </p>
           ) : null}
         </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {hasBillingAccount ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl h-7 text-xs"
+            disabled={portalLoading}
+            onClick={handleOpenBillingPortal}
+          >
+            {portalLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CreditCard className="w-3 h-3 mr-1" />}
+            Update Payment Method
+          </Button>
+        ) : null}
+        {!showChangeCreative ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl h-7 text-xs"
+            onClick={() => setShowChangeCreative(true)}
+          >
+            <ImagePlus className="w-3 h-3 mr-1" /> Change Creative
+          </Button>
+        ) : null}
+        {planChangePending ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl h-7 text-xs"
+            disabled={planSwitchLoading}
+            onClick={handleCancelPlanSwitch}
+          >
+            {planSwitchLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <TrendingUp className="w-3 h-3 mr-1" />}
+            Cancel Plan Switch
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl h-7 text-xs"
+            disabled={planSwitchLoading || ad.auto_renew === false}
+            onClick={handlePlanSwitch}
+          >
+            {planSwitchLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <TrendingUp className="w-3 h-3 mr-1" />}
+            Switch To {targetPlanLabel}
+          </Button>
+        )}
+        {ad.auto_renew !== false && !showNonRenewConfirm ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl h-7 text-xs"
+            onClick={() => setShowNonRenewConfirm(true)}
+          >
+            <BellOff className="w-3 h-3 mr-1" /> Set Non-Renew
+          </Button>
+        ) : null}
       </div>
 
       <div className="mt-2 grid grid-cols-4 gap-1.5">

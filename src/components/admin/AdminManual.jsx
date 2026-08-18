@@ -262,6 +262,7 @@ const categories = [
           "Supporters buy zip ad slots and use Ad Manager for creatives, billing, waitlist, and renewals. Supporter status is an add-on (is_advertiser) on a Community Member or Organizer account — one active slot per zip per Supporter.",
         features: [
           "Ad Manager for creatives, placements, renewals, plan changes, waitlist",
+          "My Active Ads shows the masked card on file and Update Payment Method (Stripe Customer Portal)",
           "Granted automatically on first purchase or via Admin",
           "One slot-holding placement per zip per Supporter",
           "While suspended, Ad Manager is frozen (ads already running continue)",
@@ -587,6 +588,7 @@ const categories = [
           "Homepage + digest placement",
           "Homepage feed rotates ad positions about every 30s when multiple ads are present; rotation pauses while the user scrolls",
           "Configurable slots; one per Supporter per zip",
+          "Admin → Ads → All Supporter Ads lists user name, email, and ad name (placement business_name is the creative name)",
           "AI + URL review on Ad Assets",
         ],
         technicalOverview:
@@ -716,15 +718,17 @@ const categories = [
           "Stripe Checkout + subscriptions. Failed renewal → Past Due with a 7-day grace period, then cleanup. From 14 days before renewal, Ad Manager shows cancel-outcome messaging. ~21 days before renewal, in-app renewal reminders can fire.",
         features: [
           "Stripe monthly/annual",
+          "My Active Ads: masked card on file (brand, last4, expiry) plus Update Payment Method via Stripe Customer Portal",
           "7-day grace on payment failure (cron cleanup 10:00 AM PT)",
           "14-day cancel warning UI",
           "21-day renewal-soon notices (in-app; cron 9:00 AM PT)",
         ],
         technicalOverview:
-          "api/stripe-webhook.js; cancel-ad-renewal; cron-grace-period-cleanup (10:00 AM PT); cron-renewal-reminders (9:00 AM PT); adBillingNotices.js. Full table: Scheduled Jobs (Crons).",
+          "api/stripe-webhook.js; cancel-ad-renewal; billing-portal; ad-payment-method; cron-grace-period-cleanup (10:00 AM PT); cron-renewal-reminders (9:00 AM PT); adBillingNotices.js. Full table: Scheduled Jobs (Crons).",
         technicalFeatures: [
           "invoice.payment_failed → notifyPaymentFailed (message + email)",
           "invoice.payment_succeeded → renew notices / plan switches as applicable",
+          "ActiveAdCard loads /api/ad-payment-method (brand/last4/exp only) and opens /api/billing-portal to update the card; full numbers stay in Stripe",
         ],
       },
       {
@@ -1001,7 +1005,7 @@ const categories = [
           "Admin is a tabbed operator console. Many tabs have a sub-nav for sections. Access requires profiles.role = admin.",
         features: [
           "Activities — All/Active/Inactive pills; status + reason (Active, User deactivated, Admin removed, Community flags); expandable admin notes; View always aligned with a reserved action slot; Trash on active; Restore only for Admin removed (confirm); Flag icon on community-flagged rows opens Flags with title search + Activities filter",
-          "Ads — supporter ads, zip config, waitlist, rates, discounts, fillers",
+          "Ads — All Supporter Ads shows user name, email, and ad name; zip config, waitlist, rates, discounts, fillers",
           "Beta — stage gates / zip whitelist",
           "Contact Us — inbound messages (unread count on tab + subject subtabs)",
           "FAQs — manage public FAQ entries",

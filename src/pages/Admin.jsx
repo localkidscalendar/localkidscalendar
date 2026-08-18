@@ -3246,7 +3246,7 @@ export default function Admin() {
             <>
               <AdminSectionHeader title="All Supporter Ads" icon={Megaphone} />
               <AdminPanelShell>
-                <AdminAdsPanel ads={ads} onRefresh={loadAll} toast={toast} />
+                <AdminAdsPanel ads={ads} users={users} onRefresh={loadAll} toast={toast} />
               </AdminPanelShell>
             </>
           )}

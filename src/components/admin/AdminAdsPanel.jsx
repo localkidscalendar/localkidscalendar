@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,16 @@ const STATUS_CONFIG = {
   flagged:         { label: "Flagged",         color: "bg-peach-50 text-peach-500" },
 };
 
-export default function AdminAdsPanel({ ads, onRefresh, toast }) {
+function profileName(user) {
+  if (!user) return "";
+  return (
+    user.full_name
+    || [user.first_name, user.last_name].filter(Boolean).join(" ").trim()
+    || ""
+  );
+}
+
+export default function AdminAdsPanel({ ads, users = [], onRefresh, toast }) {
   const [rejectionNotes, setRejectionNotes] = useState({});
   const [disableDialogAd, setDisableDialogAd] = useState(null);
   const [disableBusy, setDisableBusy] = useState(false);
@@ -35,6 +44,22 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
   const [adsSortBy, setAdsSortBy] = useState("created_at");
   const [adsSortOrder, setAdsSortOrder] = useState("desc");
   const [adsSearch, setAdsSearch] = useState("");
+
+  const usersById = useMemo(() => {
+    const map = {};
+    (users || []).forEach((u) => {
+      if (u?.id) map[u.id] = u;
+    });
+    return map;
+  }, [users]);
+
+  const supporterInfo = (ad) => {
+    const user = usersById[ad.user_id];
+    const name = profileName(user) || user?.email || "Unknown user";
+    const email = user?.email || "";
+    const adName = ad.business_name || "";
+    return { name, email, adName };
+  };
 
   const handleApprove = async (ad) => {
     // Flagged ads: Admin restore re-approves the Ad Asset and all related zip placements.
@@ -149,19 +174,24 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
     let list = [...ads];
     if (adsSearch.trim()) {
       const s = adsSearch.toLowerCase();
-      list = list.filter((a) =>
-        (a.business_name || "").toLowerCase().includes(s) ||
-        (a.zip_code || "").includes(s) ||
-        (a.plan_type || "").toLowerCase().includes(s) ||
-        (a.status || "").toLowerCase().includes(s)
-      );
+      list = list.filter((a) => {
+        const { name, email, adName } = supporterInfo(a);
+        return (
+          name.toLowerCase().includes(s) ||
+          email.toLowerCase().includes(s) ||
+          adName.toLowerCase().includes(s) ||
+          (a.zip_code || "").includes(s) ||
+          (a.plan_type || "").toLowerCase().includes(s) ||
+          (a.status || "").toLowerCase().includes(s)
+        );
+      });
     }
     list.sort((a, b) => {
       let aVal;
       let bVal;
-      if (adsSortBy === "business_name") {
-        aVal = (a.business_name || "").toLowerCase();
-        bVal = (b.business_name || "").toLowerCase();
+      if (adsSortBy === "supporter") {
+        aVal = supporterInfo(a).name.toLowerCase();
+        bVal = supporterInfo(b).name.toLowerCase();
       } else if (adsSortBy === "zip_code") {
         aVal = a.zip_code || "";
         bVal = b.zip_code || "";
@@ -195,20 +225,24 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
             <Clock className="w-4 h-4" /> {pendingAds.length} Ad{pendingAds.length !== 1 ? "s" : ""} Pending Review
           </h3>
           <div className="space-y-4">
-            {pendingAds.map((ad) => (
+            {pendingAds.map((ad) => {
+              const { name, email, adName } = supporterInfo(ad);
+              return (
               <div key={ad.id} className="bg-white rounded-2xl border border-blue-100 p-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                   {ad.image_url && (
                     <div className="w-full sm:w-44 aspect-[2/1] rounded-xl border border-border bg-muted/30 shrink-0 overflow-hidden flex items-center justify-center">
-                      <img src={ad.image_url} alt={ad.business_name} className="max-w-full max-h-full object-contain" />
+                      <img src={ad.image_url} alt={adName || name} className="max-w-full max-h-full object-contain" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <h4 className="font-heading font-semibold">{ad.business_name}</h4>
+                      <h4 className="font-heading font-semibold">{name}</h4>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">Pending Review</span>
                     </div>
                     <div className="text-xs text-muted-foreground space-y-0.5 mb-3">
+                      {email ? <p>{email}</p> : null}
+                      {adName ? <p>Ad: <strong className="text-foreground">{adName}</strong></p> : null}
                       <p>Zip: <strong>{ad.zip_code}</strong> · Plan: <strong className="capitalize">{ad.plan_type}</strong> · Rate: <strong>${ad.rate_at_purchase || (ad.plan_type === "annual" ? 1260 : 150)}</strong></p>
                       <p>Submitted: {moment(ad.created_at).format("MMM D, YYYY")}</p>
                       {ad.link_url && (
@@ -237,7 +271,8 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -245,7 +280,7 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
       <div className="overflow-hidden">
         <div className="pb-4 border-b border-border">
           <SearchClearField
-            placeholder="Search by business, zip, plan, or status…"
+            placeholder="Search by user, email, ad name, zip, plan, or status…"
             value={adsSearch}
             onValueChange={(v) => { setAdsSearch(v); setAdsPage(1); }}
             wrapperClassName="flex items-center gap-2 w-full"
@@ -255,8 +290,8 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer hover:bg-muted/70 select-none" onClick={() => toggleAdsSort("business_name")}>
-                  Business{sortArrow("business_name")}
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer hover:bg-muted/70 select-none" onClick={() => toggleAdsSort("supporter")}>
+                  Supporter{sortArrow("supporter")}
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer hover:bg-muted/70 select-none" onClick={() => toggleAdsSort("zip_code")}>
                   Zip{sortArrow("zip_code")}
@@ -277,9 +312,14 @@ export default function AdminAdsPanel({ ads, onRefresh, toast }) {
             <tbody className="divide-y divide-border">
               {adsPageData.map((a) => {
                 const cfg = STATUS_CONFIG[a.status] || STATUS_CONFIG.pending_review;
+                const { name, email, adName } = supporterInfo(a);
                 return (
                   <tr key={a.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 font-medium max-w-[160px] truncate">{a.business_name}</td>
+                    <td className="px-4 py-3 max-w-[220px]">
+                      <p className="font-medium truncate">{name}</p>
+                      {email ? <p className="text-xs text-muted-foreground truncate">{email}</p> : null}
+                      {adName ? <p className="text-xs text-muted-foreground truncate">Ad: {adName}</p> : null}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{a.zip_code}</td>
                     <td className="px-4 py-3 text-muted-foreground capitalize">{a.plan_type}</td>
                     <td className="px-4 py-3">

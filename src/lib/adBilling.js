@@ -79,6 +79,24 @@ export async function openBillingPortal({ ad_id, return_url } = {}) {
   return url;
 }
 
+/** Load the masked default card on file for an ad (brand, last4, expiry). Never returns a full number. */
+export async function getAdPaymentMethod({ ad_id } = {}) {
+  const { card } = await postJson("/api/ad-payment-method", { ad_id });
+  return card || null;
+}
+
+export function formatMaskedCard(card) {
+  if (!card?.last4) return null;
+  const brand = card.brand
+    ? `${card.brand.charAt(0).toUpperCase()}${card.brand.slice(1)}`
+    : "Card";
+  const exp =
+    card.exp_month && card.exp_year
+      ? ` · Exp ${String(card.exp_month).padStart(2, "0")}/${String(card.exp_year).slice(-2)}`
+      : "";
+  return `${brand} •••• ${card.last4}${exp}`;
+}
+
 /** Cancel auto-renewal for an ad's subscription (runs through the end of the paid term). */
 export async function cancelAdRenewal({ ad_id } = {}) {
   return postJson("/api/cancel-ad-renewal", { ad_id });
