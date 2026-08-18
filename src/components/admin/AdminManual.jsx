@@ -430,11 +430,12 @@ const categories = [
           "Homepage filters combine with AND logic (every selected filter must match). Keyword search is the exception: multiple words use OR across title, description, keywords, organizer name, and city. Filters persist for the browser session. Help on the filter bar explains this.",
         features: [
           "Category, free/price, ages, zip+radius, dates, sort",
+          "Desktop Cards / List toggle (list is compact rows; phone stays stacked cards)",
           "Session persistence; More Filters auto-expands when advanced values restored",
           "Saved Activities / Fav Organizers / My Filters mutually exclusive",
         ],
         technicalOverview:
-          "EventFilters + Home.jsx sessionStorage (home_filters_session). Distance via Haversine. Cap ~200 results. Mobile: category full-width; From/to/To dates stay on one row.",
+          "EventFilters + Home.jsx sessionStorage (home_filters_session, home_feed_layout). Distance via Haversine. Cap ~200 results. Mobile: category full-width; From/to/To dates stay on one row. List layout is lg+ only.",
         technicalFeatures: [
           "Search strips punctuation and splits words (OR)",
           "My Filters applied snapshot clears highlight when fields diverge",
@@ -587,6 +588,7 @@ const categories = [
           "Monthly / annual pricing",
           "Homepage + digest placement",
           "Homepage feed rotates ad positions about every 30s when multiple ads are present; rotation pauses while the user scrolls",
+          "Desktop List view keeps all three ad cards in one row after the 3rd activity (or after the last if there are 1–2)",
           "Configurable slots; one per Supporter per zip",
           "Admin → Ads → All Supporter Ads lists user name, email, and ad name (placement business_name is the creative name)",
           "AI + URL review on Ad Assets",

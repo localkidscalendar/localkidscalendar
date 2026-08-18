@@ -13,13 +13,14 @@ import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import { pickDefaultFillerAds } from "@/lib/pickDefaultFillerAds";
 import { isActivityFree, normalizeCategoryList } from "@/lib/activityCategories";
 import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
-import { Calendar, MapPin, Loader2, X } from "lucide-react";
+import { Calendar, MapPin, Loader2, X, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import moment from "moment";
 
 const FILTER_SESSION_KEY = "home_filters_session";
 /** Set when the user manually changes zip/distance this browser session. */
 const LOCATION_MANUAL_KEY = "session_location_manual";
+const FEED_LAYOUT_KEY = "home_feed_layout";
 
 // Shuffles an array (Fisher-Yates) with an offset for rotation
 function rotatedShuffle(arr, seed) {
@@ -32,8 +33,8 @@ function rotatedShuffle(arr, seed) {
   return copy;
 }
 
-// Injects supporter ads into the event feed grid
-function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, onToggleSave, user, onAssetFlagged }) {
+// Injects supporter ads into the event feed (card grid or desktop list)
+function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, onToggleSave, user, onAssetFlagged, layout = "cards" }) {
   const COLS = 3; // grid columns on lg
 
   // ads is { type: "paid"|"default", ad } — filter paid ads by zip, keep defaults always
@@ -46,6 +47,47 @@ function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, on
   });
 
   const rotatedAds = rotatedShuffle(relevantAds, rotationIndex);
+
+  const renderAd = (item, key) => {
+    const { type, ad } = item;
+    return type === "paid"
+      ? <SupporterAdCard key={key} ad={ad} user={user} onAssetFlagged={onAssetFlagged} />
+      : <DefaultAdCard key={key} ad={ad} />;
+  };
+
+  if (layout === "list") {
+    const before = events.slice(0, 3);
+    const after = events.slice(3);
+    const adRow = rotatedAds.length > 0 ? (
+      <div className="grid grid-cols-3 gap-4 items-start">
+        {rotatedAds.map(({ type, ad }, i) => renderAd({ type, ad }, type === "paid" ? `ad-${ad.id}` : `def-${ad.id}-${i}`))}
+      </div>
+    ) : null;
+
+    return (
+      <div className="space-y-3">
+        {before.map((event) => (
+          <EventCard
+            key={event.id}
+            event={event}
+            variant="list"
+            isSaved={savedEventIds.has(event.id)}
+            onToggleSave={onToggleSave}
+          />
+        ))}
+        {adRow}
+        {after.map((event) => (
+          <EventCard
+            key={event.id}
+            event={event}
+            variant="list"
+            isSaved={savedEventIds.has(event.id)}
+            onToggleSave={onToggleSave}
+          />
+        ))}
+      </div>
+    );
+  }
 
   // If fewer than 6 events, show ads on bottom row only
   if (events.length < 6 || rotatedAds.length === 0) {
@@ -161,6 +203,17 @@ export default function Home() {
   });
   const [expandFilters, setExpandFilters] = useState(false);
   const expandCheckedRef = useRef(false);
+  const [feedLayout, setFeedLayout] = useState(() => {
+    try {
+      return sessionStorage.getItem(FEED_LAYOUT_KEY) === "list" ? "list" : "cards";
+    } catch {
+      return "cards";
+    }
+  });
+  const [isDesktopFeed, setIsDesktopFeed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(min-width: 1024px)").matches;
+  });
   const [sessionDefaultZip, setSessionDefaultZip] = useState(null); // zip "Clear" reverts to
   const [sessionDefaultRadius, setSessionDefaultRadius] = useState(DEFAULT_RADIUS_MILES);
   const [locationInitialized, setLocationInitialized] = useState(() => {
@@ -185,6 +238,21 @@ export default function Home() {
       sessionStorage.setItem(FILTER_SESSION_KEY, JSON.stringify(rest));
     } catch {}
   }, [filters]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => setIsDesktopFeed(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  const setFeedLayoutPreference = (next) => {
+    setFeedLayout(next);
+    try { sessionStorage.setItem(FEED_LAYOUT_KEY, next); } catch {}
+  };
+
+  const effectiveFeedLayout = isDesktopFeed && feedLayout === "list" ? "list" : "cards";
 
   // Auto-expand the extra filters panel, once, if the restored session filters differ from defaults
   useEffect(() => {
@@ -885,13 +953,13 @@ export default function Home() {
             )}
           </div>
           {activeAds.length > 0 && (
-            <AdInjectedFeed events={[]} ads={activeAds} rotationIndex={adRotationIndex} zipCode={filters.zipCode} savedEventIds={savedEventIds} onToggleSave={toggleSave} user={user} onAssetFlagged={handleAdAssetFlagged} />
+            <AdInjectedFeed events={[]} ads={activeAds} rotationIndex={adRotationIndex} zipCode={filters.zipCode} savedEventIds={savedEventIds} onToggleSave={toggleSave} user={user} onAssetFlagged={handleAdAssetFlagged} layout={effectiveFeedLayout} />
           )}
 
         </div> :
 
         <>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-start justify-between gap-3 mb-4">
               <div>
                 <p className="text-sm text-muted-foreground">
                   <strong className="text-foreground">{filteredEvents.length}</strong> activit{filteredEvents.length !== 1 ? "ies" : "y"} found
@@ -900,8 +968,28 @@ export default function Home() {
                   Activities submitted by the <span className="font-bold text-mint-500">Organizer</span> are highlighted with a green border and may have a photo and logo. Activities submitted by a <span className="font-bold">Community Member</span> have a grey border. A few <span className="text-peach-500 font-medium">Supporter</span> ads connect you to businesses supporting local kids.
                 </p>
               </div>
+              <div className="hidden lg:flex shrink-0 gap-1.5">
+                {[
+                  { id: "cards", label: "Cards", icon: LayoutGrid },
+                  { id: "list", label: "List", icon: List },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setFeedLayoutPreference(opt.id)}
+                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                      feedLayout === opt.id
+                        ? "border-mint-300 bg-mint-50 text-mint-700"
+                        : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
+                    }`}
+                  >
+                    <opt.icon className="w-3.5 h-3.5" />
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <AdInjectedFeed events={filteredEvents} ads={activeAds} rotationIndex={adRotationIndex} zipCode={filters.zipCode} savedEventIds={savedEventIds} onToggleSave={toggleSave} user={user} onAssetFlagged={handleAdAssetFlagged} />
+            <AdInjectedFeed events={filteredEvents} ads={activeAds} rotationIndex={adRotationIndex} zipCode={filters.zipCode} savedEventIds={savedEventIds} onToggleSave={toggleSave} user={user} onAssetFlagged={handleAdAssetFlagged} layout={effectiveFeedLayout} />
           </>
         }
       </div>
