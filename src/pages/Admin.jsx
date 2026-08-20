@@ -293,8 +293,15 @@ export default function Admin() {
     userId: null,
     userName: "",
     isSupporter: false,
+    source: "users_list",
   });
   const [declineDialog, setDeclineDialog] = useState({ open: false, request: null });
+  const [reactivateDialog, setReactivateDialog] = useState({
+    open: false,
+    userId: null,
+    requestId: null,
+    userName: "",
+  });
   const [disableBusy, setDisableBusy] = useState(false);
   /** Shared note dialog for remove / deactivate / clear-flag actions */
   const [noteDialog, setNoteDialog] = useState({
@@ -884,12 +891,30 @@ export default function Admin() {
     });
   };
 
-  const openDisableUserDialog = (userId, userName, isSupporter = false) => {
+  const openDisableUserDialog = (userId, userName, isSupporter = false, source = "users_list") => {
     setDisableDialog({
       open: true,
       userId,
       userName: userName || "this user",
       isSupporter: Boolean(isSupporter),
+      source: source === "flagged_users" ? "flagged_users" : "users_list",
+    });
+  };
+
+  const openReactivateUserDialog = (userId, { requestId = null, userName = "" } = {}) => {
+    const profile = users.find((u) => u.id === userId);
+    const name =
+      userName
+      || organizerMap[userId]
+      || profile?.full_name
+      || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim()
+      || profile?.email
+      || "this user";
+    setReactivateDialog({
+      open: true,
+      userId,
+      requestId,
+      userName: name,
     });
   };
 
@@ -921,6 +946,7 @@ export default function Admin() {
           note,
           prior_role: priorRole,
           send_email: Boolean(sendEmail),
+          disable_source: disableDialog.source || "users_list",
         }),
       });
       const raw = await res.text();
@@ -954,7 +980,7 @@ export default function Admin() {
         ].join(""),
         variant: sendEmail && !payload.email_sent ? "destructive" : undefined,
       });
-      setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false });
+      setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false, source: "users_list" });
       setDisabledUsers((prev) => new Set([...prev, userId]));
       setUsers((prev) => prev.map((u) => (
         u.id === userId
@@ -978,7 +1004,10 @@ export default function Admin() {
     }
   };
 
-  const handleReactivateUser = async (userId, { requestId } = {}) => {
+  const handleApproveReactivation = async (note) => {
+    const userId = reactivateDialog.userId;
+    const requestId = reactivateDialog.requestId;
+    if (!userId) return;
     const profile = users.find((u) => u.id === userId);
     const restoreRole = restoreRoleFromProfile(profile);
     const roleLabel =
@@ -987,25 +1016,27 @@ export default function Admin() {
         : restoreRole === "admin"
           ? "Admin"
           : "Community Member";
-    if (!window.confirm(`Reactivate this user as ${roleLabel}?`)) return;
 
+    setDisableBusy(true);
+    const now = new Date().toISOString();
     const { error } = await supabase.from("profiles").update({
       role: restoreRole,
       role_before_disabled: null,
       disabled_note: null,
       disabled_at: null,
       disabled_by: null,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     }).eq("id", userId);
     if (error) {
+      setDisableBusy(false);
       toast({ title: "Failed to reactivate user", description: error.message, variant: "destructive" });
       return;
     }
 
-    const now = new Date().toISOString();
     if (requestId) {
       await supabase.from("account_reactivation_requests").update({
         status: "reactivated",
+        admin_note: note || null,
         reviewed_at: now,
         reviewed_by: user?.id || null,
         updated_at: now,
@@ -1013,21 +1044,24 @@ export default function Admin() {
     } else {
       await supabase.from("account_reactivation_requests").update({
         status: "reactivated",
+        admin_note: note || null,
         reviewed_at: now,
         reviewed_by: user?.id || null,
         updated_at: now,
       }).eq("user_id", userId).eq("status", "pending");
     }
 
-    const { error: msgError } = await notifyAccountReactivated(userId);
+    const { error: msgError } = await notifyAccountReactivated(userId, { adminNote: note });
+    setDisableBusy(false);
+    setReactivateDialog({ open: false, userId: null, requestId: null, userName: "" });
     if (msgError) {
       toast({
-        title: "User account reactivated",
+        title: `User reactivated as ${roleLabel}`,
         description: "Inbox notice failed to send — you may Message them manually.",
         variant: "destructive",
       });
     } else {
-      toast({ title: "User account reactivated", description: "Inbox notice sent." });
+      toast({ title: `User reactivated as ${roleLabel}`, description: "Inbox notice sent." });
     }
     setDisabledUsers((prev) => {
       const next = new Set(prev);
@@ -1048,10 +1082,10 @@ export default function Admin() {
     )));
     setReactivationRequests((prev) => prev.map((r) => {
       if (requestId && r.id === requestId) {
-        return { ...r, status: "reactivated", reviewed_at: now, reviewed_by: user?.id || null };
+        return { ...r, status: "reactivated", admin_note: note || null, reviewed_at: now, reviewed_by: user?.id || null };
       }
       if (!requestId && r.user_id === userId && r.status === "pending") {
-        return { ...r, status: "reactivated", reviewed_at: now, reviewed_by: user?.id || null };
+        return { ...r, status: "reactivated", admin_note: note || null, reviewed_at: now, reviewed_by: user?.id || null };
       }
       return r;
     }));
@@ -1069,6 +1103,12 @@ export default function Admin() {
       reviewed_by: user?.id || null,
       updated_at: now,
     }).eq("id", req.id).eq("status", "pending");
+    if (!error) {
+      await supabase.from("profiles").update({
+        disabled_note: note,
+        updated_at: now,
+      }).eq("id", req.user_id);
+    }
     setDisableBusy(false);
     if (error) {
       toast({ title: "Failed to decline request", description: error.message, variant: "destructive" });
@@ -1076,6 +1116,9 @@ export default function Admin() {
     }
     toast({ title: "Reactivation request declined" });
     setDeclineDialog({ open: false, request: null });
+    setUsers((prev) => prev.map((u) => (
+      u.id === req.user_id ? { ...u, disabled_note: note } : u
+    )));
     setReactivationRequests((prev) => prev.map((r) => (
       r.id === req.id
         ? { ...r, status: "declined", admin_note: note, reviewed_at: now, reviewed_by: user?.id || null }
@@ -1605,7 +1648,41 @@ export default function Admin() {
     const label = adminActionLabel[entry?.action] || entry?.action || "Action";
     const when = entry?.at ? formatFlagSubmittedAt(entry.at) : "";
     const by = entry?.by ? ` · ${entry.by}` : "";
-    return `${label} — ${when}${by}`;
+    const sourceLabel =
+      entry?.source === "flagged_users"
+        ? " · via Flagged Users"
+        : entry?.source === "users_list"
+          ? " · via Users list"
+          : entry?.scope === "account_disabled"
+            ? " · account disable"
+            : "";
+    return `${label}${sourceLabel} — ${when}${by}`;
+  };
+
+  const resolveAdminDisplayName = (adminId) => {
+    if (!adminId) return null;
+    const adminProfile = users.find((u) => u.id === adminId);
+    if (!adminProfile) return null;
+    return (
+      [adminProfile.first_name, adminProfile.last_name].filter(Boolean).join(" ").trim()
+      || adminProfile.full_name
+      || adminProfile.email
+      || null
+    );
+  };
+
+  const describeDisableSource = (profile) => {
+    const history = getUserFlagCaseHistory(profile);
+    const lastDisable = [...history].reverse().find((e) => e?.action === "manually_deactivated");
+    if (lastDisable?.source === "flagged_users") return "Admin → Flags → Flagged Users (Manual Disable)";
+    if (lastDisable?.source === "users_list") return "Admin → Users → Disable";
+    if (lastDisable?.scope === "account_disabled" || lastDisable?.action === "manually_deactivated") {
+      return "Admin Disable (source not recorded)";
+    }
+    if (Number(profile?.user_flag_count || 0) >= 3 || profile?.suspended_at) {
+      return "Likely after community user flags (3+)";
+    }
+    return "Admin Disable";
   };
 
   const flaggedContentCards = useMemo(() => {
@@ -3124,7 +3201,7 @@ export default function Admin() {
                                   size="sm"
                                   variant="outline"
                                   className="rounded-lg text-xs h-7 text-mint-500 border-mint-200"
-                                  onClick={() => handleReactivateUser(card.userId)}
+                                  onClick={() => openReactivateUserDialog(card.userId, { userName: card.displayName })}
                                 >
                                   Reactivate User
                                 </Button>
@@ -3157,7 +3234,8 @@ export default function Admin() {
                                           openDisableUserDialog(
                                             card.userId,
                                             card.displayName,
-                                            card.profile?.is_advertiser
+                                            card.profile?.is_advertiser,
+                                            "flagged_users"
                                           )
                                         }
                                       >
@@ -3657,8 +3735,8 @@ export default function Admin() {
                                           className={isDisabled ? "text-mint-700" : "text-destructive"}
                                           onClick={() =>
                                             isDisabled
-                                              ? handleReactivateUser(u.id)
-                                              : openDisableUserDialog(u.id, displayName, u.is_advertiser)
+                                              ? openReactivateUserDialog(u.id, { userName: displayName })
+                                              : openDisableUserDialog(u.id, displayName, u.is_advertiser, "users_list")
                                           }
                                         >
                                           {isDisabled ? "Reactivate User" : "Disable User"}
@@ -4123,6 +4201,19 @@ export default function Admin() {
                         const declined = r.status === "declined";
                         const reactivated = r.status === "reactivated";
                         const profile = users.find((u) => u.id === r.user_id);
+                        const priorRole = profile?.role_before_disabled || restoreRoleFromProfile(profile);
+                        const priorRoleLabel =
+                          priorRole === "organizer"
+                            ? "Organizer"
+                            : priorRole === "admin"
+                              ? "Admin"
+                              : "Community Member";
+                        const disabledByName = resolveAdminDisplayName(profile?.disabled_by);
+                        const flagHistory = getUserFlagCaseHistory(profile);
+                        const userFlagCount = Number(profile?.user_flag_count || 0);
+                        const unclearedUserFlags = flags.filter(
+                          (f) => f.target_type === "user" && f.target_id === r.user_id && f.admin_action !== "flag_cleared"
+                        );
                         return (
                           <div
                             key={r.id}
@@ -4155,15 +4246,63 @@ export default function Admin() {
                               </div>
                               <p className="text-xs font-medium text-muted-foreground">Request to Reactivate My Account</p>
                               <p className="text-sm whitespace-pre-wrap">{r.message}</p>
-                              {profile?.disabled_note && pending && (
-                                <p className="text-xs text-muted-foreground">
-                                  <span className="font-medium text-foreground/80">Original disable note:</span>{" "}
-                                  {profile.disabled_note}
+
+                              <div className="rounded-lg border border-border/70 bg-white/80 p-2.5 space-y-1.5 text-xs text-muted-foreground">
+                                <p className="font-medium text-foreground/80">Disable context</p>
+                                <p>
+                                  <span className="font-medium text-foreground/80">Source:</span>{" "}
+                                  {describeDisableSource(profile)}
                                 </p>
-                              )}
+                                <p>
+                                  <span className="font-medium text-foreground/80">Prior role:</span> {priorRoleLabel}
+                                </p>
+                                {profile?.disabled_at && (
+                                  <p>
+                                    <span className="font-medium text-foreground/80">Disabled:</span>{" "}
+                                    {formatFlagSubmittedAt(profile.disabled_at)}
+                                    {disabledByName ? ` · by ${disabledByName}` : ""}
+                                  </p>
+                                )}
+                                <p>
+                                  <span className="font-medium text-foreground/80">User flags:</span>{" "}
+                                  {userFlagCount} recorded
+                                  {unclearedUserFlags.length
+                                    ? ` · ${unclearedUserFlags.length} uncleared report${unclearedUserFlags.length === 1 ? "" : "s"}`
+                                    : ""}
+                                  {profile?.user_flag_case_admin_action
+                                    ? ` · case: ${adminActionLabel[profile.user_flag_case_admin_action] || profile.user_flag_case_admin_action}`
+                                    : ""}
+                                </p>
+                                {profile?.disabled_note && (
+                                  <p>
+                                    <span className="font-medium text-foreground/80">Disable note:</span>{" "}
+                                    <span className="whitespace-pre-wrap text-foreground/90">{profile.disabled_note}</span>
+                                  </p>
+                                )}
+                                {flagHistory.length > 0 && (
+                                  <div className="pt-1 border-t border-border/60 space-y-0.5">
+                                    <p className="font-medium text-foreground/80">User-flag Admin History</p>
+                                    {flagHistory.slice(-6).map((histEntry, idx) => (
+                                      <p key={`${r.id}-hist-${idx}`}>
+                                        • {formatAdminHistoryEntry(histEntry)}
+                                        {histEntry?.note ? ` — ${histEntry.note}` : ""}
+                                      </p>
+                                    ))}
+                                    {flagHistory.length > 6 && (
+                                      <p className="text-[11px]">Showing latest 6 of {flagHistory.length}</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
                               {declined && r.admin_note && (
                                 <p className="text-xs text-muted-foreground">
                                   <span className="font-medium text-foreground/80">Decline note:</span> {r.admin_note}
+                                </p>
+                              )}
+                              {reactivated && r.admin_note && (
+                                <p className="text-xs text-muted-foreground">
+                                  <span className="font-medium text-foreground/80">Approve note:</span> {r.admin_note}
                                 </p>
                               )}
                               <p className="text-xs text-muted-foreground">
@@ -4179,7 +4318,12 @@ export default function Admin() {
                                   size="sm"
                                   variant="outline"
                                   className="rounded-lg text-xs h-7 text-mint-600 border-mint-200"
-                                  onClick={() => handleReactivateUser(r.user_id, { requestId: r.id })}
+                                  onClick={() =>
+                                    openReactivateUserDialog(r.user_id, {
+                                      requestId: r.id,
+                                      userName: r.sender_name,
+                                    })
+                                  }
                                 >
                                   Reactivate
                                 </Button>
@@ -4441,7 +4585,7 @@ export default function Admin() {
       <AdminNoteConfirmDialog
         open={disableDialog.open}
         onOpenChange={(open) => {
-          if (!open) setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false });
+          if (!open) setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false, source: "users_list" });
         }}
         title="Disable User Account"
         description={
@@ -4458,12 +4602,30 @@ export default function Admin() {
       />
 
       <AdminNoteConfirmDialog
+        open={reactivateDialog.open}
+        onOpenChange={(open) => {
+          if (!open) setReactivateDialog({ open: false, userId: null, requestId: null, userName: "" });
+        }}
+        title="Approve Reactivation"
+        description={`Reactivate ${reactivateDialog.userName}? Their prior role is restored. Digests, ads, Stripe, and archived content are not auto-restored.`}
+        noteLabel="Note to User"
+        notePlaceholder="Explain why you are approving — included in their inbox Message…"
+        noteRequired
+        confirmLabel="Reactivate Account"
+        confirmVariant="mint"
+        emailMode="never"
+        deliveryHint="They will receive an inbox Message (with your note if provided)."
+        loading={disableBusy}
+        onConfirm={handleApproveReactivation}
+      />
+
+      <AdminNoteConfirmDialog
         open={declineDialog.open}
         onOpenChange={(open) => {
           if (!open) setDeclineDialog({ open: false, request: null });
         }}
         title="Decline Reactivation Request"
-        description="This closes the request. The user will see your decline note on the Account Disabled page and cannot submit another request."
+        description="This closes the request for this disable cycle. The user will see your decline note on the Account Disabled page."
         noteLabel="Note to User"
         notePlaceholder="Explain why this request is being declined…"
         confirmLabel="Decline Request"

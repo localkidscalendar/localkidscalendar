@@ -18,7 +18,7 @@ const APP_URL = getEnv("APP_URL", "VITE_APP_URL") || "https://localkidscalendar.
  * If Supporter (is_advertiser): cancel slot-holding ads, Stripe non-renew,
  * release waitlist entries, then advance waitlists.
  *
- * Body: { user_id, note, prior_role?, send_email? }
+ * Body: { user_id, note, prior_role?, send_email?, disable_source? }
  */
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
@@ -65,6 +65,10 @@ export default async function handler(req, res) {
     if (!target) return res.status(404).json({ error: "User not found" });
 
     const sendEmail = Boolean(req.body?.send_email);
+    const disableSourceRaw =
+      typeof req.body?.disable_source === "string" ? req.body.disable_source.trim() : "";
+    const disableSource =
+      disableSourceRaw === "flagged_users" ? "flagged_users" : "users_list";
 
     const requestedPrior =
       typeof req.body?.prior_role === "string" ? req.body.prior_role.trim() : "";
@@ -124,6 +128,7 @@ export default async function handler(req, res) {
               at: now,
               by: "Admin",
               scope: "account_disabled",
+              source: disableSource,
               note: note || null,
             },
           ],
@@ -155,6 +160,7 @@ export default async function handler(req, res) {
       at: now,
       by: "Admin",
       scope: "account_disabled",
+      source: disableSource,
       note: note || null,
     };
 

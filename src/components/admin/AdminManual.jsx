@@ -242,11 +242,13 @@ const categories = [
           "Organizer directory hides disabled accounts (suspended accounts still appear)",
           "Supporters also: slot-holding ads cancelled, Stripe set not to renew, waitlist cleared, waitlist processor runs",
           "Reactivation: one request per disable cycle (pending / reactivated / declined); a new Admin Disable clears the prior request",
+          "Reactivation Requests cards show disable source (Users vs Flagged Users), prior role, flag counts, disable note, and user-flag Admin History",
+          "Approve / Decline both use AdminNoteConfirmDialog with a note to the user (approve note goes in the inbox Message)",
           "On approve: prior role restored; inbox Message sent; digests, ads, Stripe, and archived content are not auto-restored",
           "Flow tables: Admin Manual → Admin Communication & Moderation Flows",
         ],
         technicalOverview:
-          "Admin Users → Actions → Disable (or Flagged Users Manual Disable) uses AdminNoteConfirmDialog (required note + optional email) → /api/admin-disable-user (also deletes account_reactivation_requests for that user). Content hide archives events/comments; trg_notify_on_content_hidden notifies savers with generic copy only; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. Approve calls notifyAccountReactivated (user_messages). Stale reactivated rows can be reopened by the disabled user (ensure_reactivation_per_disable_cycle.sql). UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
+          "Admin Users → Actions → Disable (or Flagged Users Manual Disable) uses AdminNoteConfirmDialog (required note + optional email) → /api/admin-disable-user with disable_source (users_list | flagged_users) stored on user_flag_case_admin_history (also deletes account_reactivation_requests for that user). Content hide archives events/comments; trg_notify_on_content_hidden notifies savers with generic copy only; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. Approve calls notifyAccountReactivated (optional admin note). Stale reactivated rows can be reopened by the disabled user (ensure_reactivation_per_disable_cycle.sql). UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
         technicalFeatures: [
           "Caller must be admin (or allowlisted admin email on the API)",
           "Optional send_email delivers the disable note via Resend; Account Disabled page always shows the note",
@@ -1317,13 +1319,13 @@ const categories = [
               ],
               [
                 "Admin Approve",
-                "Prior role restored; request → reactivated",
-                "Inbox Message (account reactivated)",
+                "Prior role restored; request → reactivated; required Admin note in inbox Message",
+                "Inbox Message (account reactivated + note)",
                 "No",
               ],
               [
                 "Admin Decline",
-                "Required note → disabled_note; request → declined",
+                "Required note → request + disabled_note; request → declined",
                 "Updated site notice (Account Disabled)",
                 "No",
               ],
