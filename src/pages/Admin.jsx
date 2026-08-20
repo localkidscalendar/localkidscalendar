@@ -364,9 +364,9 @@ export default function Admin() {
       if (adsRes.error) throw adsRes.error;
 
       const evts = (evtsRes.data || []).map(withCreatedDate);
-      const flg = (flagsRes.data || []).map(withCreatedDate);
+      let flg = (flagsRes.data || []).map(withCreatedDate);
       const adsList = (adsRes.data || []).map(withCreatedDate);
-      const usersList = (usersRes.data || []).map((u) => {
+      let usersList = (usersRes.data || []).map((u) => {
         const full_name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
         return { ...withCreatedDate(u), full_name: full_name || u.email || "—" };
       });
@@ -379,6 +379,40 @@ export default function Admin() {
         ? []
         : (reactivationRes.data || []).map(withCreatedDate);
       const pendingReactivations = reactivationList.filter((r) => r.status === "pending").length;
+
+      // Ensure reactivation request users are in the Users index (profiles select is capped)
+      const reactivationUserIds = [...new Set(reactivationList.map((r) => r.user_id).filter(Boolean))];
+      const knownUserIds = new Set(usersList.map((u) => u.id));
+      const missingReactivationIds = reactivationUserIds.filter((id) => !knownUserIds.has(id));
+      if (missingReactivationIds.length > 0) {
+        const { data: missingProfiles } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", missingReactivationIds);
+        for (const u of missingProfiles || []) {
+          const full_name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
+          usersList.push({ ...withCreatedDate(u), full_name: full_name || u.email || "—" });
+        }
+      }
+
+      // Pull all user-target flag reports for reactivation users (global flags feed is capped)
+      if (reactivationUserIds.length > 0) {
+        const { data: reactivationFlags } = await supabase
+          .from("flag_reports")
+          .select("*")
+          .eq("target_type", "user")
+          .in("target_id", reactivationUserIds)
+          .order("created_at", { ascending: false })
+          .limit(500);
+        const byId = new Map(flg.map((f) => [f.id, f]));
+        for (const row of reactivationFlags || []) {
+          byId.set(row.id, withCreatedDate(row));
+        }
+        flg = Array.from(byId.values()).sort(
+          (a, b) =>
+            new Date(b.created_at || b.created_date || 0) - new Date(a.created_at || a.created_date || 0)
+        );
+      }
 
       setEvents(evts);
       setFlags(flg);
@@ -4201,18 +4235,46 @@ export default function Admin() {
                         const declined = r.status === "declined";
                         const reactivated = r.status === "reactivated";
                         const profile = users.find((u) => u.id === r.user_id);
-                        const priorRole = profile?.role_before_disabled || restoreRoleFromProfile(profile);
+                        const u = profile || {};
+                        const displayName = organizerMap[r.user_id]
+                          || (u.first_name || u.last_name
+                            ? `${u.first_name || ""} ${u.last_name || ""}`.trim()
+                            : null)
+                          || (u.full_name && !String(u.full_name).includes("@") ? u.full_name : null)
+                          || r.sender_name
+                          || "—";
+                        const roleLabel =
+                          u.role === "community_member" ? "Community Member"
+                            : u.role === "organizer" ? "Organizer"
+                              : u.role === "admin" ? "Admin"
+                                : u.role === "disabled" ? "Disabled"
+                                  : "Community Member";
+                        const priorRole = u.role_before_disabled || restoreRoleFromProfile(u);
                         const priorRoleLabel =
                           priorRole === "organizer"
                             ? "Organizer"
                             : priorRole === "admin"
                               ? "Admin"
                               : "Community Member";
-                        const disabledByName = resolveAdminDisplayName(profile?.disabled_by);
-                        const flagHistory = getUserFlagCaseHistory(profile);
-                        const userFlagCount = Number(profile?.user_flag_count || 0);
-                        const unclearedUserFlags = flags.filter(
-                          (f) => f.target_type === "user" && f.target_id === r.user_id && f.admin_action !== "flag_cleared"
+                        const disabledByName = resolveAdminDisplayName(u.disabled_by);
+                        const flagHistory = getUserFlagCaseHistory(u);
+                        const receivedUserFlags = flagsReceivedByUser(r.user_id);
+                        const content = userContentById[r.user_id] || {
+                          events: [],
+                          comments: [],
+                          ads: [],
+                          activityFlagTotal: 0,
+                          commentFlagTotal: 0,
+                          adFlagTotal: 0,
+                          userFlagCount: Number(u.user_flag_count || 0),
+                        };
+                        const flagging = flaggingStatsByUserId[r.user_id] || {
+                          activities: 0, comments: 0, ads: 0, users: 0, total: 0,
+                        };
+                        const userFlagCount = Math.max(
+                          Number(u.user_flag_count || 0),
+                          Number(content.userFlagCount || 0),
+                          receivedUserFlags.length
                         );
                         return (
                           <div
@@ -4225,72 +4287,173 @@ export default function Admin() {
                                   : "border-border bg-white"
                             }`}
                           >
-                            <div className="flex-1 min-w-0 space-y-2">
-                              <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <span className="font-semibold text-sm">{r.sender_name}</span>
-                                <span className="text-xs text-muted-foreground">{r.sender_email}</span>
-                                {r.sender_phone && (
-                                  <span className="text-xs text-muted-foreground">· {formatPhoneDisplay(r.sender_phone)}</span>
+                            <div className="flex-1 min-w-0 space-y-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                  <p className="text-sm font-semibold truncate">{displayName}</p>
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted">
+                                    {roleLabel}
+                                  </span>
+                                  {u.is_advertiser && (
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-muted">
+                                      Supporter
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      pending
+                                        ? "bg-mint-100 text-mint-700"
+                                        : declined
+                                          ? "bg-red-100 text-red-600"
+                                          : "bg-gray-100 text-gray-600"
+                                    }`}
+                                  >
+                                    {pending ? "Pending" : declined ? "Declined" : "Reactivated"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {[
+                                    u.email || r.sender_email,
+                                    u.zip_code || null,
+                                    u.created_date || u.created_at
+                                      ? moment(u.created_date || u.created_at).format("MMM D, YYYY")
+                                      : null,
+                                  ].filter(Boolean).join(" · ")}
+                                </p>
+                                {(r.sender_phone || u.phone) && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Phone: {formatPhoneDisplay(r.sender_phone || u.phone)}
+                                  </p>
                                 )}
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                    pending
-                                      ? "bg-mint-100 text-mint-700"
-                                      : declined
-                                        ? "bg-red-100 text-red-600"
-                                        : "bg-gray-100 text-gray-600"
-                                  }`}
-                                >
-                                  {pending ? "Pending" : declined ? "Declined" : "Reactivated"}
-                                </span>
+                                <div className="text-xs text-muted-foreground space-y-0.5 pt-0.5">
+                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                    <span className="font-medium text-foreground/80">Contributions:</span>
+                                    <span>Activities: {content.events.length}</span>
+                                    <span>·</span>
+                                    <span>Comments: {content.comments.length}</span>
+                                    <span>·</span>
+                                    <span>Ads: {content.ads.length}</span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                    <span className="font-medium text-foreground/80">Flagged:</span>
+                                    <span>User: {userFlagCount}</span>
+                                    <span>·</span>
+                                    <span>Activity: {content.activityFlagTotal}</span>
+                                    <span>·</span>
+                                    <span>Comment: {content.commentFlagTotal}</span>
+                                    <span>·</span>
+                                    <span>Ad Asset: {content.adFlagTotal}</span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                    <span className="font-medium text-foreground/80">Flags Filed:</span>
+                                    <span>Activities: {flagging.activities}</span>
+                                    <span>·</span>
+                                    <span>Comments: {flagging.comments}</span>
+                                    <span>·</span>
+                                    <span>Ads: {flagging.ads}</span>
+                                    <span>·</span>
+                                    <span>Users: {flagging.users}</span>
+                                  </div>
+                                </div>
                               </div>
-                              <p className="text-xs font-medium text-muted-foreground">Request to Reactivate My Account</p>
-                              <p className="text-sm whitespace-pre-wrap">{r.message}</p>
+
+                              <div className="rounded-lg border border-border/70 bg-muted/20 p-2.5 space-y-1">
+                                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                  User’s comments (why they want reactivation)
+                                </p>
+                                <p className="text-sm text-foreground whitespace-pre-wrap">
+                                  {r.message?.trim() || "—"}
+                                </p>
+                              </div>
 
                               <div className="rounded-lg border border-border/70 bg-white/80 p-2.5 space-y-1.5 text-xs text-muted-foreground">
                                 <p className="font-medium text-foreground/80">Disable context</p>
                                 <p>
                                   <span className="font-medium text-foreground/80">Source:</span>{" "}
-                                  {describeDisableSource(profile)}
+                                  {describeDisableSource(u)}
                                 </p>
                                 <p>
                                   <span className="font-medium text-foreground/80">Prior role:</span> {priorRoleLabel}
                                 </p>
-                                {profile?.disabled_at && (
+                                {u.disabled_at && (
                                   <p>
                                     <span className="font-medium text-foreground/80">Disabled:</span>{" "}
-                                    {formatFlagSubmittedAt(profile.disabled_at)}
+                                    {formatFlagSubmittedAt(u.disabled_at)}
                                     {disabledByName ? ` · by ${disabledByName}` : ""}
                                   </p>
                                 )}
-                                <p>
-                                  <span className="font-medium text-foreground/80">User flags:</span>{" "}
-                                  {userFlagCount} recorded
-                                  {unclearedUserFlags.length
-                                    ? ` · ${unclearedUserFlags.length} uncleared report${unclearedUserFlags.length === 1 ? "" : "s"}`
-                                    : ""}
-                                  {profile?.user_flag_case_admin_action
-                                    ? ` · case: ${adminActionLabel[profile.user_flag_case_admin_action] || profile.user_flag_case_admin_action}`
-                                    : ""}
-                                </p>
-                                {profile?.disabled_note && (
+                                {u.disabled_note && (
                                   <p>
                                     <span className="font-medium text-foreground/80">Disable note:</span>{" "}
-                                    <span className="whitespace-pre-wrap text-foreground/90">{profile.disabled_note}</span>
+                                    <span className="whitespace-pre-wrap text-foreground/90">{u.disabled_note}</span>
+                                  </p>
+                                )}
+                                {u.user_flag_case_admin_action && (
+                                  <p>
+                                    <span className="font-medium text-foreground/80">Flag case:</span>{" "}
+                                    {adminActionLabel[u.user_flag_case_admin_action] || u.user_flag_case_admin_action}
                                   </p>
                                 )}
                                 {flagHistory.length > 0 && (
                                   <div className="pt-1 border-t border-border/60 space-y-0.5">
                                     <p className="font-medium text-foreground/80">User-flag Admin History</p>
-                                    {flagHistory.slice(-6).map((histEntry, idx) => (
+                                    {flagHistory.map((histEntry, idx) => (
                                       <p key={`${r.id}-hist-${idx}`}>
                                         • {formatAdminHistoryEntry(histEntry)}
                                         {histEntry?.note ? ` — ${histEntry.note}` : ""}
                                       </p>
                                     ))}
-                                    {flagHistory.length > 6 && (
-                                      <p className="text-[11px]">Showing latest 6 of {flagHistory.length}</p>
-                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="rounded-lg border border-peach-200/80 bg-peach-50/30 p-2.5 space-y-2 text-xs text-muted-foreground">
+                                <p className="font-medium text-foreground/80">
+                                  User flags received ({receivedUserFlags.length}
+                                  {userFlagCount !== receivedUserFlags.length
+                                    ? ` · profile count ${userFlagCount}`
+                                    : ""}
+                                  )
+                                </p>
+                                {receivedUserFlags.length === 0 ? (
+                                  <p>
+                                    No user-flag reports found for this account
+                                    {userFlagCount > 0
+                                      ? " (profile still shows a flag count — reports may have been cleared in a test reset)."
+                                      : "."}
+                                  </p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {receivedUserFlags.map((f) => {
+                                      const reportAction = f.admin_action || (f.reviewed ? "reviewed" : null);
+                                      return (
+                                        <div
+                                          key={f.id}
+                                          className="rounded-lg border border-border/70 bg-white/90 p-2.5 space-y-0.5"
+                                        >
+                                          <p>
+                                            <span className="font-medium text-foreground/80">Flagged By:</span>{" "}
+                                            {resolveReporterName(f)}
+                                          </p>
+                                          <p>
+                                            <span className="font-medium text-foreground/80">Reason:</span>{" "}
+                                            {userFlagReasonLabel(f.reason)}
+                                          </p>
+                                          {f.details ? (
+                                            <p>
+                                              <span className="font-medium text-foreground/80">Comments:</span>{" "}
+                                              {f.details}
+                                            </p>
+                                          ) : null}
+                                          <p className="text-[11px]">
+                                            {formatFlagSubmittedAt(f.created_date || f.created_at)}
+                                            {reportAction
+                                              ? ` · ${adminActionLabel[reportAction] || reportAction}`
+                                              : ""}
+                                          </p>
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>
@@ -4306,7 +4469,7 @@ export default function Admin() {
                                 </p>
                               )}
                               <p className="text-xs text-muted-foreground">
-                                {formatMessageSubmittedAt(r.created_date || r.created_at)}
+                                Requested {formatMessageSubmittedAt(r.created_date || r.created_at)}
                                 {r.reviewed_at
                                   ? ` · Closed ${moment.utc(r.reviewed_at).local().format("MMM D, YYYY h:mm A")}`
                                   : ""}
@@ -4321,7 +4484,7 @@ export default function Admin() {
                                   onClick={() =>
                                     openReactivateUserDialog(r.user_id, {
                                       requestId: r.id,
-                                      userName: r.sender_name,
+                                      userName: displayName,
                                     })
                                   }
                                 >
