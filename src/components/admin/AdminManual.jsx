@@ -241,12 +241,12 @@ const categories = [
           "Favoriters of the organizer get favorited_organizer_removed",
           "Organizer directory hides disabled accounts (suspended accounts still appear)",
           "Supporters also: slot-holding ads cancelled, Stripe set not to renew, waitlist cleared, waitlist processor runs",
-          "Reactivation: one request per user lifetime (pending / reactivated / declined)",
+          "Reactivation: one request per disable cycle (pending / reactivated / declined); a new Admin Disable clears the prior request",
           "On approve: prior role restored; inbox Message sent; digests, ads, Stripe, and archived content are not auto-restored",
           "Flow tables: Admin Manual → Admin Communication & Moderation Flows",
         ],
         technicalOverview:
-          "Admin Users → Actions → Disable (or Flagged Users Manual Disable) uses AdminNoteConfirmDialog (required note + optional email) → /api/admin-disable-user. Content hide archives events/comments; trg_notify_on_content_hidden notifies savers with generic copy only; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. Approve calls notifyAccountReactivated (user_messages). UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
+          "Admin Users → Actions → Disable (or Flagged Users Manual Disable) uses AdminNoteConfirmDialog (required note + optional email) → /api/admin-disable-user (also deletes account_reactivation_requests for that user). Content hide archives events/comments; trg_notify_on_content_hidden notifies savers with generic copy only; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. Approve calls notifyAccountReactivated (user_messages). Stale reactivated rows can be reopened by the disabled user (ensure_reactivation_per_disable_cycle.sql). UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
         technicalFeatures: [
           "Caller must be admin (or allowlisted admin email on the API)",
           "Optional send_email delivers the disable note via Resend; Account Disabled page always shows the note",
@@ -1306,7 +1306,7 @@ const categories = [
           },
           {
             title: "Reactivation request flow",
-            caption: "One request per user lifetime. Approve restores role and sends an inbox Message — not digests, ads, Stripe, or archived content.",
+            caption: "One request per disable cycle. A new Admin Disable clears any prior request. Approve restores role and sends an inbox Message — not digests, ads, Stripe, or archived content.",
             columns: ["Step", "What happens", "User sees", "Email"],
             rows: [
               [
@@ -1327,11 +1327,17 @@ const categories = [
                 "Updated site notice (Account Disabled)",
                 "No",
               ],
+              [
+                "Admin Disable again later",
+                "Prior reactivation row deleted; fresh request allowed",
+                "Request form on Account Disabled",
+                "Optional (disable dialog)",
+              ],
             ],
           },
         ],
         technicalOverview:
-          "UI: AdminNoteConfirmDialog (emailMode optional | always | never). Disable: /api/admin-disable-user send_email. Activity remove: notifyActivityRemovedAdmin + DB saver trigger (generic). Ads: sendAdAssetDisabledEmail + notifyAdCreativeDisabledAdmin. Clear flags: admin_clear_flag / admin_clear_all_flags (atomic) → notify_* with optional p_details. Reactivation approve: notifyAccountReactivated. Savers: notify_savers_activity_removed ignores Admin detail text (ensure_admin_notes_savers_generic.sql).",
+          "UI: AdminNoteConfirmDialog (emailMode optional | always | never). Disable: /api/admin-disable-user send_email (+ clears account_reactivation_requests). Activity remove: notifyActivityRemovedAdmin + DB saver trigger (generic). Ads: sendAdAssetDisabledEmail + notifyAdCreativeDisabledAdmin. Clear flags: admin_clear_flag / admin_clear_all_flags (atomic) → notify_* with optional p_details. Reactivation approve: notifyAccountReactivated. Savers: notify_savers_activity_removed ignores Admin detail text (ensure_admin_notes_savers_generic.sql).",
         technicalFeatures: [
           "Keep these tables in sync when changing AdminNoteConfirmDialog modes or notify helpers",
           "Previews → Automated Messages / Site Notices / Emails for sample copy",

@@ -105,18 +105,50 @@ export default function AccountDisabledView({
     }
 
     setSubmitting(true);
-    const { data, error } = await supabase
-      .from("account_reactivation_requests")
-      .insert({
-        user_id: user.id,
-        sender_name: senderName.trim(),
-        sender_email: senderEmail.trim(),
-        sender_phone: senderPhone.trim() || null,
-        message: message.trim(),
-        status: "pending",
-      })
-      .select("*")
-      .maybeSingle();
+    let data = null;
+    let error = null;
+
+    if (request?.status === "reactivated") {
+      // Prior disable cycle was approved; this is a new disable — reuse the row as pending
+      const updated = await supabase
+        .from("account_reactivation_requests")
+        .update({
+          sender_name: senderName.trim(),
+          sender_email: senderEmail.trim(),
+          sender_phone: senderPhone.trim() || null,
+          message: message.trim(),
+          status: "pending",
+          admin_note: null,
+          reviewed_at: null,
+          reviewed_by: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request.id)
+        .eq("user_id", user.id)
+        .eq("status", "reactivated")
+        .select("*")
+        .maybeSingle();
+      data = updated.data;
+      error = updated.error;
+      if (!error && !data) {
+        error = { message: "Could not refresh reactivation request. Ask Admin to clear the prior request, or re-run disable after the latest deploy." };
+      }
+    } else {
+      const inserted = await supabase
+        .from("account_reactivation_requests")
+        .insert({
+          user_id: user.id,
+          sender_name: senderName.trim(),
+          sender_email: senderEmail.trim(),
+          sender_phone: senderPhone.trim() || null,
+          message: message.trim(),
+          status: "pending",
+        })
+        .select("*")
+        .maybeSingle();
+      data = inserted.data;
+      error = inserted.error;
+    }
     setSubmitting(false);
 
     if (error) {
@@ -151,10 +183,14 @@ export default function AccountDisabledView({
     );
   }
 
-  const showForm = !request && !justSubmitted;
-  const showPending = request?.status === "pending" || (justSubmitted && !request?.status);
-  const showDeclined = request?.status === "declined";
-  const showReactivated = request?.status === "reactivated";
+  // Live: a leftover "reactivated" row from a prior cycle must not block a new request
+  // Preview: keep the success banner for Admin → Previews → Site Notices
+  const staleReactivated = !preview && request?.status === "reactivated";
+  const effectiveRequest = staleReactivated ? null : request;
+  const showForm = !effectiveRequest && !justSubmitted;
+  const showPending = effectiveRequest?.status === "pending" || (justSubmitted && !effectiveRequest?.status);
+  const showDeclined = effectiveRequest?.status === "declined";
+  const showReactivated = Boolean(preview && request?.status === "reactivated");
 
   return (
     <div className="max-w-lg mx-auto px-4 py-10 sm:py-14">
@@ -218,7 +254,7 @@ export default function AccountDisabledView({
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              You may only submit one reactivation request. Please continue browsing as a guest, or contact support if you believe this is an error.
+              This reactivation request was declined. Please continue browsing as a guest, or contact support if you believe this is an error.
             </p>
           </div>
         )}
@@ -245,7 +281,7 @@ export default function AccountDisabledView({
             <div>
               <h2 className="text-sm font-semibold mb-1">Request to Reactivate My Account</h2>
               <p className="text-xs text-muted-foreground mb-3">
-                Submit one request for an administrator to review. You will not be able to submit another request after this.
+                Submit one request for an administrator to review while this disable is in effect.
               </p>
             </div>
 

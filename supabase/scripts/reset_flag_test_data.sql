@@ -12,8 +12,13 @@
 -- Does NOT
 --   - delete users, activities, comments, or ads
 --   - undo Admin Disable (profiles.role = disabled) or Admin-removed activities (status deleted)
+-- Also clears
+--   - account_reactivation_requests (so re-disable testing can submit a fresh request)
 
 begin;
+
+-- 0) Prior reactivation requests (one-per-user unique index otherwise blocks re-test)
+delete from public.account_reactivation_requests;
 
 -- 1) All flag reports (content + user). Also clears one-flag-per-user uniqueness.
 delete from public.flag_reports;
@@ -148,6 +153,8 @@ commit;
 
 -- Verification
 select 'flag_reports' as check_name, count(*)::text as value from public.flag_reports
+union all
+select 'reactivation_requests', count(*)::text from public.account_reactivation_requests
 union all
 select 'events_with_flags', count(*)::text from public.events
   where coalesce(flag_count, 0) > 0 or coalesce(cardinality(flagged_by), 0) > 0

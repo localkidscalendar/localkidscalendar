@@ -91,6 +91,18 @@ export default async function handler(req, res) {
       .eq("id", userId);
     if (profileError) throw profileError;
 
+    // New disable cycle: clear any prior reactivation request so they may request review again
+    const { error: reactivationClearError } = await admin
+      .from("account_reactivation_requests")
+      .delete()
+      .eq("user_id", userId);
+    if (reactivationClearError) {
+      console.error(
+        "admin-disable-user: clear reactivation request failed:",
+        reactivationClearError.message
+      );
+    }
+
     // Best-effort Flagged Users disposition (do not block disable)
     try {
       const { data: existingFlagCase } = await admin
