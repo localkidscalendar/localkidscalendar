@@ -262,6 +262,29 @@ export async function notifyBecameSupporter(userId) {
   return { id: data || null, error };
 }
 
+/** In-app notice when Admin approves account reactivation (or reactivates from Users). */
+export async function notifyAccountReactivated(userId) {
+  if (!userId) return { id: null, error: null };
+  return createUserMessage({
+    userId,
+    templateKey: "account_reactivated",
+    source: "system",
+    subject: "Your account has been reactivated",
+    body: [
+      "An Admin reviewed your request and reactivated your account. You can sign in and use Local Kids Calendar again.",
+      "",
+      "Weekly digests stay Off — turn them back on anytime in Account → Notifications if you want them.",
+      "",
+      "Previously archived activities, comments, ads, and billing are not restored automatically.",
+    ].join("\n"),
+    actionLabel: "Open My Account",
+    actionHref: "/account",
+    relatedType: "profile",
+    relatedId: userId,
+    metadata: { channels: ["in_app"] },
+  });
+}
+
 /**
  * Admin: notify content owner after Flags actions.
  * p_event: "cleared" | "partial_cleared" | "reactivated" | "overridden"

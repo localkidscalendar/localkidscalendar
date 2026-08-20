@@ -381,6 +381,7 @@ declare
   v_new_count numeric;
   v_role text;
   v_suspended boolean := false;
+  v_reopen_entry jsonb;
 begin
   if v_uid is null then
     raise exception 'Not authenticated';
@@ -457,6 +458,12 @@ begin
   v_new_count := v_count + 1;
   v_flagged_by := array_append(v_flagged_by, v_uid::text);
   v_suspended := v_new_count >= 3;
+  v_reopen_entry := jsonb_build_object(
+    'action', 'unreviewed',
+    'at', to_char(timezone('utc', now()), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+    'by', 'System',
+    'note', 'New community flag'
+  );
 
   insert into public.flag_reports (
     target_type, target_id, reason, details, reporter_id, reporter_name, target_contributor_name
@@ -473,6 +480,16 @@ begin
   update public.profiles
   set user_flag_count = v_new_count,
       user_flagged_by = v_flagged_by,
+      -- history first so CASE still sees the prior action (Postgres uses new values for columns already assigned in SET)
+      user_flag_case_admin_history = case
+        when user_flag_case_admin_action in ('reviewed', 'flags_cleared') then
+          coalesce(user_flag_case_admin_history, '[]'::jsonb) || jsonb_build_array(v_reopen_entry)
+        else user_flag_case_admin_history
+      end,
+      user_flag_case_admin_action = case
+        when user_flag_case_admin_action in ('reviewed', 'flags_cleared') then null
+        else user_flag_case_admin_action
+      end,
       updated_at = now()
   where id = p_target_user_id;
 

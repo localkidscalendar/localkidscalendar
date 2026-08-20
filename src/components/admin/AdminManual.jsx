@@ -241,11 +241,11 @@ const categories = [
           "Organizer directory hides disabled accounts (suspended accounts still appear)",
           "Supporters also: slot-holding ads cancelled, Stripe set not to renew, waitlist cleared, waitlist processor runs",
           "Reactivation: one request per user lifetime (pending / reactivated / declined)",
-          "On approve: prior role restored only — digests, ads, Stripe, and archived content are not auto-restored",
+          "On approve: prior role restored; inbox Message sent; digests, ads, Stripe, and archived content are not auto-restored",
           "Flow tables: Admin Manual → Admin Communication & Moderation Flows",
         ],
         technicalOverview:
-          "Admin Users → Actions → Disable (or Flagged Users Manual Disable) uses AdminNoteConfirmDialog (required note + optional email) → /api/admin-disable-user. Content hide archives events/comments; trg_notify_on_content_hidden notifies savers with generic copy only; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
+          "Admin Users → Actions → Disable (or Flagged Users Manual Disable) uses AdminNoteConfirmDialog (required note + optional email) → /api/admin-disable-user. Content hide archives events/comments; trg_notify_on_content_hidden notifies savers with generic copy only; notify_favoriters_organizer_removed notifies favoriters. Reactivation rows live in account_reactivation_requests. Approve calls notifyAccountReactivated (user_messages). UI: AccountDisabled.jsx + Admin Users → Reactivation Requests.",
         technicalFeatures: [
           "Caller must be admin (or allowlisted admin email on the API)",
           "Optional send_email delivers the disable note via Resend; Account Disabled page always shows the note",
@@ -304,6 +304,7 @@ const categories = [
           "System + Admin-authored messages",
           "Content flag lifecycle notices for activities, comments, and Ad Assets",
           "User-flag notices: flagged (1/2), suspended at 3, withdraw, Clear Flags / partial clear",
+          "Account reactivation approved → inbox notice (digests stay Off; content/ads not auto-restored)",
           "Optional action label + in-app path",
           "Soft-delete from the user’s view",
         ],
@@ -553,15 +554,17 @@ const categories = [
           "Admin → Flags → Flagged Content: one card per activity/comment/ad (nested reports); case actions Clear Flags → Manually Deactivate or Override 3+ → Reviewed; per-report Clear Flag",
           "Admin → Flags → Flagged Users: one card per user (nested reports); case actions Clear Flags → Manual Disable → Reviewed; per-report Clear Flag",
           "After Override / Clear Flags / Reviewed (content or users): Mark Unreviewed",
+          "A new community flag after Reviewed or Clear Flags reopens the case (clears disposition, Admin History notes “New community flag”, open badge returns)",
           "Admin → Users → List of Users: Contributions / Flagged / Flags Filed counts (click # to expand); nested # Flags show reporter, reason, comments, timestamp; Clear search + role filters; Actions for Supporter and Disable",
           "Admin → Users shows a Suspended badge when suspended_at is set (and role is not disabled)",
           "Ad asset cascade: disabling a creative affects all zip placements using it",
           "Flow tables (notes / email / savers / suspend vs disable): Admin Manual → Admin Communication & Moderation Flows",
         ],
         technicalOverview:
-          "flag_reports target_id for ads is ad_library id; user flags use target_type=user and target_id=profile id. Surfaces: UserFlagControl on Event Detail Posted by + OrganizerCard. notify_owner_flag_lifecycle + admin_notify_owner_flag_lifecycle (content); notify_owner_user_flag_lifecycle + admin_notify_owner_user_flag_lifecycle (users). profiles.user_flag_count / suspended_at. flag_auto_hide_exempt on events/comments/ad_library. Ad quarantine helpers in quarantineAdLibrary.js + submit_flag / withdraw_flag / disable_ad_asset RPCs. User helpers: submit_user_flag / withdraw_user_flag. Ensure scripts: ensure_user_flagging_and_suspension.sql then ensure_flag_auto_hide_override.sql.",
+          "flag_reports target_id for ads is ad_library id; user flags use target_type=user and target_id=profile id. Surfaces: UserFlagControl on Event Detail Posted by + OrganizerCard. notify_owner_flag_lifecycle + admin_notify_owner_flag_lifecycle (content); notify_owner_user_flag_lifecycle + admin_notify_owner_user_flag_lifecycle (users). profiles.user_flag_count / suspended_at. flag_auto_hide_exempt on events/comments/ad_library. Ad quarantine helpers in quarantineAdLibrary.js + submit_flag / withdraw_flag / disable_ad_asset RPCs. User helpers: submit_user_flag / withdraw_user_flag. Ensure scripts: ensure_user_flagging_and_suspension.sql, ensure_flag_clear_withdraw_guards.sql, ensure_reopen_flag_case_on_new_flag.sql, then ensure_flag_auto_hide_override.sql.",
         technicalFeatures: [
           "Dispositions include manually_deactivated, overridden, reactivated, reviewed, flags_cleared / flag_cleared",
+          "submit_flag / submit_user_flag clear reviewed|flags_cleared and append System unreviewed history when a new flag arrives; ensure_reopen_flag_case_on_new_flag.sql also repairs stuck cases",
           "submit_flag auto-hides only when count ≥ 3 and flag_auto_hide_exempt is false",
           "submit_user_flag suspends at count ≥ 3 via apply_user_flag_suspension; withdraw / Clear Flag below 3 clears suspension",
           "User withdraw deletes their report and decrements counters; may restore auto-hidden content below 3 (not Admin manual deactivate)",
@@ -1302,7 +1305,7 @@ const categories = [
           },
           {
             title: "Reactivation request flow",
-            caption: "One request per user lifetime. Approve restores role only — not digests, ads, Stripe, or archived content.",
+            caption: "One request per user lifetime. Approve restores role and sends an inbox Message — not digests, ads, Stripe, or archived content.",
             columns: ["Step", "What happens", "User sees", "Email"],
             rows: [
               [
@@ -1314,7 +1317,7 @@ const categories = [
               [
                 "Admin Approve",
                 "Prior role restored; request → reactivated",
-                "Can sign in / use site again",
+                "Inbox Message (account reactivated)",
                 "No",
               ],
               [
@@ -1327,7 +1330,7 @@ const categories = [
           },
         ],
         technicalOverview:
-          "UI: AdminNoteConfirmDialog (emailMode optional | always | never). Disable: /api/admin-disable-user send_email. Activity remove: notifyActivityRemovedAdmin + DB saver trigger (generic). Ads: sendAdAssetDisabledEmail + notifyAdCreativeDisabledAdmin. Clear flags: admin_clear_flag / admin_clear_all_flags (atomic) → notify_* with optional p_details. Savers: notify_savers_activity_removed ignores Admin detail text (ensure_admin_notes_savers_generic.sql).",
+          "UI: AdminNoteConfirmDialog (emailMode optional | always | never). Disable: /api/admin-disable-user send_email. Activity remove: notifyActivityRemovedAdmin + DB saver trigger (generic). Ads: sendAdAssetDisabledEmail + notifyAdCreativeDisabledAdmin. Clear flags: admin_clear_flag / admin_clear_all_flags (atomic) → notify_* with optional p_details. Reactivation approve: notifyAccountReactivated. Savers: notify_savers_activity_removed ignores Admin detail text (ensure_admin_notes_savers_generic.sql).",
         technicalFeatures: [
           "Keep these tables in sync when changing AdminNoteConfirmDialog modes or notify helpers",
           "Previews → Automated Messages / Site Notices / Emails for sample copy",

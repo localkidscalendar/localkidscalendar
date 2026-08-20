@@ -502,6 +502,18 @@ export const AUTOMATED_NOTICE_CATALOG = [
     when: "Admin clears an individual flag from Flagged Users",
   },
   {
+    key: "account_reactivated",
+    category: "admin_removals",
+    title: "Admin Removals · Account Reactivated",
+    subject: "Your account has been reactivated",
+    body: "An Admin reviewed your request and reactivated your account. You can sign in and use Local Kids Calendar again.\n\nWeekly digests stay Off — turn them back on anytime in Account → Notifications if you want them.\n\nPreviously archived activities, comments, ads, and billing are not restored automatically.",
+    actionLabel: "Open My Account",
+    actionHref: "/account",
+    channels: ["in_app"],
+    audience: "Previously disabled user",
+    when: "Admin approves a reactivation request (or reactivates from Users)",
+  },
+  {
     key: "favorited_organizer_removed",
     category: "saved",
     title: "Saved · Favorited Organizer Removed",

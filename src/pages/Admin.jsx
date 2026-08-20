@@ -45,6 +45,7 @@ import {
   notifyCommentRemovedAdmin,
   notifyAdCreativeDisabledAdmin,
   notifyBecameSupporter,
+  notifyAccountReactivated,
   notifyOwnerFlagLifecycle,
 } from "@/lib/userMessages";
 import moment from "moment";
@@ -1013,7 +1014,16 @@ export default function Admin() {
       }).eq("user_id", userId).eq("status", "pending");
     }
 
-    toast({ title: "User account reactivated" });
+    const { error: msgError } = await notifyAccountReactivated(userId);
+    if (msgError) {
+      toast({
+        title: "User account reactivated",
+        description: "Inbox notice failed to send — you may Message them manually.",
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "User account reactivated", description: "Inbox notice sent." });
+    }
     setDisabledUsers((prev) => {
       const next = new Set(prev);
       next.delete(userId);
@@ -1160,23 +1170,55 @@ export default function Admin() {
       })),
     ];
     const lastAction = actions[actions.length - 1];
+    const caseActionValue = lastAction === "unreviewed" ? null : lastAction;
     const updates = {
       user_flag_case_admin_history: history,
-      user_flag_case_admin_action: lastAction === "unreviewed" ? null : lastAction,
+      user_flag_case_admin_action: caseActionValue,
       updated_at: now,
     };
-    const result = await supabase.from("profiles").update(updates).eq("id", profileId);
-    if (!result.error) {
-      setUsers((prev) => prev.map((u) => (
-        u.id === profileId
-          ? {
-            ...u,
-            user_flag_case_admin_history: history,
-            user_flag_case_admin_action: updates.user_flag_case_admin_action,
-          }
-          : u
-      )));
+    const result = await supabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", profileId)
+      .select("id, user_flag_case_admin_action, user_flag_case_admin_history")
+      .maybeSingle();
+    if (result.error) return result;
+    if (!result.data) {
+      return { error: { message: "Could not update flag case — no profile row updated (check Admin role)." } };
     }
+
+    // Keep nested report rows in sync so the card body is not stuck peach after Reviewed
+    const closingCase = caseActionValue === "reviewed" || caseActionValue === "flags_cleared";
+    const reopeningCase = lastAction === "unreviewed";
+    if (closingCase || reopeningCase) {
+      const reportIds = flags
+        .filter((f) => f.target_type === "user" && f.target_id === profileId && f.admin_action !== "flag_cleared")
+        .map((f) => f.id);
+      if (reportIds.length > 0) {
+        const reportUpdates = closingCase
+          ? { reviewed: true, updated_at: now }
+          : { reviewed: false, updated_at: now };
+        const reportsResult = await supabase
+          .from("flag_reports")
+          .update(reportUpdates)
+          .in("id", reportIds);
+        if (!reportsResult.error) {
+          setFlags((prev) => prev.map((f) => (
+            reportIds.includes(f.id) ? { ...f, ...reportUpdates } : f
+          )));
+        }
+      }
+    }
+
+    setUsers((prev) => prev.map((u) => (
+      u.id === profileId
+        ? {
+          ...u,
+          user_flag_case_admin_history: result.data.user_flag_case_admin_history ?? history,
+          user_flag_case_admin_action: result.data.user_flag_case_admin_action ?? caseActionValue,
+        }
+        : u
+    )));
     return result;
   };
 
@@ -2546,11 +2588,15 @@ export default function Admin() {
                         const historyKey = `content-case-${card.key}`;
                         const historyOpen = expandedFlagHistory.has(historyKey);
                         const caseAction = card.caseAction;
+                        const normalizedContentAction = String(caseAction || "")
+                          .trim()
+                          .toLowerCase()
+                          .replace(/\s+/g, "_");
+                        const contentCaseClosed = ["reviewed", "flags_cleared", "manually_deactivated", "overridden"].includes(normalizedContentAction);
                         const hidden = card.hidden;
                         const highlighted =
                           (hidden || card.uncleared.length > 0)
-                          && caseAction !== "reviewed"
-                          && caseAction !== "flags_cleared";
+                          && !contentCaseClosed;
                         const commentText = ((item.item.content || "")
                           .replace(/\n\n\[DEMO 3+\][\s\S]*$/, "")
                           .trim());
@@ -2562,10 +2608,10 @@ export default function Admin() {
                               highlighted
                                 ? hidden
                                   ? "border-violet-300 bg-violet-50/60"
-                                  : "border-peach-300 bg-peach-50/50"
+                                  : "border-peach-300 bg-peach-50"
                                 : hidden
                                   ? "border-violet-200 bg-violet-50/30"
-                                  : "border-border bg-white"
+                                  : "border-border !bg-white"
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3 mb-2">
@@ -2649,11 +2695,14 @@ export default function Admin() {
                                 {card.flags.map((f) => {
                                   const reportAction = f.admin_action || (f.reviewed ? "reviewed" : null);
                                   const reportOpen = isFlagOpen(f);
+                                  const reportHighlighted = highlighted && !hidden && reportOpen;
                                   return (
                                     <div
                                       key={f.id}
                                       className={`rounded-lg border p-2.5 ${
-                                        reportOpen ? "border-peach-200 bg-peach-50/40" : "border-border/70 bg-white/80"
+                                        reportHighlighted
+                                          ? "border-peach-200 bg-peach-50/40"
+                                          : "border-border/70 !bg-white"
                                       }`}
                                     >
                                       <div className="flex items-start justify-between gap-2">
@@ -2897,6 +2946,12 @@ export default function Admin() {
                         const isDisabled = card.role === "disabled" || disabledUsers.has(card.userId);
                         const needsReview = card.suspended || card.flagCount >= 3 || card.uncleared.length >= 3;
                         const caseAction = card.caseAction;
+                        // Normalize in case a legacy value used display casing ("Reviewed")
+                        const normalizedAction = String(caseAction || "")
+                          .trim()
+                          .toLowerCase()
+                          .replace(/\s+/g, "_");
+                        const caseClosed = ["reviewed", "flags_cleared", "manually_deactivated"].includes(normalizedAction);
                         const history = getUserFlagCaseHistory(card.profile);
                         const historyKey = `user-case-${card.userId}`;
                         const historyOpen = expandedFlagHistory.has(historyKey);
@@ -2908,15 +2963,18 @@ export default function Admin() {
                               : card.role === "disabled"
                                 ? "Disabled"
                                 : "Community Member";
-                        const highlighted = needsReview && caseAction !== "reviewed" && caseAction !== "flags_cleared" && !isDisabled;
+                        // Peach only while open — Messages-style addressed = white
+                        const highlighted =
+                          !isDisabled
+                          && !caseClosed
+                          && (card.suspended || card.uncleared.length > 0);
 
                         return (
                           <div
                             key={card.userId}
+                            style={{ backgroundColor: highlighted ? "#FCEBDD" : "#FFFFFF" }}
                             className={`rounded-xl border p-3 shadow-sm ${
-                              highlighted
-                                ? "border-peach-300 bg-peach-50/50"
-                                : "border-border bg-white"
+                              highlighted ? "border-peach-300" : "border-border"
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3 mb-2">
@@ -2931,9 +2989,11 @@ export default function Admin() {
                                   </span>
                                   <span
                                     className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                      card.flagCount >= 3
-                                        ? "bg-destructive/10 text-destructive"
-                                        : "bg-peach-50 text-peach-500"
+                                      caseClosed
+                                        ? "bg-gray-100 text-gray-600"
+                                        : card.flagCount >= 3
+                                          ? "bg-destructive/10 text-destructive"
+                                          : "bg-peach-50 text-peach-500"
                                     }`}
                                   >
                                     {card.flagCount} Flag{card.flagCount === 1 ? "" : "s"}
@@ -2950,13 +3010,13 @@ export default function Admin() {
                                   )}
                                   {caseAction && (
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                      caseAction === "flags_cleared"
+                                      normalizedAction === "flags_cleared"
                                         ? "bg-gray-100 text-gray-600"
-                                        : caseAction === "manually_deactivated"
+                                        : normalizedAction === "manually_deactivated"
                                           ? "bg-red-100 text-red-600"
                                           : "bg-mint-100 text-mint-700"
                                     }`}>
-                                      {adminActionLabel[caseAction] || "Reviewed"}
+                                      {adminActionLabel[normalizedAction] || adminActionLabel[caseAction] || "Reviewed"}
                                     </span>
                                   )}
                                 </div>
@@ -2971,11 +3031,13 @@ export default function Admin() {
                               {card.flags.map((f) => {
                                 const reportAction = f.admin_action || (f.reviewed ? "reviewed" : null);
                                 const reportOpen = isFlagOpen(f);
+                                const reportHighlighted = highlighted && reportOpen;
                                 return (
                                   <div
                                     key={f.id}
+                                    style={{ backgroundColor: reportHighlighted ? "#FDF3EB" : "#FFFFFF" }}
                                     className={`rounded-lg border p-2.5 ${
-                                      reportOpen ? "border-peach-200 bg-peach-50/40" : "border-border/70 bg-white/80"
+                                      reportHighlighted ? "border-peach-200" : "border-border/70"
                                     }`}
                                   >
                                     <div className="flex items-start justify-between gap-2">
@@ -3061,7 +3123,7 @@ export default function Admin() {
                                 >
                                   Reactivate User
                                 </Button>
-                              ) : caseAction === "reviewed" || caseAction === "flags_cleared" ? (
+                              ) : caseClosed && (normalizedAction === "reviewed" || normalizedAction === "flags_cleared") ? (
                                 <Button
                                   size="sm"
                                   variant="outline"
