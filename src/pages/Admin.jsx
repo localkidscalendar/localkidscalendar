@@ -272,6 +272,7 @@ export default function Admin() {
   const [flagTypeFilter, setFlagTypeFilter] = useState("all"); // all | event | comment | ad
   const [flag3PlusOnly, setFlag3PlusOnly] = useState(false); // 3+ Deactivation cards only
   const [expandedFlagHistory, setExpandedFlagHistory] = useState(() => new Set());
+  const [expandedReactivationContext, setExpandedReactivationContext] = useState(() => new Set());
   const [flaggedUserSearch, setFlaggedUserSearch] = useState("");
   const [flaggedUserRoleFilter, setFlaggedUserRoleFilter] = useState("all");
   const [flaggedUsersPage, setFlaggedUsersPage] = useState(1);
@@ -4366,94 +4367,128 @@ export default function Admin() {
                                 </p>
                               </div>
 
-                              <div className="rounded-lg border border-border/70 bg-white/80 p-2.5 space-y-1.5 text-xs text-muted-foreground">
-                                <p className="font-medium text-foreground/80">Disable context</p>
-                                <p>
-                                  <span className="font-medium text-foreground/80">Source:</span>{" "}
-                                  {describeDisableSource(u)}
-                                </p>
-                                <p>
-                                  <span className="font-medium text-foreground/80">Prior role:</span> {priorRoleLabel}
-                                </p>
-                                {u.disabled_at && (
-                                  <p>
-                                    <span className="font-medium text-foreground/80">Disabled:</span>{" "}
-                                    {formatFlagSubmittedAt(u.disabled_at)}
-                                    {disabledByName ? ` · by ${disabledByName}` : ""}
-                                  </p>
-                                )}
-                                {u.disabled_note && (
-                                  <p>
-                                    <span className="font-medium text-foreground/80">Disable note:</span>{" "}
-                                    <span className="whitespace-pre-wrap text-foreground/90">{u.disabled_note}</span>
-                                  </p>
-                                )}
-                                {u.user_flag_case_admin_action && (
-                                  <p>
-                                    <span className="font-medium text-foreground/80">Flag case:</span>{" "}
-                                    {adminActionLabel[u.user_flag_case_admin_action] || u.user_flag_case_admin_action}
-                                  </p>
-                                )}
-                                {flagHistory.length > 0 && (
-                                  <div className="pt-1 border-t border-border/60 space-y-0.5">
-                                    <p className="font-medium text-foreground/80">User-flag Admin History</p>
-                                    {flagHistory.map((histEntry, idx) => (
-                                      <p key={`${r.id}-hist-${idx}`}>
-                                        • {formatAdminHistoryEntry(histEntry)}
-                                        {histEntry?.note ? ` — ${histEntry.note}` : ""}
-                                      </p>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
+                              <div className="rounded-lg border border-border/70 bg-white/80 overflow-hidden">
+                                <button
+                                  type="button"
+                                  className="w-full flex items-center justify-between gap-2 px-2.5 py-2 text-left text-xs hover:bg-muted/30"
+                                  onClick={() => {
+                                    setExpandedReactivationContext((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(r.id)) next.delete(r.id);
+                                      else next.add(r.id);
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  <span className="min-w-0">
+                                    <span className="font-medium text-foreground/80">Disable context</span>
+                                    <span className="text-muted-foreground">
+                                      {" · "}
+                                      {describeDisableSource(u)}
+                                      {" · "}
+                                      {userFlagCount} user flag{userFlagCount === 1 ? "" : "s"}
+                                      {u.disabled_at
+                                        ? ` · ${moment.utc(u.disabled_at).local().format("MMM D, YYYY")}`
+                                        : ""}
+                                    </span>
+                                  </span>
+                                  {expandedReactivationContext.has(r.id)
+                                    ? <ChevronUp className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                                    : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
+                                </button>
 
-                              <div className="rounded-lg border border-peach-200/80 bg-peach-50/30 p-2.5 space-y-2 text-xs text-muted-foreground">
-                                <p className="font-medium text-foreground/80">
-                                  User flags received ({receivedUserFlags.length}
-                                  {userFlagCount !== receivedUserFlags.length
-                                    ? ` · profile count ${userFlagCount}`
-                                    : ""}
-                                  )
-                                </p>
-                                {receivedUserFlags.length === 0 ? (
-                                  <p>
-                                    No user-flag reports found for this account
-                                    {userFlagCount > 0
-                                      ? " (profile still shows a flag count — reports may have been cleared in a test reset)."
-                                      : "."}
-                                  </p>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {receivedUserFlags.map((f) => {
-                                      const reportAction = f.admin_action || (f.reviewed ? "reviewed" : null);
-                                      return (
-                                        <div
-                                          key={f.id}
-                                          className="rounded-lg border border-border/70 bg-white/90 p-2.5 space-y-0.5"
-                                        >
-                                          <p>
-                                            <span className="font-medium text-foreground/80">Flagged By:</span>{" "}
-                                            {resolveReporterName(f)}
-                                          </p>
-                                          <p>
-                                            <span className="font-medium text-foreground/80">Reason:</span>{" "}
-                                            {userFlagReasonLabel(f.reason)}
-                                          </p>
-                                          {f.details ? (
-                                            <p>
-                                              <span className="font-medium text-foreground/80">Comments:</span>{" "}
-                                              {f.details}
+                                {expandedReactivationContext.has(r.id) && (
+                                  <div className="border-t border-border/70 px-2.5 py-2.5 space-y-3 text-xs text-muted-foreground">
+                                    <div className="space-y-1.5">
+                                      <p>
+                                        <span className="font-medium text-foreground/80">Source:</span>{" "}
+                                        {describeDisableSource(u)}
+                                      </p>
+                                      <p>
+                                        <span className="font-medium text-foreground/80">Prior role:</span> {priorRoleLabel}
+                                      </p>
+                                      {u.disabled_at && (
+                                        <p>
+                                          <span className="font-medium text-foreground/80">Disabled:</span>{" "}
+                                          {formatFlagSubmittedAt(u.disabled_at)}
+                                          {disabledByName ? ` · by ${disabledByName}` : ""}
+                                        </p>
+                                      )}
+                                      {u.disabled_note && (
+                                        <p>
+                                          <span className="font-medium text-foreground/80">Disable note:</span>{" "}
+                                          <span className="whitespace-pre-wrap text-foreground/90">{u.disabled_note}</span>
+                                        </p>
+                                      )}
+                                      {u.user_flag_case_admin_action && (
+                                        <p>
+                                          <span className="font-medium text-foreground/80">Flag case:</span>{" "}
+                                          {adminActionLabel[u.user_flag_case_admin_action] || u.user_flag_case_admin_action}
+                                        </p>
+                                      )}
+                                      {flagHistory.length > 0 && (
+                                        <div className="pt-1 border-t border-border/60 space-y-0.5">
+                                          <p className="font-medium text-foreground/80">User-flag Admin History</p>
+                                          {flagHistory.map((histEntry, idx) => (
+                                            <p key={`${r.id}-hist-${idx}`}>
+                                              • {formatAdminHistoryEntry(histEntry)}
+                                              {histEntry?.note ? ` — ${histEntry.note}` : ""}
                                             </p>
-                                          ) : null}
-                                          <p className="text-[11px]">
-                                            {formatFlagSubmittedAt(f.created_date || f.created_at)}
-                                            {reportAction
-                                              ? ` · ${adminActionLabel[reportAction] || reportAction}`
-                                              : ""}
-                                          </p>
+                                          ))}
                                         </div>
-                                      );
-                                    })}
+                                      )}
+                                    </div>
+
+                                    <div className="rounded-lg border border-peach-200/80 bg-peach-50/30 p-2.5 space-y-2">
+                                      <p className="font-medium text-foreground/80">
+                                        User flags received ({receivedUserFlags.length}
+                                        {userFlagCount !== receivedUserFlags.length
+                                          ? ` · profile count ${userFlagCount}`
+                                          : ""}
+                                        )
+                                      </p>
+                                      {receivedUserFlags.length === 0 ? (
+                                        <p>
+                                          No user-flag reports found for this account
+                                          {userFlagCount > 0
+                                            ? " (profile still shows a flag count — reports may have been cleared in a test reset)."
+                                            : "."}
+                                        </p>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          {receivedUserFlags.map((f) => {
+                                            const reportAction = f.admin_action || (f.reviewed ? "reviewed" : null);
+                                            return (
+                                              <div
+                                                key={f.id}
+                                                className="rounded-lg border border-border/70 bg-white/90 p-2.5 space-y-0.5"
+                                              >
+                                                <p>
+                                                  <span className="font-medium text-foreground/80">Flagged By:</span>{" "}
+                                                  {resolveReporterName(f)}
+                                                </p>
+                                                <p>
+                                                  <span className="font-medium text-foreground/80">Reason:</span>{" "}
+                                                  {userFlagReasonLabel(f.reason)}
+                                                </p>
+                                                {f.details ? (
+                                                  <p>
+                                                    <span className="font-medium text-foreground/80">Comments:</span>{" "}
+                                                    {f.details}
+                                                  </p>
+                                                ) : null}
+                                                <p className="text-[11px]">
+                                                  {formatFlagSubmittedAt(f.created_date || f.created_at)}
+                                                  {reportAction
+                                                    ? ` · ${adminActionLabel[reportAction] || reportAction}`
+                                                    : ""}
+                                                </p>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                               </div>

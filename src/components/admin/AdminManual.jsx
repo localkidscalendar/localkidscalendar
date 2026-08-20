@@ -242,7 +242,7 @@ const categories = [
           "Organizer directory hides disabled accounts (suspended accounts still appear)",
           "Supporters also: slot-holding ads cancelled, Stripe set not to renew, waitlist cleared, waitlist processor runs",
           "Reactivation: one request per disable cycle (pending / reactivated / declined); a new Admin Disable clears the prior request",
-          "Reactivation Requests cards match List of Users identity (name, role, email/zip/joined, Contributions / Flagged / Flags Filed) plus disable context, Admin History, and each user-flag report (reporter, reason, details)",
+          "Reactivation Requests cards match List of Users identity (name, role, email/zip/joined, Contributions / Flagged / Flags Filed); Disable context collapses by default (summary: source · flag count · date) and expands to show note, Admin History, and each user-flag report",
           "Approve / Decline both use AdminNoteConfirmDialog with a note to the user (approve note goes in the inbox Message)",
           "On approve: prior role restored; inbox Message sent; digests, ads, Stripe, and archived content are not auto-restored",
           "Flow tables: Admin Manual → Admin Communication & Moderation Flows",
