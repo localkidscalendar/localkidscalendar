@@ -91,6 +91,37 @@ export default async function handler(req, res) {
       .eq("id", userId);
     if (profileError) throw profileError;
 
+    // Best-effort Flagged Users disposition (do not block disable)
+    try {
+      const { data: existingFlagCase } = await admin
+        .from("profiles")
+        .select("user_flag_case_admin_history")
+        .eq("id", userId)
+        .maybeSingle();
+      const priorFlagHistory = Array.isArray(existingFlagCase?.user_flag_case_admin_history)
+        ? existingFlagCase.user_flag_case_admin_history
+        : [];
+      await admin
+        .from("profiles")
+        .update({
+          user_flag_case_admin_action: "manually_deactivated",
+          user_flag_case_admin_history: [
+            ...priorFlagHistory,
+            {
+              action: "manually_deactivated",
+              at: now,
+              by: "Admin",
+              scope: "account_disabled",
+              note: note || null,
+            },
+          ],
+          updated_at: now,
+        })
+        .eq("id", userId);
+    } catch (err) {
+      console.error("admin-disable-user: flag case update failed:", err.message);
+    }
+
     // Turn off weekly digest (upsert so users without a prefs row are covered).
     const { error: digestError } = await admin
       .from("notification_preferences")
@@ -193,8 +224,48 @@ export default async function handler(req, res) {
       waitlist_released: 0,
     };
 
+    // Optional disable email — for every account type (was incorrectly supporter-only)
+    let emailSent = false;
+    let emailError = null;
+    if (sendEmail) {
+      if (!target.email) {
+        emailError = "User has no email on file";
+      } else {
+        try {
+          const contactUrl = `${APP_URL.replace(/\/$/, "")}/contact`;
+          const displayName =
+            [target.first_name, target.last_name].filter(Boolean).join(" ").trim() || "there";
+          const html = `
+            <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;padding:20px;">
+              <h2 style="margin:0 0 12px;">Your Local Kids Calendar account was disabled</h2>
+              <p>Hi ${displayName},</p>
+              <p>Your account on Local Kids Calendar has been disabled by our Admin team.</p>
+              <p><strong>Note from Admin:</strong></p>
+              <p style="white-space:pre-wrap;">${note.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+              <p>If you believe this was a mistake, you can sign in and submit a reactivation request, or <a href="${contactUrl}">contact us</a>.</p>
+            </div>
+          `;
+          await sendViaResend({
+            to: target.email,
+            subject: "Your Local Kids Calendar account was disabled",
+            html,
+          });
+          emailSent = true;
+        } catch (err) {
+          emailError = err.message || "Email send failed";
+          console.error("admin-disable-user: email failed:", emailError);
+        }
+      }
+    }
+
     if (!isSupporter) {
-      return res.status(200).json({ success: true, ...summary });
+      console.log(`admin-disable-user: disabled ${userId} by ${authUser.id}`, summary);
+      return res.status(200).json({
+        success: true,
+        email_sent: emailSent,
+        email_error: emailError,
+        ...summary,
+      });
     }
 
     // Full disable for Supporters: inactive ads, Stripe non-renew, release waitlist.
@@ -277,35 +348,13 @@ export default async function handler(req, res) {
       console.error("admin-disable-user: processWaitlist failed:", err.message);
     }
 
-    let emailSent = false;
-    if (sendEmail && target.email) {
-      try {
-        const contactUrl = `${APP_URL.replace(/\/$/, "")}/contact`;
-        const displayName =
-          [target.first_name, target.last_name].filter(Boolean).join(" ").trim() || "there";
-        const html = `
-          <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;padding:20px;">
-            <h2 style="margin:0 0 12px;">Your Local Kids Calendar account was disabled</h2>
-            <p>Hi ${displayName},</p>
-            <p>Your account on Local Kids Calendar has been disabled by our Admin team.</p>
-            <p><strong>Note from Admin:</strong></p>
-            <p style="white-space:pre-wrap;">${note.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
-            <p>If you believe this was a mistake, you can sign in and submit a reactivation request, or <a href="${contactUrl}">contact us</a>.</p>
-          </div>
-        `;
-        await sendViaResend({
-          to: target.email,
-          subject: "Your Local Kids Calendar account was disabled",
-          html,
-        });
-        emailSent = true;
-      } catch (err) {
-        console.error("admin-disable-user: email failed:", err.message);
-      }
-    }
-
     console.log(`admin-disable-user: disabled ${userId} by ${authUser.id}`, summary);
-    return res.status(200).json({ success: true, email_sent: emailSent, ...summary });
+    return res.status(200).json({
+      success: true,
+      email_sent: emailSent,
+      email_error: emailError,
+      ...summary,
+    });
   } catch (error) {
     console.error("admin-disable-user error:", error);
     return res.status(500).json({ error: error.message || "Failed to disable user" });

@@ -946,8 +946,13 @@ export default function Admin() {
         description: [
           payload.is_supporter ? `Full Supporter disable applied.${supporterNote}` : supporterNote.trim(),
           contentNote ? ` ${contentNote}.` : "",
-          payload.email_sent ? " Email sent." : "",
+          payload.email_sent
+            ? " Email sent."
+            : sendEmail
+              ? ` Email not sent${payload.email_error ? `: ${payload.email_error}` : "."}`
+              : "",
         ].join(""),
+        variant: sendEmail && !payload.email_sent ? "destructive" : undefined,
       });
       setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false });
       setDisabledUsers((prev) => new Set([...prev, userId]));

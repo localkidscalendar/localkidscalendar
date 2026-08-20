@@ -236,6 +236,7 @@ const categories = [
         features: [
           "Always: role → disabled, digests Off, active activities/comments archived, note shown on Account Disabled",
           "Optional email checkbox on the disable dialog (same note as the site notice)",
+          "Disable email sends for Community Members, Organizers, and Supporters (not Supporter-only)",
           "Savers of hidden activities get a generic saved_activity_removed notice (never the Admin disable note)",
           "Favoriters of the organizer get favorited_organizer_removed",
           "Organizer directory hides disabled accounts (suspended accounts still appear)",

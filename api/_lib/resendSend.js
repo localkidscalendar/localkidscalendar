@@ -51,7 +51,8 @@ export async function sendViaResend({ to, subject, html, headers, replyTo }) {
 
   const payload = await resendRes.json().catch(() => ({}));
   if (!resendRes.ok) {
-    throw new Error(payload?.message || `Resend failed (${resendRes.status})`);
+    const detail = payload?.message || payload?.error || `Resend failed (${resendRes.status})`;
+    throw new Error(detail);
   }
   return { id: payload.id || null, skipped: false };
 }
