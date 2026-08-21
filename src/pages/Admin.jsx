@@ -288,6 +288,7 @@ export default function Admin() {
   const [organizerMap, setOrganizerMap] = useState({});
   const [reactivationRequests, setReactivationRequests] = useState([]);
   const [reactivationSearch, setReactivationSearch] = useState("");
+  const [reactivationStatusFilter, setReactivationStatusFilter] = useState("open"); // open | closed | all
   const [reactivationPage, setReactivationPage] = useState(1);
   const [disableDialog, setDisableDialog] = useState({
     open: false,
@@ -381,18 +382,28 @@ export default function Admin() {
         : (reactivationRes.data || []).map(withCreatedDate);
       const pendingReactivations = reactivationList.filter((r) => r.status === "pending").length;
 
-      // Ensure reactivation request users are in the Users index (profiles select is capped)
+      // Ensure reactivation + flagged-user targets are in the Users index (profiles select is capped)
       const reactivationUserIds = [...new Set(reactivationList.map((r) => r.user_id).filter(Boolean))];
+      const flaggedUserTargetIds = [
+        ...new Set(
+          (flg || [])
+            .filter((f) => f.target_type === "user" && f.target_id)
+            .map((f) => f.target_id)
+        ),
+      ];
       const knownUserIds = new Set(usersList.map((u) => u.id));
-      const missingReactivationIds = reactivationUserIds.filter((id) => !knownUserIds.has(id));
-      if (missingReactivationIds.length > 0) {
+      const missingProfileIds = [...new Set([...reactivationUserIds, ...flaggedUserTargetIds])].filter(
+        (id) => !knownUserIds.has(id)
+      );
+      if (missingProfileIds.length > 0) {
         const { data: missingProfiles } = await supabase
           .from("profiles")
           .select("*")
-          .in("id", missingReactivationIds);
+          .in("id", missingProfileIds);
         for (const u of missingProfiles || []) {
           const full_name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
           usersList.push({ ...withCreatedDate(u), full_name: full_name || u.email || "—" });
+          knownUserIds.add(u.id);
         }
       }
 
@@ -1025,6 +1036,18 @@ export default function Admin() {
             role_before_disabled: payload.prior_role || priorRole,
             disabled_note: note,
             disabled_at: new Date().toISOString(),
+            user_flag_case_admin_action: "manually_deactivated",
+            user_flag_case_admin_history: [
+              ...(Array.isArray(u.user_flag_case_admin_history) ? u.user_flag_case_admin_history : []),
+              {
+                action: "manually_deactivated",
+                at: new Date().toISOString(),
+                by: "Admin",
+                scope: "account_disabled",
+                source: disableDialog.source || "users_list",
+                note: note || null,
+              },
+            ],
           }
           : u
       )));
@@ -1171,6 +1194,23 @@ export default function Admin() {
     flag_reactivated: "Flag Reactivated",
     unreviewed: "Marked Unreviewed",
   };
+
+  const normalizeFlagCaseAction = (action) =>
+    String(action || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+
+  // Match card “white / closed” styling used in Flagged Content / Flagged Users
+  const isContentFlagCaseClosed = (caseAction) =>
+    ["reviewed", "flags_cleared", "manually_deactivated", "overridden"].includes(
+      normalizeFlagCaseAction(caseAction)
+    );
+
+  const isUserFlagCaseClosed = (caseAction) =>
+    ["reviewed", "flags_cleared", "manually_deactivated"].includes(
+      normalizeFlagCaseAction(caseAction)
+    );
 
   const adminName = () => {
     const fromProfile = [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim();
@@ -1946,7 +1986,7 @@ export default function Admin() {
   const openFlaggedContentCount = useMemo(
     () =>
       flaggedContentCards.filter((c) => {
-        if (c.caseAction === "reviewed" || c.caseAction === "flags_cleared") return false;
+        if (isContentFlagCaseClosed(c.caseAction)) return false;
         return c.hidden || c.uncleared.length > 0;
       }).length,
     [flaggedContentCards]
@@ -1955,11 +1995,11 @@ export default function Admin() {
   const openFlaggedUsersCount = useMemo(
     () =>
       flaggedUserCards.filter((c) => {
-        if (c.role === "disabled") return false;
-        if (c.caseAction === "reviewed" || c.caseAction === "flags_cleared") return false;
+        if (c.role === "disabled" || disabledUsers.has(c.userId)) return false;
+        if (isUserFlagCaseClosed(c.caseAction)) return false;
         return c.suspended || c.uncleared.length > 0;
       }).length,
-    [flaggedUserCards]
+    [flaggedUserCards, disabledUsers]
   );
 
   const openFlagCount = useMemo(
@@ -2235,6 +2275,11 @@ export default function Admin() {
 
   const filteredReactivationRequests = useMemo(() => {
     let list = [...reactivationRequests];
+    if (reactivationStatusFilter === "open") {
+      list = list.filter((r) => r.status === "pending");
+    } else if (reactivationStatusFilter === "closed") {
+      list = list.filter((r) => r.status === "declined" || r.status === "reactivated");
+    }
     if (reactivationSearch.trim()) {
       const q = reactivationSearch.trim().toLowerCase();
       list = list.filter((r) =>
@@ -2246,7 +2291,7 @@ export default function Admin() {
     }
     list.sort((a, b) => new Date(b.created_at || b.created_date || 0) - new Date(a.created_at || a.created_date || 0));
     return list;
-  }, [reactivationRequests, reactivationSearch]);
+  }, [reactivationRequests, reactivationSearch, reactivationStatusFilter]);
 
   const pendingReactivations = useMemo(
     () => reactivationRequests.filter((r) => r.status === "pending").length,
@@ -2705,11 +2750,8 @@ export default function Admin() {
                         const historyKey = `content-case-${card.key}`;
                         const historyOpen = expandedFlagHistory.has(historyKey);
                         const caseAction = card.caseAction;
-                        const normalizedContentAction = String(caseAction || "")
-                          .trim()
-                          .toLowerCase()
-                          .replace(/\s+/g, "_");
-                        const contentCaseClosed = ["reviewed", "flags_cleared", "manually_deactivated", "overridden"].includes(normalizedContentAction);
+                        const normalizedContentAction = normalizeFlagCaseAction(caseAction);
+                        const contentCaseClosed = isContentFlagCaseClosed(caseAction);
                         const hidden = card.hidden;
                         const highlighted =
                           (hidden || card.uncleared.length > 0)
@@ -3064,11 +3106,8 @@ export default function Admin() {
                         const needsReview = card.suspended || card.flagCount >= 3 || card.uncleared.length >= 3;
                         const caseAction = card.caseAction;
                         // Normalize in case a legacy value used display casing ("Reviewed")
-                        const normalizedAction = String(caseAction || "")
-                          .trim()
-                          .toLowerCase()
-                          .replace(/\s+/g, "_");
-                        const caseClosed = ["reviewed", "flags_cleared", "manually_deactivated"].includes(normalizedAction);
+                        const normalizedAction = normalizeFlagCaseAction(caseAction);
+                        const caseClosed = isUserFlagCaseClosed(caseAction);
                         const history = getUserFlagCaseHistory(card.profile);
                         const historyKey = `user-case-${card.userId}`;
                         const historyOpen = expandedFlagHistory.has(historyKey);
@@ -4214,18 +4253,38 @@ export default function Admin() {
                 icon={MessageSquare}
               />
               <AdminPanelShell>
-                <div className="pb-4 mb-4 border-b border-border">
+                <div className="pb-4 mb-4 border-b border-border flex flex-col sm:flex-row gap-2 sm:items-center">
                   <SearchClearField
                     placeholder="Search reactivation requests…"
                     value={reactivationSearch}
                     onValueChange={(v) => { setReactivationSearch(v); setReactivationPage(1); }}
                   />
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: "all", label: "All" },
+                      { id: "open", label: "Open" },
+                      { id: "closed", label: "Closed" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => { setReactivationStatusFilter(opt.id); setReactivationPage(1); }}
+                        className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors ${
+                          reactivationStatusFilter === opt.id
+                            ? "border-mint-300 bg-mint-50 text-mint-700"
+                            : "border-border bg-white text-muted-foreground hover:bg-mint-50 hover:border-mint-200"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 {filteredReactivationRequests.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-12">
                     {reactivationRequests.length === 0
                       ? "No reactivation requests yet"
-                      : "No requests match your search"}
+                      : "No requests match your search or filters"}
                   </p>
                 ) : (
                   <div className="space-y-2">
