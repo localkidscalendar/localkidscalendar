@@ -18,6 +18,18 @@ export const ACCOUNT_DISABLED_SCENARIOS = [
     disabledNote:
       "Your account was disabled due to repeated inappropriate flagging of community content. If you believe this was a mistake, you may submit a reactivation request.",
     disabledAt: moment().subtract(1, "hour").toISOString(),
+    isSupporter: false,
+    request: null,
+  },
+  {
+    id: "fresh-supporter",
+    category: "account",
+    label: "Just Disabled — Supporter (Ads Impact)",
+    title: "Account · Disabled · Just Disabled (Supporter)",
+    disabledNote:
+      "Your account was disabled after review of community reports. You may submit a reactivation request if you believe this was a mistake.",
+    disabledAt: moment().subtract(2, "hours").toISOString(),
+    isSupporter: true,
     request: null,
   },
   {
@@ -27,6 +39,7 @@ export const ACCOUNT_DISABLED_SCENARIOS = [
     title: "Account · Disabled · Request Pending",
     disabledNote: "Account disabled for policy violations related to community guidelines.",
     disabledAt: moment().subtract(3, "days").toISOString(),
+    isSupporter: false,
     request: {
       status: "pending",
       message: "I accidentally flagged several activities. I understand the guidelines now and would like my account restored.",
@@ -40,6 +53,7 @@ export const ACCOUNT_DISABLED_SCENARIOS = [
     title: "Account · Disabled · Request Declined",
     disabledNote: "Account disabled for policy violations related to community guidelines.",
     disabledAt: moment().subtract(10, "days").toISOString(),
+    isSupporter: false,
     request: {
       status: "declined",
       message: "Please reactivate my account. I will follow the rules going forward.",
@@ -56,6 +70,7 @@ export const ACCOUNT_DISABLED_SCENARIOS = [
     title: "Account · Disabled · Request Reactivated",
     disabledNote: "Temporary disable for review.",
     disabledAt: moment().subtract(5, "days").toISOString(),
+    isSupporter: true,
     request: {
       status: "reactivated",
       message: "Please restore access — this was a misunderstanding.",

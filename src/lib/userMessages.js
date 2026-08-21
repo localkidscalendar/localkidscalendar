@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { toTitleCaseLabel } from "@/lib/titleCase";
+import { buildAccountReactivatedMessageBody } from "@/lib/accountDisableCopy";
 
 /**
  * Create an inbox message for a user (Admin only — uses RPC).
@@ -263,22 +264,27 @@ export async function notifyBecameSupporter(userId) {
 }
 
 /** In-app notice when Admin approves account reactivation (or reactivates from Users). */
-export async function notifyAccountReactivated(userId, { adminNote = null } = {}) {
+export async function notifyAccountReactivated(
+  userId,
+  {
+    adminNote = null,
+    isSupporter = false,
+    restoredActivities = 0,
+    restoredComments = 0,
+  } = {}
+) {
   if (!userId) return { id: null, error: null };
-  const note = typeof adminNote === "string" ? adminNote.trim() : "";
   return createUserMessage({
     userId,
     templateKey: "account_reactivated",
     source: "system",
     subject: "Your account has been reactivated",
-    body: [
-      "An Admin reviewed your request and reactivated your account. You can use Local Kids Calendar again.",
-      note ? `\nNote from Admin:\n${note}` : "",
-      "",
-      "Weekly digests stay Off — turn them back on anytime in Account → Notifications if you want them.",
-      "",
-      "Previously archived activities, comments, ads, and billing are not restored automatically.",
-    ].filter(Boolean).join("\n"),
+    body: buildAccountReactivatedMessageBody({
+      adminNote,
+      isSupporter,
+      restoredActivities,
+      restoredComments,
+    }),
     relatedType: "profile",
     relatedId: userId,
     metadata: { channels: ["in_app"] },

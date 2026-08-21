@@ -246,6 +246,21 @@ function getActivityStatusMeta(event) {
   };
 }
 
+const REACTIVATE_RESTORE_OPTIONS = [
+  {
+    id: "activities",
+    label: "Restore archived activities",
+    hint: "Only items archived by this account disable (not 3+ content flags).",
+    defaultChecked: false,
+  },
+  {
+    id: "comments",
+    label: "Restore archived comments",
+    hint: "Only comments archived by this account disable.",
+    defaultChecked: false,
+  },
+];
+
 export default function Admin() {
   const { user } = useOutletContext();
   const navigate = useNavigate();
@@ -303,6 +318,7 @@ export default function Admin() {
     userId: null,
     requestId: null,
     userName: "",
+    isSupporter: false,
   });
   const [disableBusy, setDisableBusy] = useState(false);
   /** Shared note dialog for remove / deactivate / clear-flag actions */
@@ -961,6 +977,7 @@ export default function Admin() {
       userId,
       requestId,
       userName: name,
+      isSupporter: Boolean(profile?.is_advertiser),
     });
   };
 
@@ -1062,7 +1079,7 @@ export default function Admin() {
     }
   };
 
-  const handleApproveReactivation = async (note) => {
+  const handleApproveReactivation = async (note, { restore } = {}) => {
     const userId = reactivateDialog.userId;
     const requestId = reactivateDialog.requestId;
     if (!userId) return;
@@ -1074,15 +1091,35 @@ export default function Admin() {
         : restoreRole === "admin"
           ? "Admin"
           : "Community Member";
+    const restoreActivities = Boolean(restore?.activities);
+    const restoreComments = Boolean(restore?.comments);
 
     setDisableBusy(true);
     const now = new Date().toISOString();
+    const priorHistory = Array.isArray(profile?.user_flag_case_admin_history)
+      ? profile.user_flag_case_admin_history
+      : [];
+    const reinstateEntry = {
+      action: "manually_reinstated",
+      at: now,
+      by: "Admin",
+      scope: "account_reactivated",
+      note: note || null,
+      restore: {
+        activities: restoreActivities,
+        comments: restoreComments,
+      },
+    };
+    const nextHistory = [...priorHistory, reinstateEntry];
+
     const { error } = await supabase.from("profiles").update({
       role: restoreRole,
       role_before_disabled: null,
       disabled_note: null,
       disabled_at: null,
       disabled_by: null,
+      user_flag_case_admin_action: "manually_reinstated",
+      user_flag_case_admin_history: nextHistory,
       updated_at: now,
     }).eq("id", userId);
     if (error) {
@@ -1109,17 +1146,94 @@ export default function Admin() {
       }).eq("user_id", userId).eq("status", "pending");
     }
 
-    const { error: msgError } = await notifyAccountReactivated(userId, { adminNote: note });
+    let activitiesRestored = 0;
+    let commentsRestored = 0;
+    const restoreStamp = {
+      action: "reactivated",
+      at: now,
+      by: "Admin",
+      scope: "account_reactivated",
+      note: note || null,
+    };
+    const ACCOUNT_DISABLE_NOTE = "Removed after the poster's account was disabled.";
+
+    if (restoreActivities) {
+      const { data: archivedEvents } = await supabase
+        .from("events")
+        .select("id, flag_case_admin_history, admin_notes, flag_case_admin_action")
+        .eq("created_by_id", userId)
+        .eq("status", "archived");
+      for (const event of archivedEvents || []) {
+        const history = Array.isArray(event.flag_case_admin_history) ? event.flag_case_admin_history : [];
+        const fromAccountDisable =
+          event.admin_notes === ACCOUNT_DISABLE_NOTE
+          || history.some((e) => e?.scope === "account_disabled");
+        if (!fromAccountDisable) continue;
+        const { error: eventError } = await supabase
+          .from("events")
+          .update({
+            status: "active",
+            admin_notes: "",
+            flag_case_admin_action: "reactivated",
+            flag_case_admin_history: [...history, restoreStamp],
+            updated_at: now,
+          })
+          .eq("id", event.id)
+          .eq("status", "archived");
+        if (!eventError) activitiesRestored += 1;
+      }
+    }
+
+    if (restoreComments) {
+      const { data: archivedComments } = await supabase
+        .from("comments")
+        .select("id, flag_case_admin_history, flag_case_admin_action")
+        .eq("created_by_id", userId)
+        .eq("status", "archived");
+      for (const comment of archivedComments || []) {
+        const history = Array.isArray(comment.flag_case_admin_history) ? comment.flag_case_admin_history : [];
+        const fromAccountDisable =
+          history.some((e) => e?.scope === "account_disabled")
+          || (comment.flag_case_admin_action === "manually_deactivated" && history.length === 0);
+        if (!fromAccountDisable) continue;
+        const { error: commentError } = await supabase
+          .from("comments")
+          .update({
+            status: "active",
+            flag_case_admin_action: "reactivated",
+            flag_case_admin_history: [...history, restoreStamp],
+            updated_at: now,
+          })
+          .eq("id", comment.id)
+          .eq("status", "archived");
+        if (!commentError) commentsRestored += 1;
+      }
+    }
+
+    const { error: msgError } = await notifyAccountReactivated(userId, {
+      adminNote: note,
+      isSupporter: Boolean(profile?.is_advertiser),
+      restoredActivities: activitiesRestored,
+      restoredComments: commentsRestored,
+    });
     setDisableBusy(false);
-    setReactivateDialog({ open: false, userId: null, requestId: null, userName: "" });
+    setReactivateDialog({ open: false, userId: null, requestId: null, userName: "", isSupporter: false });
+    const restoreBits = [
+      activitiesRestored ? `${activitiesRestored} activit${activitiesRestored === 1 ? "y" : "ies"}` : null,
+      commentsRestored ? `${commentsRestored} comment${commentsRestored === 1 ? "" : "s"}` : null,
+    ].filter(Boolean);
+    const restoreNote = restoreBits.length ? ` Restored: ${restoreBits.join(", ")}.` : "";
     if (msgError) {
       toast({
         title: `User reactivated as ${roleLabel}`,
-        description: "Inbox notice failed to send — you may Message them manually.",
+        description: `Inbox notice failed to send — you may Message them manually.${restoreNote}`,
         variant: "destructive",
       });
     } else {
-      toast({ title: `User reactivated as ${roleLabel}`, description: "Inbox notice sent." });
+      toast({
+        title: `User reactivated as ${roleLabel}`,
+        description: `Inbox notice sent.${restoreNote}`,
+      });
     }
     setDisabledUsers((prev) => {
       const next = new Set(prev);
@@ -1135,6 +1249,8 @@ export default function Admin() {
           disabled_note: null,
           disabled_at: null,
           disabled_by: null,
+          user_flag_case_admin_action: "manually_reinstated",
+          user_flag_case_admin_history: nextHistory,
         }
         : u
     )));
@@ -1147,6 +1263,9 @@ export default function Admin() {
       }
       return r;
     }));
+    if (restoreActivities || restoreComments) {
+      loadAll();
+    }
   };
 
   const handleDeclineReactivation = async (note) => {
@@ -1186,6 +1305,7 @@ export default function Admin() {
 
   const adminActionLabel = {
     manually_deactivated: "Manually Deactivated",
+    manually_reinstated: "Manually Reinstated",
     flag_cleared: "Flag Cleared",
     flags_cleared: "Flags Cleared",
     reviewed: "Reviewed",
@@ -1208,7 +1328,7 @@ export default function Admin() {
     );
 
   const isUserFlagCaseClosed = (caseAction) =>
-    ["reviewed", "flags_cleared", "manually_deactivated"].includes(
+    ["reviewed", "flags_cleared", "manually_deactivated", "manually_reinstated"].includes(
       normalizeFlagCaseAction(caseAction)
     );
 
@@ -1311,7 +1431,10 @@ export default function Admin() {
     }
 
     // Keep nested report rows in sync so the card body is not stuck peach after Reviewed
-    const closingCase = caseActionValue === "reviewed" || caseActionValue === "flags_cleared";
+    const closingCase =
+      caseActionValue === "reviewed"
+      || caseActionValue === "flags_cleared"
+      || caseActionValue === "manually_reinstated";
     const reopeningCase = lastAction === "unreviewed";
     if (closingCase || reopeningCase) {
       const reportIds = flags
@@ -3164,7 +3287,16 @@ export default function Admin() {
                                       Disabled
                                     </span>
                                   )}
-                                  {caseAction && (
+                                  {caseAction && normalizedAction === "manually_reinstated" ? (
+                                    <>
+                                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                        Manually Deactivated
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-mint-100 text-mint-700">
+                                        Manually Reinstated
+                                      </span>
+                                    </>
+                                  ) : caseAction ? (
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                                       normalizedAction === "flags_cleared"
                                         ? "bg-gray-100 text-gray-600"
@@ -3174,7 +3306,7 @@ export default function Admin() {
                                     }`}>
                                       {adminActionLabel[normalizedAction] || adminActionLabel[caseAction] || "Reviewed"}
                                     </span>
-                                  )}
+                                  ) : null}
                                 </div>
                               </div>
                               <p className="text-[11px] text-muted-foreground shrink-0 text-right leading-5">
@@ -3279,7 +3411,11 @@ export default function Admin() {
                                 >
                                   Reactivate User
                                 </Button>
-                              ) : caseClosed && (normalizedAction === "reviewed" || normalizedAction === "flags_cleared") ? (
+                              ) : caseClosed && (
+                                normalizedAction === "reviewed"
+                                || normalizedAction === "flags_cleared"
+                                || normalizedAction === "manually_reinstated"
+                              ) ? (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -4847,8 +4983,32 @@ export default function Admin() {
         title="Disable User Account"
         description={
           disableDialog.isSupporter
-            ? `Disable ${disableDialog.userName}? This hides their active activities and comments (savers are notified with a generic message), turns off digests, blocks registered features, cancels active ads (and Stripe auto-renew), releases zip slots, and clears their waitlist.`
-            : `Disable ${disableDialog.userName}? This hides their active activities and comments (savers are notified with a generic message), turns off digests, blocks registered features, and they will see your note when they sign in.`
+            ? `Disable ${disableDialog.userName}? This is the severe path for a Supporter with advertising on the platform.`
+            : `Disable ${disableDialog.userName}? This hides their active activities and comments, turns off digests, and blocks registered features. They will see your note when they sign in.`
+        }
+        impactDetails={
+          disableDialog.isSupporter ? (
+            <>
+              <p className="font-medium text-foreground/80">Admin — ads &amp; billing impact</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Active activities and comments are archived (savers get a generic notice).</li>
+                <li>Digests turn Off; registered features are blocked.</li>
+                <li>Slot-holding ads are cancelled; zip slots are released so the waitlist can advance.</li>
+                <li>Stripe subscriptions are set to cancel at period end (may bill through the current paid period, then stop renewing).</li>
+                <li>Auto-renew is turned off; ad waitlist entries for this user are cancelled.</li>
+                <li>They will see this impact explained on the Account Disabled page (and in email if you send one).</li>
+              </ul>
+            </>
+          ) : (
+            <>
+              <p className="font-medium text-foreground/80">Admin — account impact</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Active activities and comments are archived (savers get a generic notice).</li>
+                <li>Digests turn Off; registered features are blocked.</li>
+                <li>Organizer directory listing is hidden while disabled.</li>
+              </ul>
+            </>
+          )
         }
         noteLabel="Note to User"
         notePlaceholder="Explain why this account is being disabled…"
@@ -4861,17 +5021,43 @@ export default function Admin() {
       <AdminNoteConfirmDialog
         open={reactivateDialog.open}
         onOpenChange={(open) => {
-          if (!open) setReactivateDialog({ open: false, userId: null, requestId: null, userName: "" });
+          if (!open) setReactivateDialog({ open: false, userId: null, requestId: null, userName: "", isSupporter: false });
         }}
         title="Approve Reactivation"
-        description={`Reactivate ${reactivateDialog.userName}? Their prior role is restored. Digests, ads, Stripe, and archived content are not auto-restored.`}
+        description={`Reactivate ${reactivateDialog.userName}? Their prior role is restored and the Flagged Users case is marked Manually Reinstated.`}
+        impactDetails={
+          reactivateDialog.isSupporter ? (
+            <>
+              <p className="font-medium text-foreground/80">Admin — what reactivation does / does not restore</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Role restored; organizer directory returns if they were an Organizer.</li>
+                <li>Digests stay Off until the user re-enables them.</li>
+                <li>Optional checkboxes below can restore activities/comments archived by this disable.</li>
+                <li>Cancelled ads are not restored. Stripe cancel-at-period-end is not reversed. Waitlist spots are not restored.</li>
+                <li>They will need Ad Manager (new slots / Checkout) to advertise again. The inbox Message will explain this.</li>
+              </ul>
+            </>
+          ) : (
+            <>
+              <p className="font-medium text-foreground/80">Admin — what reactivation does / does not restore</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Role restored; organizer directory returns if they were an Organizer.</li>
+                <li>Digests stay Off until the user re-enables them.</li>
+                <li>Optional checkboxes below can restore activities/comments archived by this disable.</li>
+                <li>Ads and Stripe (if any) are not restored automatically.</li>
+              </ul>
+            </>
+          )
+        }
         noteLabel="Note to User"
         notePlaceholder="Explain why you are approving — included in their inbox Message…"
         noteRequired
         confirmLabel="Reactivate Account"
         confirmVariant="mint"
         emailMode="never"
-        deliveryHint="They will receive an inbox Message (with your note if provided)."
+        deliveryHint="They will receive an inbox Message with your note and a clear summary of what was / was not restored."
+        restoreOptions={REACTIVATE_RESTORE_OPTIONS}
+        restoreOptionsTitle="Also restore (optional)"
         loading={disableBusy}
         onConfirm={handleApproveReactivation}
       />

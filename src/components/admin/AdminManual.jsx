@@ -235,8 +235,9 @@ const categories = [
           "Admins can disable a user with a required note (severe path, including from Flagged Users → Manual Disable). The user is treated as signed out for normal features, digests turn Off, their active activities and comments are archived (savers get the Saved Activity Removed notice), organizer directory listing is hidden, and they see an Account Disabled page with the note. They may submit one reactivation request for Admin review. Suspension from 3+ user flags is lighter and does not archive content or hide the organizer.",
         features: [
           "Always: role → disabled, digests Off, active activities/comments archived, note shown on Account Disabled",
-          "Optional email checkbox on the disable dialog (same note as the site notice)",
-          "Disable email sends for Community Members, Organizers, and Supporters (not Supporter-only)",
+          "Optional email checkbox on the disable dialog (same Admin note plus structured impact: account effects, and for Supporters ads/renewals/waitlist)",
+          "Account Disabled page always shows “What this means” (plus Supporter ads/billing bullets when is_advertiser)",
+          "Disable email (when sent) includes the same impact summary",
           "Savers of hidden activities get a generic saved_activity_removed notice (never the Admin disable note)",
           "Favoriters of the organizer get favorited_organizer_removed",
           "Organizer directory hides disabled accounts (suspended accounts still appear)",
@@ -244,7 +245,8 @@ const categories = [
           "Reactivation: one request per disable cycle (pending / reactivated / declined); a new Admin Disable clears the prior request",
           "Reactivation Requests: All / Open / Closed filter pills next to search (default Open); cards match List of Users identity; Disable context collapses by default (summary: source · flag count · date) and expands to show note, Admin History, and each user-flag report",
           "Approve / Decline both use AdminNoteConfirmDialog with a note to the user (approve note goes in the inbox Message)",
-          "On approve: prior role restored; inbox Message sent; digests, ads, Stripe, and archived content are not auto-restored",
+          "Approve dialog lists what is / is not restored (ads, Stripe, waitlist called out for Supporters); inbox Message matches",
+          "On approve: prior role restored; Flagged Users case → Manually Reinstated (shows Deactivated + Reinstated pills); optional checkboxes to restore activities/comments archived by the disable; organizer directory returns with Organizer role; digests, ads, and Stripe are not auto-restored",
           "Flow tables: Admin Manual → Admin Communication & Moderation Flows",
         ],
         technicalOverview:
@@ -574,7 +576,8 @@ const categories = [
           "3+ hide trigger still notifies activity savers; owner 3+ message comes from submit_flag (avoids duplicates)",
           "Community 3-flag on ads can still email via notify-ad-asset-disabled (idempotent disable_notified_at)",
           "Admin → Flags → Flagged Content: grouped by target item; filters All / Activities / Comments / Ads + combinable 3+ toggle; open badge counts unresolved content cases (excludes Reviewed / Flags Cleared / Manually Deactivated / Override 3+)",
-          "Admin → Flags → Flagged Users open badge excludes disabled accounts and closed cases (Reviewed / Flags Cleared / Manually Deactivated)",
+          "Admin → Flags → Flagged Users open badge excludes disabled accounts and closed cases (Reviewed / Flags Cleared / Manually Deactivated / Manually Reinstated)",
+          "After Manual Disable then Admin Reactivate: Flagged Users shows Manually Deactivated + Manually Reinstated pills; Admin History keeps both",
           "Admin → Flags → Flagged Users filters: All / Community Members / Organizers / 3+",
           "Admin → Flags → Top Flagging Activity Ranking: report-only leaderboard of Flagging vs Being Flagged (separate rows; Flagging includes user-target reports; Being Flagged = content received + user flags); filters All / Flagging / Being Flagged; click name → Users list by exact email",
           "banner_ads.flag_count mirrors the asset for Ad Manager display",
@@ -1309,7 +1312,7 @@ const categories = [
           },
           {
             title: "Reactivation request flow",
-            caption: "One request per disable cycle. A new Admin Disable clears any prior request. Approve restores role and sends an inbox Message — not digests, ads, Stripe, or archived content.",
+            caption: "One request per disable cycle. A new Admin Disable clears any prior request. Approve restores role, stamps Manually Reinstated, and can optionally restore activities/comments — not digests, ads, or Stripe. Organizer directory returns with Organizer role.",
             columns: ["Step", "What happens", "User sees", "Email"],
             rows: [
               [
@@ -1320,7 +1323,7 @@ const categories = [
               ],
               [
                 "Admin Approve",
-                "Prior role restored; request → reactivated; required Admin note in inbox Message",
+                "Prior role restored; request → reactivated; Flagged Users → Manually Reinstated; required Admin note in inbox Message; optional restore of disable-archived activities/comments",
                 "Inbox Message (account reactivated + note)",
                 "No",
               ],

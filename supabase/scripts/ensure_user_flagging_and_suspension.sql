@@ -27,7 +27,7 @@ begin
   alter table public.profiles add constraint profiles_user_flag_case_admin_action_check check (
     user_flag_case_admin_action is null
     or user_flag_case_admin_action in (
-      'manually_deactivated', 'reviewed', 'flags_cleared', 'unreviewed'
+      'manually_deactivated', 'manually_reinstated', 'reviewed', 'flags_cleared', 'unreviewed'
     )
   );
 exception when others then
@@ -482,12 +482,12 @@ begin
       user_flagged_by = v_flagged_by,
       -- history first so CASE still sees the prior action (Postgres uses new values for columns already assigned in SET)
       user_flag_case_admin_history = case
-        when user_flag_case_admin_action in ('reviewed', 'flags_cleared') then
+        when user_flag_case_admin_action in ('reviewed', 'flags_cleared', 'manually_reinstated') then
           coalesce(user_flag_case_admin_history, '[]'::jsonb) || jsonb_build_array(v_reopen_entry)
         else user_flag_case_admin_history
       end,
       user_flag_case_admin_action = case
-        when user_flag_case_admin_action in ('reviewed', 'flags_cleared') then null
+        when user_flag_case_admin_action in ('reviewed', 'flags_cleared', 'manually_reinstated') then null
         else user_flag_case_admin_action
       end,
       updated_at = now()

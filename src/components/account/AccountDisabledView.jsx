@@ -9,6 +9,10 @@ import { useToast } from "@/components/ui/use-toast";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { formatPhoneInput } from "@/lib/phone";
 import moment from "moment";
+import {
+  ACCOUNT_DISABLE_GENERAL_IMPACT,
+  ACCOUNT_DISABLE_SUPPORTER_IMPACT,
+} from "@/lib/accountDisableCopy";
 
 export const REACTIVATE_SUBJECT = "Request to Reactivate My Account";
 
@@ -26,6 +30,7 @@ export default function AccountDisabledView({
   const [loading, setLoading] = useState(!preview);
   const [disabledNote, setDisabledNote] = useState(preview?.disabledNote || "");
   const [disabledAt, setDisabledAt] = useState(preview?.disabledAt || null);
+  const [isSupporter, setIsSupporter] = useState(Boolean(preview?.isSupporter ?? user?.is_advertiser));
   const [request, setRequest] = useState(preview?.request || null);
   const [senderName, setSenderName] = useState(preview?.senderName || "");
   const [senderEmail, setSenderEmail] = useState(preview?.senderEmail || "");
@@ -40,6 +45,7 @@ export default function AccountDisabledView({
     if (preview) {
       setDisabledNote(preview.disabledNote || "");
       setDisabledAt(preview.disabledAt || null);
+      setIsSupporter(Boolean(preview.isSupporter));
       setRequest(preview.request || null);
       setSenderName(preview.senderName || "Preview User");
       setSenderEmail(preview.senderEmail || "preview@example.com");
@@ -59,7 +65,7 @@ export default function AccountDisabledView({
       const [{ data: profile }, { data: req }] = await Promise.all([
         supabase
           .from("profiles")
-          .select("disabled_note, disabled_at, first_name, last_name, email")
+          .select("disabled_note, disabled_at, first_name, last_name, email, is_advertiser")
           .eq("id", user.id)
           .maybeSingle(),
         supabase
@@ -71,6 +77,7 @@ export default function AccountDisabledView({
       if (cancelled) return;
       setDisabledNote(profile?.disabled_note || "");
       setDisabledAt(profile?.disabled_at || null);
+      setIsSupporter(Boolean(profile?.is_advertiser ?? user?.is_advertiser));
       setRequest(req || null);
       const name =
         [user.first_name, user.last_name].filter(Boolean).join(" ").trim()
@@ -223,6 +230,25 @@ export default function AccountDisabledView({
           <p className="text-sm whitespace-pre-wrap">
             {disabledNote?.trim() || "No additional note was provided."}
           </p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-white p-4 space-y-3">
+          <p className="text-xs font-medium text-foreground/80">What this means for your account</p>
+          <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-4">
+            {ACCOUNT_DISABLE_GENERAL_IMPACT.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          {isSupporter && (
+            <div className="pt-2 border-t border-border/70 space-y-2">
+              <p className="text-xs font-medium text-foreground/80">Ads, renewals, and waitlist (Supporter)</p>
+              <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-4">
+                {ACCOUNT_DISABLE_SUPPORTER_IMPACT.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {showReactivated && (

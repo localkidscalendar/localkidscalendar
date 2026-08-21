@@ -506,10 +506,10 @@ export const AUTOMATED_NOTICE_CATALOG = [
     category: "admin_removals",
     title: "Admin Removals · Account Reactivated",
     subject: "Your account has been reactivated",
-    body: "An Admin reviewed your request and reactivated your account. You can use Local Kids Calendar again.\n\nNote from Admin:\nWelcome back — please review Our Community Rules going forward.\n\nWeekly digests stay Off — turn them back on anytime in Account → Notifications if you want them.\n\nPreviously archived activities, comments, ads, and billing are not restored automatically.",
+    body: "An Admin reviewed your request and reactivated your account. You can use Local Kids Calendar again.\n\nNote from Admin:\nWelcome back — please review Our Community Rules going forward.\n\nWhat this means:\n• Your prior role is restored so you can use Local Kids Calendar again.\n• Weekly digests stay Off — turn them back on in Account → Notifications if you want them.\n• Activities and comments archived by the disable are restored only if Admin chose those options when approving.\n\nNo archived activities or comments were restored with this approval (unless Admin did that separately).\n\nAds, renewals, and waitlist (Supporter):\n• Cancelled ads are not put back on the calendar automatically.\n• Stripe renewals are not turned back on — subscriptions left as cancel-at-period-end stay that way unless billing is fixed separately.\n• Waitlist spots are not restored; zip slots may already be held by others.\n• To advertise again, use Ad Manager to claim or purchase slots and assign approved creatives (new Checkout if needed).",
     channels: ["in_app"],
     audience: "Previously disabled user",
-    when: "Admin approves a reactivation request (or reactivates from Users); optional Admin note appended",
+    when: "Admin approves a reactivation request (or reactivates from Users); optional Admin note appended; Supporter ads/billing caveats included when is_advertiser",
   },
   {
     key: "favorited_organizer_removed",

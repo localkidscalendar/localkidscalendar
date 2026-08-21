@@ -122,12 +122,12 @@ begin
       user_flagged_by = v_flagged_by,
       -- history first so CASE still sees the prior action (Postgres uses new values for columns already assigned in SET)
       user_flag_case_admin_history = case
-        when user_flag_case_admin_action in ('reviewed', 'flags_cleared') then
+        when user_flag_case_admin_action in ('reviewed', 'flags_cleared', 'manually_reinstated') then
           coalesce(user_flag_case_admin_history, '[]'::jsonb) || jsonb_build_array(v_reopen_entry)
         else user_flag_case_admin_history
       end,
       user_flag_case_admin_action = case
-        when user_flag_case_admin_action in ('reviewed', 'flags_cleared') then null
+        when user_flag_case_admin_action in ('reviewed', 'flags_cleared', 'manually_reinstated') then null
         else user_flag_case_admin_action
       end,
       updated_at = now()
@@ -506,7 +506,7 @@ begin
     user_flag_case_admin_action = null,
     user_flag_case_admin_history = coalesce(p.user_flag_case_admin_history, '[]'::jsonb) || jsonb_build_array(v_entry),
     updated_at = now()
-  where p.user_flag_case_admin_action in ('reviewed', 'flags_cleared')
+  where p.user_flag_case_admin_action in ('reviewed', 'flags_cleared', 'manually_reinstated')
     and exists (
       select 1
       from public.flag_reports fr
@@ -516,7 +516,7 @@ begin
         and fr.created_at > coalesce((
           select max((e->>'at')::timestamptz)
           from jsonb_array_elements(coalesce(p.user_flag_case_admin_history, '[]'::jsonb)) e
-          where e->>'action' in ('reviewed', 'flags_cleared')
+          where e->>'action' in ('reviewed', 'flags_cleared', 'manually_reinstated')
         ), timestamptz '1970-01-01')
     );
 

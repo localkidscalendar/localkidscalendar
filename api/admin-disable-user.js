@@ -8,6 +8,10 @@ import {
 } from "./_lib/stripeHelpers.js";
 import { runProcessWaitlist } from "./_lib/processWaitlistCore.js";
 import { sendViaResend } from "./_lib/resendSend.js";
+import {
+  ACCOUNT_DISABLE_GENERAL_IMPACT,
+  ACCOUNT_DISABLE_SUPPORTER_IMPACT,
+} from "../shared/accountDisableCopy.js";
 
 const QUEUE_STATUSES = ["waiting", "offered"];
 const APP_URL = getEnv("APP_URL", "VITE_APP_URL") || "https://localkidscalendar.com";
@@ -196,20 +200,36 @@ export default async function handler(req, res) {
       }
     }
 
-    const { data: hiddenComments, error: commentsHideError } = await admin
+    const { data: activeComments, error: commentsSelectError } = await admin
       .from("comments")
-      .update({
-        status: "archived",
-        flag_case_admin_action: "manually_deactivated",
-        updated_at: now,
-      })
+      .select("id, flag_case_admin_history")
       .eq("created_by_id", userId)
-      .eq("status", "active")
-      .select("id");
-    if (commentsHideError) {
-      console.error("admin-disable-user: hide comments failed:", commentsHideError.message);
+      .eq("status", "active");
+    if (commentsSelectError) {
+      console.error("admin-disable-user: comments select failed:", commentsSelectError.message);
     }
-    const commentsHidden = (hiddenComments || []).length;
+
+    let commentsHidden = 0;
+    for (const comment of activeComments || []) {
+      const history = Array.isArray(comment.flag_case_admin_history)
+        ? comment.flag_case_admin_history
+        : [];
+      const { error: commentHideError } = await admin
+        .from("comments")
+        .update({
+          status: "archived",
+          flag_case_admin_action: "manually_deactivated",
+          flag_case_admin_history: [...history, caseStamp],
+          updated_at: now,
+        })
+        .eq("id", comment.id)
+        .eq("status", "active");
+      if (commentHideError) {
+        console.error(`admin-disable-user: hide comment ${comment.id} failed:`, commentHideError.message);
+      } else {
+        commentsHidden += 1;
+      }
+    }
 
     // Notify users who favorited this organizer/poster (directory hide is role-based)
     let favoritersNotified = 0;
@@ -253,6 +273,19 @@ export default async function handler(req, res) {
           const contactUrl = `${APP_URL.replace(/\/$/, "")}/contact`;
           const displayName =
             [target.first_name, target.last_name].filter(Boolean).join(" ").trim() || "there";
+          const generalLis = ACCOUNT_DISABLE_GENERAL_IMPACT.map(
+            (line) => `<li style="margin:0 0 6px;">${line.replace(/</g, "&lt;")}</li>`
+          ).join("");
+          const supporterBlock = isSupporter
+            ? `
+              <p style="margin:16px 0 8px;"><strong>Ads, renewals, and waitlist (Supporter):</strong></p>
+              <ul style="padding-left:18px;margin:0 0 12px;">
+                ${ACCOUNT_DISABLE_SUPPORTER_IMPACT.map(
+                  (line) => `<li style="margin:0 0 6px;">${line.replace(/</g, "&lt;")}</li>`
+                ).join("")}
+              </ul>
+            `
+            : "";
           const html = `
             <div style="font-family:sans-serif;color:#1a2332;line-height:1.6;padding:20px;">
               <h2 style="margin:0 0 12px;">Your Local Kids Calendar account was disabled</h2>
@@ -260,6 +293,9 @@ export default async function handler(req, res) {
               <p>Your account on Local Kids Calendar has been disabled by our Admin team.</p>
               <p><strong>Note from Admin:</strong></p>
               <p style="white-space:pre-wrap;">${note.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+              <p style="margin:16px 0 8px;"><strong>What this means for your account:</strong></p>
+              <ul style="padding-left:18px;margin:0 0 12px;">${generalLis}</ul>
+              ${supporterBlock}
               <p>If you believe this was a mistake, you can sign in and submit a reactivation request, or <a href="${contactUrl}">contact us</a>.</p>
             </div>
           `;
