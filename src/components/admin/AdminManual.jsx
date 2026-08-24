@@ -236,6 +236,7 @@ const categories = [
         features: [
           "Always: role → disabled, digests Off, active activities/comments archived, note shown on Account Disabled",
           "Optional email checkbox on the disable dialog (same Admin note plus structured impact: account effects, and for Supporters ads/renewals/waitlist)",
+          "Manual Disable prompt loads this user’s live ads/waitlist and shows counts (slot-holding ads by status + zips, Stripe subs, waitlist) before confirm",
           "Account Disabled page always shows “What this means” (plus Supporter ads/billing bullets when is_advertiser)",
           "Disable email (when sent) includes the same impact summary",
           "Savers of hidden activities get a generic saved_activity_removed notice (never the Admin disable note)",

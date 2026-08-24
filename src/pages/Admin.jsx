@@ -14,6 +14,7 @@ import AdminNoteConfirmDialog from "@/components/admin/AdminNoteConfirmDialog";
 import { restoreRoleFromProfile } from "@/lib/authRoles";
 import ImagePreviewModal from "@/components/ads/ImagePreviewModal";
 import SearchClearField from "@/components/shared/SearchClearField";
+import { QUEUE_STATUSES, SLOT_HOLDING_STATUSES } from "@/lib/waitlistQueue";
 
 import FAQManagerV2 from "@/components/admin/FAQManager";
 import SiteNoticesPreview from "@/components/admin/SiteNoticesPreview";
@@ -311,6 +312,7 @@ export default function Admin() {
     userName: "",
     isSupporter: false,
     source: "users_list",
+    adImpact: null, // null | { loading, error, ...counts }
   });
   const [declineDialog, setDeclineDialog] = useState({ open: false, request: null });
   const [reactivateDialog, setReactivateDialog] = useState({
@@ -960,7 +962,67 @@ export default function Admin() {
       userName: userName || "this user",
       isSupporter: Boolean(isSupporter),
       source: source === "flagged_users" ? "flagged_users" : "users_list",
+      adImpact: { loading: true },
     });
+
+    (async () => {
+      try {
+        const [{ data: userAds, error: adsError }, { data: waitlistRows, error: waitError }] = await Promise.all([
+          supabase
+            .from("banner_ads")
+            .select("id, status, zip_code, auto_renew, stripe_subscription_id")
+            .eq("user_id", userId),
+          supabase
+            .from("ad_waitlist")
+            .select("id, status, zip_code")
+            .eq("user_id", userId)
+            .in("status", QUEUE_STATUSES),
+        ]);
+        if (adsError) throw adsError;
+        if (waitError) throw waitError;
+
+        const list = userAds || [];
+        const holding = list.filter((ad) => SLOT_HOLDING_STATUSES.includes(ad.status));
+        const statusCounts = {};
+        for (const ad of holding) {
+          const key = ad.status || "unknown";
+          statusCounts[key] = (statusCounts[key] || 0) + 1;
+        }
+        const zips = [...new Set(holding.map((ad) => ad.zip_code).filter(Boolean))];
+        const withStripe = list.filter((ad) => Boolean(ad.stripe_subscription_id)).length;
+        const autoRenewOn = list.filter((ad) => ad.auto_renew !== false).length;
+        const waitlistCount = (waitlistRows || []).length;
+
+        setDisableDialog((prev) => {
+          if (!prev.open || prev.userId !== userId) return prev;
+          return {
+            ...prev,
+            adImpact: {
+              loading: false,
+              error: null,
+              totalAds: list.length,
+              holdingCount: holding.length,
+              statusCounts,
+              zips,
+              withStripe,
+              autoRenewOn,
+              waitlistCount,
+            },
+          };
+        });
+      } catch (err) {
+        setDisableDialog((prev) => {
+          if (!prev.open || prev.userId !== userId) return prev;
+          return {
+            ...prev,
+            adImpact: {
+              loading: false,
+              error: err.message || "Could not load ads",
+            },
+          };
+        });
+      }
+    })();
   };
 
   const openReactivateUserDialog = (userId, { requestId = null, userName = "" } = {}) => {
@@ -1043,7 +1105,7 @@ export default function Admin() {
         ].join(""),
         variant: sendEmail && !payload.email_sent ? "destructive" : undefined,
       });
-      setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false, source: "users_list" });
+      setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false, source: "users_list", adImpact: null });
       setDisabledUsers((prev) => new Set([...prev, userId]));
       setUsers((prev) => prev.map((u) => (
         u.id === userId
@@ -4978,38 +5040,103 @@ export default function Admin() {
       <AdminNoteConfirmDialog
         open={disableDialog.open}
         onOpenChange={(open) => {
-          if (!open) setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false, source: "users_list" });
+          if (!open) setDisableDialog({ open: false, userId: null, userName: "", isSupporter: false, source: "users_list", adImpact: null });
         }}
         title="Disable User Account"
         description={
           disableDialog.isSupporter
-            ? `Disable ${disableDialog.userName}? This is the severe path for a Supporter with advertising on the platform.`
+            || (disableDialog.adImpact && !disableDialog.adImpact.loading && (
+              (disableDialog.adImpact.holdingCount || 0) > 0
+              || (disableDialog.adImpact.waitlistCount || 0) > 0
+              || (disableDialog.adImpact.withStripe || 0) > 0
+            ))
+            ? `Disable ${disableDialog.userName}? This is the severe path — advertising and billing for this account may be affected.`
             : `Disable ${disableDialog.userName}? This hides their active activities and comments, turns off digests, and blocks registered features. They will see your note when they sign in.`
         }
-        impactDetails={
-          disableDialog.isSupporter ? (
+        impactDetails={(() => {
+          const impact = disableDialog.adImpact;
+          const showAdsPath = Boolean(
+            disableDialog.isSupporter
+            || (impact && !impact.loading && (
+              (impact.holdingCount || 0) > 0
+              || (impact.waitlistCount || 0) > 0
+              || (impact.withStripe || 0) > 0
+            ))
+          );
+          const statusBits = impact?.statusCounts
+            ? Object.entries(impact.statusCounts)
+              .map(([status, n]) => `${status.replace(/_/g, " ")}: ${n}`)
+              .join(", ")
+            : "";
+          return (
             <>
-              <p className="font-medium text-foreground/80">Admin — ads &amp; billing impact</p>
+              <p className="font-medium text-foreground/80">
+                {showAdsPath ? "Admin — ads & billing impact" : "Admin — account impact"}
+              </p>
               <ul className="list-disc pl-4 space-y-1">
                 <li>Active activities and comments are archived (savers get a generic notice).</li>
                 <li>Digests turn Off; registered features are blocked.</li>
-                <li>Slot-holding ads are cancelled; zip slots are released so the waitlist can advance.</li>
-                <li>Stripe subscriptions are set to cancel at period end (may bill through the current paid period, then stop renewing).</li>
-                <li>Auto-renew is turned off; ad waitlist entries for this user are cancelled.</li>
-                <li>They will see this impact explained on the Account Disabled page (and in email if you send one).</li>
+                {!showAdsPath && (
+                  <li>Organizer directory listing is hidden while disabled.</li>
+                )}
+                {showAdsPath && (
+                  <>
+                    <li>Slot-holding ads are cancelled; zip slots are released so the waitlist can advance.</li>
+                    <li>Stripe subscriptions are set to cancel at period end (may bill through the current paid period, then stop renewing).</li>
+                    <li>Auto-renew is turned off; ad waitlist entries for this user are cancelled.</li>
+                    <li>They will see this impact explained on the Account Disabled page (and in email if you send one).</li>
+                  </>
+                )}
               </ul>
+              <div className="mt-2 rounded-lg border border-border/60 bg-white/70 px-2.5 py-2 space-y-1">
+                <p className="font-medium text-foreground/80">This account’s ads right now</p>
+                {impact?.loading ? (
+                  <p className="flex items-center gap-1.5">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Checking ads and waitlist…
+                  </p>
+                ) : impact?.error ? (
+                  <p className="text-destructive">Could not load ads: {impact.error}</p>
+                ) : impact ? (
+                  <ul className="list-disc pl-4 space-y-0.5">
+                    <li>
+                      {impact.holdingCount > 0
+                        ? `${impact.holdingCount} slot-holding ad${impact.holdingCount === 1 ? "" : "s"} will be cancelled${statusBits ? ` (${statusBits})` : ""}`
+                        : "No slot-holding ads to cancel"}
+                      {impact.zips?.length
+                        ? ` · zip${impact.zips.length === 1 ? "" : "s"} ${impact.zips.join(", ")}`
+                        : ""}
+                    </li>
+                    <li>
+                      {impact.withStripe > 0
+                        ? `${impact.withStripe} Stripe subscription${impact.withStripe === 1 ? "" : "s"} will be set to cancel at period end`
+                        : "No Stripe subscriptions linked on their ads"}
+                    </li>
+                    <li>
+                      {impact.waitlistCount > 0
+                        ? `${impact.waitlistCount} open waitlist entr${impact.waitlistCount === 1 ? "y" : "ies"} will be cancelled`
+                        : "No open waitlist entries"}
+                    </li>
+                    {impact.totalAds > 0 && impact.autoRenewOn > 0 ? (
+                      <li>
+                        Auto-renew will be turned off on {impact.autoRenewOn} ad{impact.autoRenewOn === 1 ? "" : "s"}
+                        {disableDialog.isSupporter ? "" : " (only if this account is marked Supporter)"}
+                      </li>
+                    ) : null}
+                    {!disableDialog.isSupporter
+                      && ((impact.holdingCount || 0) > 0 || (impact.withStripe || 0) > 0 || (impact.waitlistCount || 0) > 0) ? (
+                      <li className="text-amber-800">
+                        Account is not marked Supporter — disable will not run the ads/Stripe/waitlist teardown unless you Grant Supporter first (or mark is_advertiser).
+                      </li>
+                    ) : null}
+                  </ul>
+                ) : (
+                  <p>Ad details unavailable.</p>
+                )}
+              </div>
             </>
-          ) : (
-            <>
-              <p className="font-medium text-foreground/80">Admin — account impact</p>
-              <ul className="list-disc pl-4 space-y-1">
-                <li>Active activities and comments are archived (savers get a generic notice).</li>
-                <li>Digests turn Off; registered features are blocked.</li>
-                <li>Organizer directory listing is hidden while disabled.</li>
-              </ul>
-            </>
-          )
-        }
+          );
+        })()}
         noteLabel="Note to User"
         notePlaceholder="Explain why this account is being disabled…"
         confirmLabel="Disable Account"
