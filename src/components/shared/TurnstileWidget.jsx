@@ -36,6 +36,11 @@ const TurnstileWidget = forwardRef(function TurnstileWidget(
 ) {
   const containerRef = useRef(null);
   const widgetIdRef = useRef(null);
+  const onTokenRef = useRef(onToken);
+  const onErrorRef = useRef(onError);
+
+  onTokenRef.current = onToken;
+  onErrorRef.current = onError;
 
   useImperativeHandle(ref, () => ({
     reset() {
@@ -56,12 +61,12 @@ const TurnstileWidget = forwardRef(function TurnstileWidget(
         widgetIdRef.current = turnstile.render(containerRef.current, {
           sitekey: siteKey,
           action,
-          callback: (token) => onToken?.(token),
-          "error-callback": () => onError?.(),
-          "expired-callback": () => onToken?.(""),
+          callback: (token) => onTokenRef.current?.(token),
+          "error-callback": () => onErrorRef.current?.(),
+          "expired-callback": () => onTokenRef.current?.(""),
         });
       })
-      .catch(() => onError?.());
+      .catch(() => onErrorRef.current?.());
 
     return () => {
       cancelled = true;
@@ -74,7 +79,7 @@ const TurnstileWidget = forwardRef(function TurnstileWidget(
         widgetIdRef.current = null;
       }
     };
-  }, [siteKey, action, onToken, onError]);
+  }, [siteKey, action]);
 
   if (!siteKey) {
     return (
