@@ -798,11 +798,11 @@ const categories = [
           "Manage Preferences + unsubscribe link in footer",
         ],
         technicalOverview:
-          "vercel.json cron → /api/cron-send-notification-emails (8:00 AM PT) → sendMatchingDigests. HTML from buildDigestHtml. Send via sendViaResend. Full table: Scheduled Jobs (Crons).",
+          "vercel.json cron → /api/cron-send-notification-emails (8:00 AM PT) → sendMatchingDigests. HTML from shared/digestEmailHtml.js (buildDigestHtml). Send via sendViaResend. Full table: Scheduled Jobs (Crons).",
         technicalFeatures: [
           "frequenciesForToday() returns ['weekly'] only on Tuesday America/Los_Angeles",
           "Prefs frequency must be weekly; include_fav_organizers / include_other_activities drive matching",
-          "Admin template preview: Previews → Emails (activity_digest)",
+          "Admin template preview: Previews → Emails (activity_digest) uses the same buildDigestHtml as the cron (shared/digestEmailHtml.js).",
         ],
       },
       {
@@ -1030,7 +1030,7 @@ const categories = [
           "Users — List of Users (default), Reactivation Requests, Zip Code Reports",
         ],
         technicalOverview:
-          "Admin.jsx tabs + AdminSubNav section arrays (ADS_SECTIONS, FLAGS_SECTIONS, USER_SECTIONS, PREVIEW_SECTIONS, REVIEW_SECTIONS, MASS_MESSAGE_SECTIONS, …). All Activities helpers: getActivityStatusMeta, openFlagsForActivity, handleReactivateItem (admin notes required for events). Users list: openUserInUsersList from Top Flagging Activity Ranking; USER_LIST_FILTERS + Contributions/Flagged/Flags Filed panels.",
+          "Admin page modules: src/pages/Admin.jsx (orchestration + dialogs), src/components/admin/adminPageConstants.js (section nav arrays), adminPageHelpers.js (pure helpers), useAdminPageActions.js (load + mutations), tab components AdminActivitiesTab / AdminFlagsTab / AdminUsersTab / AdminContactTab. All Activities helpers: getActivityStatusMeta, openFlagsForActivity, handleReactivateItem (admin notes required for events). Users list: openUserInUsersList from Top Flagging Activity Ranking; USER_LIST_FILTERS + Contributions/Flagged/Flags Filed panels.",
         technicalFeatures: [
           "Hard gate: if user.role !== 'admin' navigate home",
           "Consistent AdminSectionHeader + AdminPanelShell chrome",

@@ -9,6 +9,7 @@ import { normalizeRadiusMiles, DEFAULT_RADIUS_MILES } from "../../src/lib/locati
 import { toTitleCaseLabel } from "../../src/lib/titleCase.js";
 import { messageActionPageByHref, MESSAGE_ACTION_PAGES } from "../../src/lib/messageActionPages.js";
 import { pickDefaultFillerAds } from "../../shared/pickDefaultFillerAds.js";
+import { buildDigestHtml, DIGEST_SAMPLE_EVENTS } from "../../shared/digestEmailHtml.js";
 import { isAdminCaller } from "../../api/_lib/adminAuth.js";
 import {
   alreadySentDigestThisWeek,
@@ -94,6 +95,22 @@ describe("pickDefaultFillerAds", () => {
     ];
     expect(pickDefaultFillerAds(ads, 2).map((a) => a.id)).toEqual(["a", "b"]);
     expect(pickDefaultFillerAds(ads, 0)).toEqual([]);
+  });
+});
+
+describe("buildDigestHtml", () => {
+  it("includes event titles and unsubscribe link", () => {
+    const html = buildDigestHtml({
+      userName: "Alex",
+      events: DIGEST_SAMPLE_EVENTS.slice(0, 2),
+      ads: [],
+      unsubscribeUrl: "https://localkidscalendar.com/unsubscribe?token=test",
+      appUrl: "https://localkidscalendar.com",
+    });
+    expect(html).toContain("Summer Soccer Camp");
+    expect(html).toContain("Art & Crafts Workshop");
+    expect(html).toContain("Hi Alex!");
+    expect(html).toContain("unsubscribe?token=test");
   });
 });
 

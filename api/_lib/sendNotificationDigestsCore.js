@@ -1,4 +1,5 @@
 import { sendViaResend } from "./resendSend.js";
+import { buildDigestHtml } from "../../shared/digestEmailHtml.js";
 import { pickDefaultFillerAds } from "../../shared/pickDefaultFillerAds.js";
 import {
   alreadySentDigestThisWeek,
@@ -11,130 +12,9 @@ import {
 } from "./emailGuards.js";
 
 const APP_URL = process.env.VITE_APP_URL || "https://localkidscalendar.com";
-const LOGO_URL = `${APP_URL}/logo.png`;
 const SEND_DELAY_MS = 50;
 
-const CATEGORY_LABELS = {
-  camp: "Camps",
-  childcare_enrichment: "Childcare & Enrichment",
-  classes_lessons: "Classes & Lessons",
-  community: "Community",
-  events_experiences: "Events & Experiences",
-  sports_teams: "Sports & Teams",
-  class: "Classes & Lessons",
-  event: "Events & Experiences",
-  sport: "Sports & Teams",
-  general_interest: "Community",
-};
-
-function categoryDisplay(raw) {
-  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
-  if (list.length === 0) return "Activity";
-  return list.map((c) => CATEGORY_LABELS[c] || c).join(", ");
-}
-
-function formatEventCard(event) {
-  const dateStr = event.start_date
-    ? new Date(event.start_date).toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      })
-    : "";
-  const location = [event.city, event.state].filter(Boolean).join(", ");
-  const cost = event.cost
-    ? event.cost.startsWith("$")
-      ? event.cost
-      : `$${event.cost}`
-    : "Free";
-  const ages =
-    event.age_min != null && event.age_max != null
-      ? `Ages ${event.age_min}–${event.age_max}`
-      : event.age_min != null
-        ? `Ages ${event.age_min}+`
-        : "";
-
-  return `
-    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;">
-      ${event.event_image ? `<img src="${event.event_image}" alt="${event.title || "Activity"}" style="width:100%;max-height:160px;object-fit:cover;display:block;" />` : ""}
-      <div style="padding:16px;">
-        <span style="display:inline-block;background:#E0F7F2;color:#2D7A3E;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;">${categoryDisplay(event.category)}</span>
-        <h3 style="margin:8px 0 4px;font-size:15px;font-weight:700;color:#1a2332;line-height:1.4;font-family:Quicksand,Nunito,Arial,sans-serif;">${event.title || "Activity"}</h3>
-        ${event.org_name ? `<p style="margin:0 0 8px;font-size:12px;color:#6b7280;">by <strong style="color:#1a2332;">${event.org_name}</strong></p>` : ""}
-        <div style="margin-bottom:12px;border-top:1px solid #f0f0f0;padding-top:8px;">
-          ${dateStr ? `<div style="margin:0 0 6px;font-size:12px;color:#6b7280;">${dateStr}</div>` : ""}
-          ${location ? `<div style="margin:0 0 6px;font-size:12px;color:#6b7280;">${location}</div>` : ""}
-          ${ages ? `<div style="margin:0 0 6px;font-size:12px;color:#6b7280;">${ages}</div>` : ""}
-          <div style="font-size:12px;color:#6b7280;">${cost}</div>
-        </div>
-        <a href="${APP_URL}/event/${event.id}" style="display:inline-block;background:#2D7A3E;color:#fff;padding:8px 14px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:700;font-family:Quicksand,Nunito,Arial,sans-serif;">View Details</a>
-      </div>
-    </div>
-  `;
-}
-
-function formatAdsSection(ads) {
-  if (!ads?.length) return "";
-  const cells = ads
-    .slice(0, 3)
-    .map(
-      (ad) => `
-    <td style="padding:0 4px;" valign="top" width="33%">
-      <a href="${ad.link_url || APP_URL}" style="display:block;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
-        <img src="${ad.image_url}" alt="Supporter ad" style="width:100%;display:block;" />
-      </a>
-    </td>`
-    )
-    .join("");
-  return `
-    <div style="margin-top:8px;margin-bottom:16px;">
-      <p style="margin:0 0 6px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Supporters</p>
-      <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>${cells}</tr></table>
-    </div>`;
-}
-
-export function buildDigestHtml({ userName, events, frequency, ads, unsubscribeUrl }) {
-  const freqLabel = "Weekly";
-  void frequency;
-  const eventCards = events.map(formatEventCard).join("") + formatAdsSection(ads);
-  const unsub = unsubscribeUrl || `${APP_URL}/account`;
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Quicksand:wght@600;700&display=swap" rel="stylesheet" />
-</head>
-<body style="margin:0;padding:0;background:#f4f5f8;font-family:Nunito,Arial,sans-serif;color:#1a2332;">
-  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#f4f5f8;padding:32px 16px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
-        <tr><td style="background:#2D7A3E;padding:24px 24px 22px;text-align:center;">
-          <img src="${LOGO_URL}" alt="Local Kids Calendar" height="52" style="height:52px;width:auto;display:block;margin:0 auto 10px;border:0;" />
-          <p style="margin:0;font-family:Quicksand,Nunito,Arial,sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.3px;">
-            <span style="color:#fff;">LocalKids</span><span style="color:#C9E8D8;">Calendar</span>
-          </p>
-          <p style="margin:8px 0 0;color:#C9E8D8;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;">${freqLabel} Activity Digest</p>
-        </td></tr>
-        <tr><td style="background:#fff;padding:24px;border-bottom:1px solid #e5e7eb;">
-          <p style="margin:0 0 4px;font-size:16px;font-weight:700;font-family:Quicksand,Nunito,Arial,sans-serif;color:#1a2332;">Hi ${userName || "there"}!</p>
-          <p style="margin:0;font-size:14px;color:#5c6570;">We found ${events.length} activit${events.length === 1 ? "y" : "ies"} matching your interests.</p>
-        </td></tr>
-        <tr><td style="background:#fff;padding:20px 24px;">${eventCards}</td></tr>
-        <tr><td style="background:#E0F7F2;padding:20px 24px;text-align:center;border-top:1px solid #e5e7eb;">
-          <a href="${APP_URL}/account" style="display:inline-block;background:#fff;border:1px solid #C9E8D8;color:#2D7A3E;padding:8px 16px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:700;font-family:Quicksand,Nunito,Arial,sans-serif;">Manage Preferences</a>
-        </td></tr>
-        <tr><td style="background:#fff;padding:16px 24px;text-align:center;border-top:1px solid #e5e7eb;">
-          <p style="margin:0 0 8px;font-size:11px;color:#5c6570;">Community-powered kids' activities near you</p>
-          <p style="margin:0;font-size:11px;color:#9ca3af;">
-            <a href="${unsub}" style="color:#6b7280;text-decoration:underline;">Unsubscribe from weekly digests</a>
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
-}
+export { buildDigestHtml };
 
 function eventMatchesPref(event, pref, favOrganizerUserIds) {
   if (pref.include_fav_organizers && favOrganizerUserIds?.includes(event.created_by_id)) {
@@ -283,6 +163,7 @@ export async function sendPreviewDigest(admin, { to, userName, frequency = "week
     frequency,
     ads,
     unsubscribeUrl: `${APP_URL}/account`,
+    appUrl: APP_URL,
   });
   const result = await sendViaResend({
     to,
@@ -414,6 +295,7 @@ export async function sendMatchingDigests(admin, { frequencies }) {
         frequency: pref.frequency,
         ads,
         unsubscribeUrl: unsubPage,
+        appUrl: APP_URL,
       });
       const result = await sendViaResend({
         to: recipient.email,

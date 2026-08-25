@@ -1,4 +1,9 @@
 import { toTitleCaseLabel } from "@/lib/titleCase";
+import {
+  buildDigestHtml,
+  DIGEST_SAMPLE_ADS,
+  DIGEST_SAMPLE_EVENTS,
+} from "../../shared/digestEmailHtml.js";
 
 const APP_URL = "https://localkidscalendar.com";
 
@@ -167,29 +172,9 @@ export const SAMPLE_DATA = {
     reason: "The destination link redirected to an unrelated third-party promotion.",
   },
   activity_digest: {
-    ads: [
-      { image_url: "https://images.unsplash.com/photo-1560089000-7433a4ebbd64?w=600", link_url: "#" },
-      { image_url: "https://images.unsplash.com/photo-1622290291468-a28f7a7dc6a8?w=600", link_url: "#" },
-    ],
+    ads: DIGEST_SAMPLE_ADS,
     user_name: "Sarah",
-    event1_title: "Summer Soccer Camp",
-    event1_org: "Mountain Kids Soccer Club",
-    event1_date: "July 15, 2026",
-    event1_location: "Las Vegas, NV",
-    event1_ages: "Ages 5–12",
-    event1_cost: "$75",
-    event2_title: "Art & Crafts Workshop",
-    event2_org: "Little Stars Learning Center",
-    event2_date: "July 18, 2026",
-    event2_location: "Henderson, NV",
-    event2_ages: "Ages 6–10",
-    event2_cost: "$25",
-    event3_title: "Youth Basketball League",
-    event3_org: "Happy Tots Daycare",
-    event3_date: "July 22, 2026",
-    event3_location: "North Las Vegas, NV",
-    event3_ages: "Ages 7–14",
-    event3_cost: "Free",
+    events: DIGEST_SAMPLE_EVENTS,
   },
 };
 
@@ -201,42 +186,24 @@ const SUBJECTS = {
   activity_digest: "Your Weekly Activity Digest",
 };
 
-function buildAdsHtml(data) {
-  const adsList =
-    data.ads && data.ads.length > 0
-      ? data.ads
-      : data.ad_image_url
-        ? [{ image_url: data.ad_image_url, link_url: data.ad_link_url }]
-        : [];
-  if (adsList.length === 0) return "";
-  return `
-      <div style="margin-top:8px;margin-bottom:16px;">
-        <p style="margin:0 0 6px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;">Supporters</p>
-        <table width="100%" cellpadding="0" cellspacing="0"><tr>
-          ${adsList
-            .map(
-              (ad) => `
-            <td style="padding:0 4px;" valign="top">
-              <a href="${ad.link_url || "#"}" style="display:block;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
-                <img src="${ad.image_url}" alt="Supporter ad" style="width:100%;display:block;" />
-              </a>
-            </td>
-          `
-            )
-            .join("")}
-        </tr></table>
-      </div>
-    `;
-}
-
 function buildHtml(templateKey, data) {
-  const adsHtml = buildAdsHtml(data);
   const accountUrl = `${APP_URL}/account`;
   const adManagerUrl = `${APP_URL}/ad-manager`;
   const waitlistUrl = `${APP_URL}/ad-manager?tab=waitlist`;
   const h2 = (text) =>
     `<h2 style="margin:0 0 14px;font-family:${EMAIL_HEADING_FONT};font-size:20px;font-weight:700;color:${EMAIL_BRAND.mint};line-height:1.3;">${text}</h2>`;
   const p = (text) => `<p style="margin:0 0 12px;">${text}</p>`;
+
+  if (templateKey === "activity_digest") {
+    return buildDigestHtml({
+      userName: data.user_name || "there",
+      events: data.events?.length ? data.events : DIGEST_SAMPLE_EVENTS,
+      frequency: "weekly",
+      ads: data.ads?.length ? data.ads : DIGEST_SAMPLE_ADS,
+      unsubscribeUrl: accountUrl,
+      appUrl: APP_URL,
+    });
+  }
 
   const templates = {
     subscription_payment_failed: `
@@ -298,75 +265,6 @@ function buildHtml(templateKey, data) {
         ${emailCallout(`<p style="margin:0;"><strong>Reason:</strong> ${data.reason || "Policy concern identified during review"}</p>`, "danger")}
         ${p("<strong>What Next:</strong> Your subscription and billing remain active. Open Ad Manager and assign a different approved creative to each affected zip to restore those placements. Each zip goes live again as soon as you assign a compliant Ad Asset.")}
         ${emailCta(adManagerUrl, "Open Ad Manager")}
-      `,
-    activity_digest: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Quicksand:wght@600;700&display=swap" rel="stylesheet" />
-        </head>
-        <body style="margin:0;padding:0;background:${EMAIL_BRAND.pageBg};font-family:${EMAIL_FONT};color:${EMAIL_BRAND.ink};">
-          <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:${EMAIL_BRAND.pageBg};padding:32px 16px;">
-            <tr><td align="center">
-              <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;border-radius:16px;overflow:hidden;border:1px solid ${EMAIL_BRAND.border};">
-                <tr><td style="background:${EMAIL_BRAND.mint};padding:24px 24px 22px;text-align:center;">
-                  <img src="${APP_URL}/logo.png" alt="Local Kids Calendar" height="52" style="height:52px;width:auto;display:block;margin:0 auto 10px;border:0;" />
-                  <p style="margin:0;font-family:${EMAIL_HEADING_FONT};font-size:20px;font-weight:700;letter-spacing:-0.3px;">
-                    <span style="color:#fff;">LocalKids</span><span style="color:${EMAIL_BRAND.mintMid};">Calendar</span>
-                  </p>
-                  <p style="margin:8px 0 0;color:${EMAIL_BRAND.mintMid};font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;">Weekly Activity Digest</p>
-                </td></tr>
-                <tr><td style="background:${EMAIL_BRAND.white};padding:24px;border-bottom:1px solid ${EMAIL_BRAND.border};">
-                  <p style="margin:0 0 4px;font-size:16px;font-weight:700;font-family:${EMAIL_HEADING_FONT};color:${EMAIL_BRAND.ink};">Hi ${data.user_name || "there"}!</p>
-                  <p style="margin:0;font-size:14px;color:${EMAIL_BRAND.muted};line-height:1.5;">We found 3 new activities matching your interests. Check them out:</p>
-                </td></tr>
-                <tr><td style="background:${EMAIL_BRAND.white};padding:20px 24px;">
-                  <div style="background:${EMAIL_BRAND.white};border:1px solid ${EMAIL_BRAND.border};border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;">
-                    <img src="https://images.unsplash.com/photo-1566415074467-988b740b76d4?w=400" alt="${data.event1_title || "Activity"}" style="width:100%;max-height:160px;object-fit:cover;display:block;" />
-                    <div style="padding:16px;">
-                      <span style="display:inline-block;background:${EMAIL_BRAND.mintSoft};color:${EMAIL_BRAND.mint};font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;margin-bottom:8px;">Camps</span>
-                      <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;font-family:${EMAIL_HEADING_FONT};color:${EMAIL_BRAND.ink};line-height:1.4;">${data.event1_title || "Summer Soccer Camp"}</h3>
-                      <p style="margin:0 0 8px;font-size:12px;color:${EMAIL_BRAND.muted};">by <strong style="color:${EMAIL_BRAND.ink};">${data.event1_org || "Mountain Kids Soccer Club"}</strong></p>
-                      <div style="margin-bottom:12px;border-top:1px solid #f0f0f0;padding-top:8px;">
-                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event1_date || "July 15, 2026"}</div>
-                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event1_location || "Las Vegas, NV"}</div>
-                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event1_ages || "Ages 5–12"}</div>
-                        <div style="font-size:12px;color:${EMAIL_BRAND.muted};">${data.event1_cost || "$75"}</div>
-                      </div>
-                      <a href="${APP_URL}" style="display:inline-block;background:${EMAIL_BRAND.mint};color:#fff;padding:8px 14px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:700;font-family:${EMAIL_HEADING_FONT};">View Details</a>
-                    </div>
-                  </div>
-                  <div style="background:${EMAIL_BRAND.white};border:1px solid ${EMAIL_BRAND.border};border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden;">
-                    <img src="https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400" alt="${data.event2_title || "Activity"}" style="width:100%;max-height:160px;object-fit:cover;display:block;" />
-                    <div style="padding:16px;">
-                      <span style="display:inline-block;background:${EMAIL_BRAND.mintSoft};color:${EMAIL_BRAND.mint};font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;margin-bottom:8px;">Classes &amp; Lessons</span>
-                      <h3 style="margin:0 0 4px;font-size:15px;font-weight:700;font-family:${EMAIL_HEADING_FONT};color:${EMAIL_BRAND.ink};line-height:1.4;">${data.event2_title || "Art & Crafts Workshop"}</h3>
-                      <p style="margin:0 0 8px;font-size:12px;color:${EMAIL_BRAND.muted};">by <strong style="color:${EMAIL_BRAND.ink};">${data.event2_org || "Little Stars Learning Center"}</strong></p>
-                      <div style="margin-bottom:12px;border-top:1px solid #f0f0f0;padding-top:8px;">
-                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event2_date || "July 18, 2026"}</div>
-                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event2_location || "Henderson, NV"}</div>
-                        <div style="margin:0 0 6px;font-size:12px;color:${EMAIL_BRAND.muted};">${data.event2_ages || "Ages 6–10"}</div>
-                        <div style="font-size:12px;color:${EMAIL_BRAND.muted};">${data.event2_cost || "$25"}</div>
-                      </div>
-                      <a href="${APP_URL}" style="display:inline-block;background:${EMAIL_BRAND.mint};color:#fff;padding:8px 14px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:700;font-family:${EMAIL_HEADING_FONT};">View Details</a>
-                    </div>
-                  </div>
-                  ${adsHtml}
-                </td></tr>
-                <tr><td style="background:${EMAIL_BRAND.mintSoft};padding:20px 24px;border-top:1px solid ${EMAIL_BRAND.border};text-align:center;">
-                  <p style="margin:0 0 12px;font-size:12px;color:${EMAIL_BRAND.muted};">Want to tweak your interests?</p>
-                  <a href="${accountUrl}" style="display:inline-block;background:${EMAIL_BRAND.white};border:1px solid ${EMAIL_BRAND.mintMid};color:${EMAIL_BRAND.mint};padding:8px 16px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:700;font-family:${EMAIL_HEADING_FONT};">Manage Preferences</a>
-                </td></tr>
-                <tr><td style="background:${EMAIL_BRAND.white};padding:16px 24px;text-align:center;border-top:1px solid ${EMAIL_BRAND.border};">
-                  <p style="margin:0;font-size:11px;color:${EMAIL_BRAND.muted};">Community-powered kids' activities near you</p>
-                </td></tr>
-              </table>
-            </td></tr>
-          </table>
-        </body>
-        </html>
       `,
   };
 
