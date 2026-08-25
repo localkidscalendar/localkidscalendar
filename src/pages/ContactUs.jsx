@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { apiUrl } from "@/lib/apiBase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,17 +10,19 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Mail, AlertCircle, CheckCircle2 } from "lucide-react";
 import { formatPhoneInput } from "@/lib/phone";
+import TurnstileWidget from "@/components/shared/TurnstileWidget";
+import {
+  CONTACT_HONEYPOT_FIELD,
+  CONTACT_MIN_SUBMIT_MS,
+  CONTACT_SUBJECTS,
+} from "../../shared/contactFormConstants.js";
 
-const SUBJECTS = [
-  "Report Technical Issues",
-  "Submit New Ideas & Suggestions",
-  "Inquire About Activity Details",
-  "General Questions",
-];
+const TURNSTILE_SITE_KEY = (import.meta.env.VITE_TURNSTILE_SITE_KEY || "").trim();
 
 export default function ContactUs() {
   const { user } = useOutletContext();
   const { toast } = useToast();
+  const turnstileRef = useRef(null);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -28,7 +31,8 @@ export default function ContactUs() {
   const [senderPhone, setSenderPhone] = useState("");
   const [senderName, setSenderName] = useState("");
   const [senderEmail, setSenderEmail] = useState("");
-  const [hpField, setHpField] = useState(""); // honeypot - real users never fill this
+  const [hpField, setHpField] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [formLoadTime] = useState(() => Date.now());
 
   useEffect(() => {
@@ -77,24 +81,43 @@ export default function ContactUs() {
         return;
       }
     }
-    // Bot protection: honeypot field must stay empty, and a human can't fill this out in under 2 seconds
-    if (hpField || Date.now() - formLoadTime < 2000) {
+    if (hpField || Date.now() - formLoadTime < CONTACT_MIN_SUBMIT_MS) {
       setSubmitted(true);
       return;
     }
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      toast({
+        title: "Please wait a moment",
+        description: "Security check is still loading. Try again in a second.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("contact_messages").insert({
-        sender_name: senderName || "",
-        sender_email: senderEmail || "",
-        sender_phone: senderPhone || "",
-        subject,
-        message,
-        status: "unread",
+      const res = await fetch(apiUrl("/api/contact-submit"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender_name: senderName || "",
+          sender_email: senderEmail || "",
+          sender_phone: senderPhone || "",
+          subject,
+          message: message.trim(),
+          [CONTACT_HONEYPOT_FIELD]: hpField,
+          form_loaded_at: formLoadTime,
+          turnstile_token: turnstileToken,
+        }),
       });
-      if (error) throw error;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Could not send message.");
+      }
       setSubmitted(true);
     } catch (err) {
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
       toast({
         title: "Something went wrong. Please try again.",
         description: err.message,
@@ -109,7 +132,7 @@ export default function ContactUs() {
       <div className="max-w-lg mx-auto px-4 py-20 text-center">
         <CheckCircle2 className="w-12 h-12 text-mint-500 mx-auto mb-4" />
         <h2 className="font-heading font-bold text-2xl mb-2">Message Sent!</h2>
-        <p className="text-muted-foreground">Thanks for reaching out. We'll get back to you as soon as we can.</p>
+        <p className="text-muted-foreground">Thanks for reaching out. We&apos;ll get back to you as soon as we can.</p>
       </div>
     );
   }
@@ -122,7 +145,7 @@ export default function ContactUs() {
         </div>
         <div>
           <h1 className="font-heading font-bold text-2xl">Contact Us</h1>
-          <p className="text-sm text-muted-foreground">We'd love to hear from you</p>
+          <p className="text-sm text-muted-foreground">We&apos;d love to hear from you</p>
         </div>
       </div>
 
@@ -138,7 +161,6 @@ export default function ContactUs() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Honeypot field - hidden from real users, bots often fill every field */}
           <div className="absolute left-[-9999px]" aria-hidden="true">
             <label htmlFor="website">Website</label>
             <input
@@ -151,7 +173,6 @@ export default function ContactUs() {
               onChange={(e) => setHpField(e.target.value)}
             />
           </div>
-          {/* Name/email from account when signed in; phone is always editable (not stored on profile) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label className="text-sm">Name {user ? "" : "*"}</Label>
@@ -189,18 +210,16 @@ export default function ContactUs() {
             />
           </div>
 
-          {/* Subject */}
           <div>
             <Label className="text-sm">Subject *</Label>
             <Select value={subject} onValueChange={handleSubjectChange}>
               <SelectTrigger className="rounded-xl mt-1"><SelectValue placeholder="Select a topic..." /></SelectTrigger>
               <SelectContent>
-                {SUBJECTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {CONTACT_SUBJECTS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Activity inquiry warning */}
           {showActivityWarning && (
             <div className="flex items-start gap-3 bg-peach-50 border border-peach-200 rounded-xl px-4 py-3">
               <AlertCircle className="w-5 h-5 text-peach-500 shrink-0 mt-0.5" />
@@ -210,7 +229,6 @@ export default function ContactUs() {
             </div>
           )}
 
-          {/* Message */}
           <div>
             <Label className="text-sm">Message *</Label>
             <Textarea
@@ -222,10 +240,19 @@ export default function ContactUs() {
             />
           </div>
 
+          <TurnstileWidget
+            ref={turnstileRef}
+            siteKey={TURNSTILE_SITE_KEY}
+            action="contact"
+            onToken={setTurnstileToken}
+            onError={() => setTurnstileToken("")}
+            className="flex justify-center min-h-[65px]"
+          />
+
           <Button
             type="submit"
             className="w-full rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
-            disabled={submitting || showActivityWarning}
+            disabled={submitting || showActivityWarning || (Boolean(TURNSTILE_SITE_KEY) && !turnstileToken)}
           >
             {submitting ? "Sending..." : "Send Message"}
           </Button>

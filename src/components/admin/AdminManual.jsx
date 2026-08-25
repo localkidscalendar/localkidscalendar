@@ -944,15 +944,15 @@ const categories = [
         title: "Contact Us",
         keywords: ["contact", "support message", "honeypot", "bot", "spam"],
         overview:
-          "Anyone can submit Contact Us (topic + message). Admin reviews in Contact Us tab by subject boxes. Messages soft-delete to a Deleted section and can be restored; they are not hard-deleted from the DB by that UI. The public form includes first-line bot defense (honeypot + minimum fill time).",
+          "Anyone can submit Contact Us (topic + message). Admin reviews in Contact Us tab by subject boxes. Messages soft-delete to a Deleted section and can be restored; they are not hard-deleted from the DB by that UI. Submissions go through /api/contact-submit with honeypot, timing, and Cloudflare Turnstile.",
         features: [
           "Topics: technical, suggestions, activity questions, general",
           "Admin: unread / resolved / deleted",
           "Soft-delete with restore",
-          "Honeypot + ~2s minimum time before a real insert is allowed",
+          "Honeypot + ~2s + Turnstile + server verify before insert",
         ],
         technicalOverview:
-          "contact_messages with deleted_at. ContactUs.jsx + Admin Contact sections. Honeypot / timing on the form (see Bot Protection).",
+          "contact_messages with deleted_at. ContactUs.jsx → /api/contact-submit → service role insert. Admin Contact sections. See Bot Protection.",
         technicalFeatures: [
           "No Resend email on submit — Admin reviews in-app",
           "Bot hits still show the success screen (silent fail) so scrapers get less signal",
@@ -960,13 +960,15 @@ const categories = [
       },
       {
         id: "bot-protection",
-        title: "Bot Protection (Honeypot & Timing)",
+        title: "Bot Protection (Honeypot, Timing & Turnstile)",
         keywords: [
           "bot",
           "bots",
           "spam",
           "honeypot",
           "captcha",
+          "turnstile",
+          "cloudflare",
           "first line of defense",
           "register",
           "contact",
@@ -974,19 +976,20 @@ const categories = [
           "timing",
         ],
         overview:
-          "Public forms that anyone can submit use a lightweight first line of defense against bots—not a CAPTCHA. Hidden honeypot fields must stay empty, and the form must stay open for a short minimum time before a real submit is accepted. Real users never see these checks.",
+          "Public forms use honeypot + minimum fill time on the client. Contact Us also posts through /api/contact-submit with the same checks server-side, Cloudflare Turnstile verification, email rate limits, and service-role insert (anon can no longer insert contact_messages directly).",
         features: [
           "Register (new profile): honeypot + ~3 second minimum before continuing to profile step / sign-up",
-          "Contact Us: honeypot + ~2 second minimum before inserting a contact_messages row",
+          "Contact Us: honeypot + ~2s + Turnstile + /api/contact-submit (max 5/hour per email)",
           "Account reactivation request (disabled users): honeypot field on the request form",
-          "Failed bot checks fail closed without creating accounts/messages (Contact may still show a fake success screen)",
+          "Failed bot checks fail closed without creating messages (Contact may still show a fake success screen)",
         ],
         technicalOverview:
-          "Client-side only (no third-party CAPTCHA). Register.jsx (hp_website + formLoadTime), ContactUs.jsx (hpField + formLoadTime), AccountDisabledView.jsx (honeypot on reactivation). Complement—not a replacement—for auth rate limits and Admin review of Contact messages.",
+          "ContactUs.jsx → /api/contact-submit (contactBotGuards.js, turnstileVerify.js, SUPABASE_SERVICE_ROLE_KEY). Register.jsx + AccountDisabledView.jsx keep client honeypot/timing. Env: VITE_TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY. Migration revokes anon insert on contact_messages.",
         technicalFeatures: [
-          "Honeypot inputs are visually hidden (off-screen / aria-hidden); bots that autofill every field get caught",
+          "Honeypot field website / hp_website must stay empty (client + server on Contact)",
           "Timing: Contact < 2000ms or Register < 3000ms from form mount → treat as bot",
-          "Not perfect against sophisticated bots; intended as low-friction spam reduction",
+          "Turnstile action contact; silent 200 for bot/Turnstile failures",
+          "Run supabase/scripts/ensure_contact_messages_api_only.sql on prod after deploy if needed",
         ],
       },
       {

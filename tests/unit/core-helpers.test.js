@@ -10,6 +10,7 @@ import { toTitleCaseLabel } from "../../src/lib/titleCase.js";
 import { messageActionPageByHref, MESSAGE_ACTION_PAGES } from "../../src/lib/messageActionPages.js";
 import { pickDefaultFillerAds } from "../../shared/pickDefaultFillerAds.js";
 import { buildDigestHtml, DIGEST_SAMPLE_EVENTS } from "../../shared/digestEmailHtml.js";
+import { parseContactSubmitBody } from "../../api/_lib/contactBotGuards.js";
 import { isAdminCaller } from "../../api/_lib/adminAuth.js";
 import {
   alreadySentDigestThisWeek,
@@ -111,6 +112,34 @@ describe("buildDigestHtml", () => {
     expect(html).toContain("Art & Crafts Workshop");
     expect(html).toContain("Hi Alex!");
     expect(html).toContain("unsubscribe?token=test");
+  });
+});
+
+describe("parseContactSubmitBody", () => {
+  it("rejects honeypot fills as bot", () => {
+    const result = parseContactSubmitBody({
+      website: "http://spam.test",
+      form_loaded_at: Date.now() - 5000,
+      sender_name: "A",
+      sender_email: "a@example.com",
+      subject: "General Questions",
+      message: "Hello",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.bot).toBe(true);
+  });
+
+  it("accepts valid payload after min wait", () => {
+    const result = parseContactSubmitBody({
+      form_loaded_at: Date.now() - 5000,
+      sender_name: "Alex",
+      sender_email: "alex@example.com",
+      subject: "General Questions",
+      message: "Hello there",
+      turnstile_token: "token",
+    });
+    expect(result.ok).toBe(true);
+    expect(result.payload.sender_email).toBe("alex@example.com");
   });
 });
 
