@@ -3,7 +3,7 @@ import { useOutletContext, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, BarChart3, Mail, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, MessageSquare } from "lucide-react";
+import { Loader2, Shield, CalendarDays, Flag, Megaphone, Users, BarChart3, Mail, Clock, DollarSign, Tag, ImagePlus, MapPin, FlaskConical, MessageSquare, HelpCircle, Image } from "lucide-react";
 import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 import AdminNoteConfirmDialog from "@/components/admin/AdminNoteConfirmDialog";
 import ImagePreviewModal from "@/components/ads/ImagePreviewModal";
@@ -177,7 +177,7 @@ export default function Admin() {
     handleDeclineReactivation, handleClearUserFlag, handleClearUserFlags, handleUserFlagReviewed,
     handleUserFlagMarkUnreviewed, handleDeactivatedOverride, handleDeactivatedManuallyDeactivate,
     handleDeactivatedReviewed, handleDeactivatedMarkUnreviewed, handleReactivateFromFlag,
-    handleClearFlag, handleClearFlags, handleNoteDialogConfirm,
+    handleClearFlag, handleClearFlags, handleNoteDialogConfirm, closeNoteDialog,
   } = useAdminPageActions({
     user, toast, navigate,
     setLoading, setEvents, setFlags, setAds, setUsers, setMessages,

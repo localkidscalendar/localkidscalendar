@@ -1562,6 +1562,6 @@ export function useAdminPageActions(deps) {
     handleDeclineReactivation, handleClearUserFlag, handleClearUserFlags, handleUserFlagReviewed,
     handleUserFlagMarkUnreviewed, handleDeactivatedOverride, handleDeactivatedManuallyDeactivate,
     handleDeactivatedReviewed, handleDeactivatedMarkUnreviewed, handleReactivateFromFlag,
-    handleClearFlag, handleClearFlags, handleNoteDialogConfirm,
+    handleClearFlag, handleClearFlags, handleNoteDialogConfirm, closeNoteDialog,
   };
 }
