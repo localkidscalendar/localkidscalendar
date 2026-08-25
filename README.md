@@ -1,77 +1,77 @@
-# Base44 Project
+# Local Kids Calendar
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+Community activity calendar with Supporter advertising. The live site runs on **Vercel** (frontend + `/api/*` serverless routes) and **Supabase** (auth, Postgres, storage).
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+Production: [https://localkidscalendar.com](https://localkidscalendar.com)
 
 ## Prerequisites
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
+1. Clone the repository.
+2. Install dependencies: `npm install`.
+3. Copy `.env.example` to `.env.local` and fill in Supabase keys (see below).
 
-See the [Base44 CLI docs](https://docs.base44.com/developers/references/cli/get-started/overview) if you want to run Base44 commands directly.
+## Run locally
 
-## Run Locally
-
-Run the full local development environment from the project root:
-
-```bash
-base44 dev
-```
-
-`base44 dev` starts the local Base44 development backend and, when this app is configured for it, also starts the frontend dev server for you. Use the frontend URL printed by the command.
-
-For example, when the Base44 project config includes a `serveCommand`, `base44 dev` can launch the frontend too:
-
-```json5
-{
-  "site": {
-    "serveCommand": "npm run dev"
-  }
-}
-```
-
-In a Base44 project this lives in `base44/config.jsonc`.
-
-## Run Only The Frontend
-
-If you only want to work on the frontend against the hosted Base44 backend, run:
+Start the Vite dev server:
 
 ```bash
 npm run dev
 ```
 
-Open the local URL printed by Vite.
+Open the URL printed in the terminal (typically `http://localhost:5173`).
 
-## Use The Hosted Backend
+On localhost, `/api/*` requests are proxied to the production deployment unless you set `VITE_API_BASE_URL` in `.env.local`. For most UI work against production data/APIs, the default is fine.
 
-For frontend-only development, create or update `.env.local` in the project root:
+## Environment variables
 
-```bash
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
-```
-
-`VITE_BASE44_APP_ID` identifies the Base44 app.
-
-`VITE_BASE44_APP_BASE_URL` tells the Base44 Vite plugin where to send local `/api` requests. Point it at your deployed Base44 app URL when you want the local frontend to use the hosted backend.
-
-When you use `base44 dev`, the command injects the local Base44 values for you, so `.env.local` is mainly needed for frontend-only workflows.
-
-## Publish Your Changes
-
-After pushing your changes to git, open the Base44 dashboard and publish the app:
+**Client (`.env.local`, also set in Vercel for Production):**
 
 ```bash
-base44 dashboard open
+VITE_SUPABASE_URL=https://auth.localkidscalendar.com
+VITE_SUPABASE_ANON_KEY=your_anon_public_key
 ```
 
-## Docs & Support
+Optional:
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+- `VITE_API_BASE_URL` — override API host when developing off localhost (see `.env.example`).
+- `VITE_APP_URL` — public site URL for client-side links.
 
-Base44 CLI command reference: [https://docs.base44.com/developers/references/cli/commands/introduction](https://docs.base44.com/developers/references/cli/commands/introduction)
+**Server (Vercel Project → Settings → Environment Variables only — never commit):**
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+See `.env.example` for Stripe, Resend, OpenAI, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, and related keys used by `/api/*` routes and Vercel crons (`vercel.json`).
+
+Never commit `.env.local` or secrets.
+
+## Database
+
+SQL migrations live in `supabase/migrations/`. Production changes are often applied via the Supabase SQL Editor; one-off ensure scripts are in `supabase/scripts/`.
+
+## Deploy
+
+Push to `main` on GitHub. Vercel builds and deploys automatically (`npm run build`).
+
+After schema or env changes, confirm Vercel and Supabase settings match `.env.example` and the Admin Manual (`src/components/admin/AdminManual.jsx`).
+
+## Tests & checks
+
+```bash
+npm run lint
+npm run test          # Vitest unit tests
+npm run test:e2e      # Playwright (requires dev server / config)
+npm run build
+```
+
+## Project layout
+
+| Path | Purpose |
+|------|---------|
+| `src/` | React frontend |
+| `api/` | Vercel serverless routes (Stripe, email, crons, moderation, admin) |
+| `shared/` | Helpers shared by frontend and API |
+| `supabase/` | Migrations and SQL ensure scripts |
+| `tests/` | Unit and e2e tests |
+| `archive/base44-prototype/` | Archived Base44 export (not used at runtime) |
+
+## Agent / contributor notes
+
+See `AGENTS.md` for conventions, key files, and workflow expectations.

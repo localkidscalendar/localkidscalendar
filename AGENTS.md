@@ -1,38 +1,37 @@
 # AGENTS.md
 
-## Project Context
+## Project context
 
-This is a Base44 app repository. Treat it as user-owned application code, keep changes focused on the user's request, and preserve existing project conventions.
+Local Kids Calendar — user-owned application code on **Vercel + Supabase**, not Base44. Keep changes focused on the user's request and preserve existing conventions.
 
-Start with `README.md` for local setup, environment variables, and publish workflow.
+Start with `README.md` for local setup, environment variables, and deploy workflow.
 
-## Base44 References
+## Stack
 
-- CLI overview: https://docs.base44.com/developers/references/cli/get-started/overview.md
-- Agent skills: https://docs.base44.com/developers/backend/overview/skills.md
+- **Frontend:** React + Vite + Tailwind (`src/`)
+- **Auth & data:** Supabase Auth + Postgres (RLS); client via `@/lib/supabaseClient.js`
+- **Server:** Vercel `/api/*` routes (`api/`); privileged DB access via `SUPABASE_SERVICE_ROLE_KEY` in `api/_lib/stripeHelpers.js`
+- **Integrations:** Stripe, Resend, OpenAI moderation/vision; crons in `vercel.json`
 
-If your agent supports Agent Skills, install or update Base44 skills before Base44-specific work:
+The archived Base44 prototype lives in `archive/base44-prototype/` and is **not** part of the runtime.
 
-```bash
-npx skills add base44/skills
-```
+## Key files
 
-## Key Files
+- `src/`: frontend application source
+- `api/`: Vercel serverless routes (Stripe, Resend, digests, moderation, crons)
+- `shared/`: small helpers shared by frontend and API
+- `supabase/migrations/`: schema migrations
+- `supabase/scripts/`: one-off ensure/repair SQL for production
+- `tests/unit/`: Vitest unit tests (`npm run test`)
+- `tests/e2e/`: Playwright smoke tests (`npm run test:e2e`)
+- `vite.config.js`: Vite config
+- `.env.local`: local-only environment values; never commit secrets
+- `src/components/admin/AdminManual.jsx`: product/admin workflow reference (update when behavior changes)
 
-- `src/`: frontend application source.
-- `api/`: Vercel serverless routes (Stripe, Resend, digests, moderation, crons).
-- `shared/`: small helpers shared by frontend and API (e.g. filler-ad picker).
-- `tests/unit/`: Vitest unit tests (`npm run test`).
-- `tests/e2e/`: Playwright smoke tests (`npm run test:e2e`).
-- `vite.config.js`: Vite config.
-- `.env.local`: local-only environment values; never commit secrets.
+## Working notes
 
-## Working Notes
-
-- Use `base44 dev` as the default local development command when you need the local Base44 backend. It can run the backend and frontend together.
-- When docs or code mention the frontend being started automatically, that usually means the Base44 project config includes `site.serveCommand`, for example `"serveCommand": "npm run dev"` in `base44/config.jsonc`.
-- Use `npm run dev` only for frontend-only work against the hosted Base44 backend.
-- Prefer the existing Base44 CLI workflow over adding new npm scripts for Base44-specific tasks.
-- Reuse the existing SDK client and Vite plugin patterns before adding new Base44 integration paths.
-- Run the relevant checks from `package.json` before finishing code changes.
+- Use `npm run dev` for local frontend development.
+- Local `/api` calls use `src/lib/apiBase.js` (production host unless `VITE_API_BASE_URL` is set).
+- Do not reintroduce `@base44/sdk` or Base44 CLI workflows.
+- Run relevant checks from `package.json` before finishing code changes (`lint`, `test`, `build` as appropriate).
 - **Admin Manual:** When product rules, signup/profile flows, or admin workflows change, update `src/components/admin/AdminManual.jsx` in the same change set (standing rule).

@@ -40,7 +40,7 @@ const categories = [
           "Migrations live under supabase/migrations/; production SQL is often applied via the Supabase SQL Editor",
           "RLS ownership on profiles/events/comments/saves/ads/messages; event-media INSERT requires path `{userId}/…`; BEFORE UPDATE triggers lock flag/billing/inbox privileged columns for non-admins (ensure_harden_owner_write_guards.sql)",
           "Legal pages: /terms and /privacy from legalContent.js (Nevada governing law); Supporter TOS remains /advertiser-terms; Community Rules stay on About",
-          "Legacy base44/ folder may still exist in the repo but is not the live path for Admin/email/ads",
+          "Legacy Base44 export archived under archive/base44-prototype/ (not used at runtime)",
           "After connecting the custom domain: set Supabase Auth Site URL + Redirect URLs, Google OAuth origins, Vercel VITE_APP_URL/APP_URL, and Resend domain verification",
         ],
       },
