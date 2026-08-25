@@ -1,5 +1,6 @@
 // BETA MODE — temporary banner, safe to remove along with useBetaConfig.js and AdminBetaPanel.jsx
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import useBetaConfig from "@/lib/useBetaConfig";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -22,7 +23,10 @@ export default function BetaBanner() {
             locations
           </button>
         </DialogTrigger>
-        .
+        .{" "}
+        <Link to="/contact" className="underline font-semibold hover:opacity-90">
+          Send us your feedback!
+        </Link>
       </div>
       <DialogContent className="rounded-2xl max-w-sm">
         <DialogHeader>

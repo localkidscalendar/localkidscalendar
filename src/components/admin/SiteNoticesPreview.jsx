@@ -187,7 +187,9 @@ export default function SiteNoticesPreview() {
                 <div className="rounded-xl overflow-hidden border border-border">
                   <div className="bg-orange-500 text-white text-center text-xs sm:text-sm py-2 px-4">
                     This site is in Beta mode in limited{" "}
-                    <span className="underline font-semibold">locations</span>.
+                    <span className="underline font-semibold">locations</span>
+                    .{" "}
+                    <span className="underline font-semibold">Send us your feedback!</span>
                   </div>
                 </div>
               ) : (
