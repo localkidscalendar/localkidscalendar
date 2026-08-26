@@ -232,11 +232,46 @@ export default function PostEvent() {
     setUploading(false);
   };
 
-  const handleRequestManualImageReview = () => {
+  const handleRequestManualImageReview = async () => {
+    // Editing an existing activity: persist immediately so Admin → Activity Manual Review updates now.
+    // New / duplicate posts have no events row yet — status stays on the form until Submit.
+    if (editId) {
+      setModeratingImage(true);
+      try {
+        const { error } = await supabase
+          .from("events")
+          .update({
+            image_moderation_status: "manual_review",
+            event_image: form.event_image || null,
+            image_moderation_notes: form.image_moderation_notes || "",
+            image_moderation_date: form.image_moderation_date || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", editId);
+        if (error) throw error;
+        setForm((prev) => ({ ...prev, image_moderation_status: "manual_review" }));
+        toast({
+          title: "Manual review requested",
+          description:
+            "Your photo is in Activity Manual Review. Watch My Messages in My Account for the decision. You can keep editing and Update Activity anytime.",
+        });
+      } catch (err) {
+        toast({
+          title: "Could not request manual review",
+          description: err.message || "Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setModeratingImage(false);
+      }
+      return;
+    }
+
     setForm((prev) => ({ ...prev, image_moderation_status: "manual_review" }));
     toast({
-      title: "Manual review requested",
-      description: "We'll review your photo soon. Watch My Messages in My Account for the decision. You can still submit your activity now.",
+      title: "Ready for manual review",
+      description:
+        "Submit this activity to send the photo to Admin. Until then it is not in the review queue. The photo appears on the listing once approved.",
     });
   };
 
@@ -632,14 +667,22 @@ export default function PostEvent() {
                       <div className="mt-2 bg-red-50 border border-red-100 rounded-xl p-3 text-xs text-red-700 leading-relaxed">
                         <p className="font-semibold mb-1 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Photo not approved</p>
                         <p>{form.image_moderation_notes || "This photo doesn't meet our community guidelines."}</p>
-                        <Button type="button" size="sm" variant="outline" className="rounded-xl h-7 text-xs mt-2 border-blue-200 text-blue-700 hover:bg-blue-50" onClick={handleRequestManualImageReview}>
+                        <Button type="button" size="sm" variant="outline" className="rounded-xl h-7 text-xs mt-2 border-blue-200 text-blue-700 hover:bg-blue-50" disabled={moderatingImage} onClick={handleRequestManualImageReview}>
                           <HelpCircle className="w-3 h-3 mr-1" /> Request Manual Review
                         </Button>
                       </div>
                     )}
                     {form.image_moderation_status === "manual_review" && (
                       <p className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl p-3">
-                        Your photo is queued for manual review. Your activity can still be posted; the photo appears once approved. Check <strong>My Account → My Messages</strong> for the decision.
+                        {editId ? (
+                          <>
+                            Your photo is in Activity Manual Review. It appears on the listing once approved. Check <strong>My Account → My Messages</strong> for the decision.
+                          </>
+                        ) : (
+                          <>
+                            Photo marked for manual review — it is <strong>not</strong> in the Admin queue until you click <strong>Submit</strong>. After you submit, the photo appears once approved. Check <strong>My Account → My Messages</strong> for the decision.
+                          </>
+                        )}
                       </p>
                     )}
                   </div>
