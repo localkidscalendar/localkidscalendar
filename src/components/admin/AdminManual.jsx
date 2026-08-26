@@ -602,7 +602,8 @@ const categories = [
           "Monthly / annual pricing",
           "Homepage + digest placement",
           "Homepage feed rotates ad positions about every 30s when multiple ads are present; rotation pauses while the user scrolls",
-          "Desktop List view keeps all three ad cards in one row after the 3rd activity (or after the last if there are 1–2)",
+          "Cards (incl. phone): waves of up to 3 ad-rows (one ad per row, staggered), then 1 content-only row; repeats for 4+ slots. Under 6 activities → ads after the list",
+          "Desktop List: first up-to-3 ads after the 3rd activity; next waves after every 6 more activities (leftovers at the end)",
           "Configurable slots; one per Supporter per zip",
           "Admin → Ads → All Supporter Ads lists user name, email, and ad name (placement business_name is the creative name)",
           "AI + URL review on Ad Assets",
@@ -612,6 +613,7 @@ const categories = [
         technicalFeatures: [
           "Statuses: pending_payment, pending_review, active, past_due, rejected, expired, cancelled, flagged, …",
           "Filler ads fill empty slots (admin_default_ads)",
+          "feedAdPlacement.js (buildCardFeedItems / buildListFeedSegments); Home.jsx AdInjectedFeed; list layout is lg+ only",
           "Home.jsx adRotationIndex interval; paused on window scroll until ~1.2s idle (does not increment impressions)",
         ],
       },

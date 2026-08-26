@@ -11,6 +11,7 @@ import DefaultAdCard from "@/components/ads/DefaultAdCard";
 import ZipRequiredModal from "@/components/shared/ZipRequiredModal";
 import AuthPromptModal from "@/components/shared/AuthPromptModal";
 import { pickDefaultFillerAds } from "@/lib/pickDefaultFillerAds";
+import { buildCardFeedItems, buildListFeedSegments } from "@/lib/feedAdPlacement";
 import { isActivityFree, normalizeCategoryList } from "@/lib/activityCategories";
 import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
 import { Calendar, MapPin, Loader2, X, LayoutGrid, List } from "lucide-react";
@@ -35,8 +36,6 @@ function rotatedShuffle(arr, seed) {
 
 // Injects supporter ads into the event feed (card grid or desktop list)
 function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, onToggleSave, user, onAssetFlagged, layout = "cards" }) {
-  const COLS = 3; // grid columns on lg
-
   // ads is { type: "paid"|"default", ad } — filter paid ads by zip, keep defaults always
   const relevantAds = (ads || []).filter((item) => {
     if (!item || typeof item !== "object") return false;
@@ -56,97 +55,54 @@ function AdInjectedFeed({ events, ads, rotationIndex, zipCode, savedEventIds, on
   };
 
   if (layout === "list") {
-    const before = events.slice(0, 3);
-    const after = events.slice(3);
-    const adRow = rotatedAds.length > 0 ? (
-      <div className="grid grid-cols-3 gap-4 items-start">
-        {rotatedAds.map(({ type, ad }, i) => renderAd({ type, ad }, type === "paid" ? `ad-${ad.id}` : `def-${ad.id}-${i}`))}
-      </div>
-    ) : null;
-
+    const segments = buildListFeedSegments(events, rotatedAds);
     return (
       <div className="space-y-3">
-        {before.map((event) => (
-          <EventCard
-            key={event.id}
-            event={event}
-            variant="list"
-            isSaved={savedEventIds.has(event.id)}
-            onToggleSave={onToggleSave}
-          />
-        ))}
-        {adRow}
-        {after.map((event) => (
-          <EventCard
-            key={event.id}
-            event={event}
-            variant="list"
-            isSaved={savedEventIds.has(event.id)}
-            onToggleSave={onToggleSave}
-          />
-        ))}
+        {segments.map((seg, segIdx) => {
+          if (seg.type === "events") {
+            return (
+              <React.Fragment key={`ev-seg-${segIdx}`}>
+                {seg.items.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    variant="list"
+                    isSaved={savedEventIds.has(event.id)}
+                    onToggleSave={onToggleSave}
+                  />
+                ))}
+              </React.Fragment>
+            );
+          }
+          return (
+            <div key={`ad-row-${segIdx}`} className="grid grid-cols-3 gap-4 items-start">
+              {seg.items.map(({ type, ad }, i) =>
+                renderAd({ type, ad }, type === "paid" ? `ad-${ad.id}` : `def-${ad.id}-${segIdx}-${i}`)
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
 
-  // If fewer than 6 events, show ads on bottom row only
-  if (events.length < 6 || rotatedAds.length === 0) {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
-        {events.map((event) => <EventCard key={event.id} event={event} isSaved={savedEventIds.has(event.id)} onToggleSave={onToggleSave} />)}
-        {rotatedAds.map(({ type, ad }) =>
-          type === "paid"
-            ? <SupporterAdCard key={ad.id} ad={ad} user={user} onAssetFlagged={onAssetFlagged} />
-            : <DefaultAdCard key={`d-${ad.id}`} ad={ad} />
-        )}
-      </div>
-    );
-  }
-
-  // Otherwise: ads appear in top 3 rows, one per row, not same row as each other
-  // Build combined grid: insert one ad per row at a different position in rows 1, 2, 3
-  const adPositionsInRow = [
-    rotationIndex % COLS,
-    (rotationIndex + 1) % COLS,
-    (rotationIndex + 2) % COLS,
-  ];
-
-  // Build rows
-  const rows = [];
-  let eventIdx = 0;
-  let adIdx = 0;
-  let rowNum = 0;
-
-  while (eventIdx < events.length || adIdx < rotatedAds.length) {
-    const row = [];
-    const injectAdThisRow = adIdx < rotatedAds.length && rowNum < 3;
-    const adPositionInThisRow = injectAdThisRow ? adPositionsInRow[rowNum] : -1;
-    let colsFilled = 0;
-
-    for (let col = 0; col < COLS; col++) {
-      if (col === adPositionInThisRow && adIdx < rotatedAds.length) {
-        row.push({ type: "ad", data: rotatedAds[adIdx++] });
-        colsFilled++;
-      } else if (eventIdx < events.length) {
-        row.push({ type: "event", data: events[eventIdx++] });
-        colsFilled++;
-      }
-    }
-
-
-    if (colsFilled > 0) rows.push(row);
-    rowNum++;
-
-    // Safety: if no progress made, break
-    if (colsFilled === 0) break;
-  }
-
-  const flatItems = rows.flat();
+  // Cards (mobile always; desktop when Cards selected). Logical 3-col rows flatten into
+  // grid-cols-1 / sm:2 / lg:3 so phone stacking keeps wave order without a separate path.
+  const flatItems = buildCardFeedItems(events, rotatedAds, rotationIndex);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
       {flatItems.map((item, i) => {
-        if (item.type === "event") return <EventCard key={`ev-${item.data.id}`} event={item.data} isSaved={savedEventIds.has(item.data.id)} onToggleSave={onToggleSave} />;
+        if (item.type === "event") {
+          return (
+            <EventCard
+              key={`ev-${item.data.id}`}
+              event={item.data}
+              isSaved={savedEventIds.has(item.data.id)}
+              onToggleSave={onToggleSave}
+            />
+          );
+        }
         const { type: adType, ad } = item.data;
         return adType === "paid"
           ? <SupporterAdCard key={`ad-${ad.id}`} ad={ad} user={user} onAssetFlagged={onAssetFlagged} />

@@ -9,6 +9,7 @@ import { normalizeRadiusMiles, DEFAULT_RADIUS_MILES } from "../../src/lib/locati
 import { toTitleCaseLabel } from "../../src/lib/titleCase.js";
 import { messageActionPageByHref, MESSAGE_ACTION_PAGES } from "../../src/lib/messageActionPages.js";
 import { pickDefaultFillerAds } from "../../shared/pickDefaultFillerAds.js";
+import { buildCardFeedItems, buildListFeedSegments } from "../../src/lib/feedAdPlacement.js";
 import { buildDigestHtml, DIGEST_SAMPLE_EVENTS } from "../../shared/digestEmailHtml.js";
 import { parseContactSubmitBody } from "../../api/_lib/contactBotGuards.js";
 import { isAdminCaller } from "../../api/_lib/adminAuth.js";
@@ -96,6 +97,48 @@ describe("pickDefaultFillerAds", () => {
     ];
     expect(pickDefaultFillerAds(ads, 2).map((a) => a.id)).toEqual(["a", "b"]);
     expect(pickDefaultFillerAds(ads, 0)).toEqual([]);
+  });
+});
+
+describe("feedAdPlacement", () => {
+  const events = (n) => Array.from({ length: n }, (_, i) => ({ id: `e${i + 1}` }));
+  const ads = (n) => Array.from({ length: n }, (_, i) => ({ type: "paid", ad: { id: `a${i + 1}` } }));
+
+  it("cards: dumps ads after events when fewer than 6 activities", () => {
+    const items = buildCardFeedItems(events(3), ads(3), 0);
+    expect(items.map((x) => x.type)).toEqual([
+      "event", "event", "event", "ad", "ad", "ad",
+    ]);
+  });
+
+  it("cards: places first three ads in first three rows then content gap before 4th", () => {
+    const items = buildCardFeedItems(events(12), ads(4), 0);
+    const types = items.map((x) => x.type);
+    // Row0: ad+2ev, row1: ad+2ev, row2: ad+2ev, row3: 3ev, row4: ad+2ev …
+    expect(types.filter((t) => t === "ad")).toHaveLength(4);
+    const adIndexes = types.map((t, i) => (t === "ad" ? i : -1)).filter((i) => i >= 0);
+    expect(adIndexes[0]).toBeLessThan(3);
+    expect(adIndexes[3]).toBeGreaterThanOrEqual(9); // after first wave + content row
+  });
+
+  it("list: first ad row after 3 activities; second after 6 more", () => {
+    const segments = buildListFeedSegments(events(12), ads(5));
+    expect(segments.map((s) => [s.type, s.items.length])).toEqual([
+      ["events", 3],
+      ["ads", 3],
+      ["events", 6],
+      ["ads", 2],
+      ["events", 3],
+    ]);
+  });
+
+  it("list: leftover ads append when the activity list ends early", () => {
+    const segments = buildListFeedSegments(events(2), ads(5));
+    expect(segments.map((s) => [s.type, s.items.length])).toEqual([
+      ["events", 2],
+      ["ads", 3],
+      ["ads", 2],
+    ]);
   });
 });
 
