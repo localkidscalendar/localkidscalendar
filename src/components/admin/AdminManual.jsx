@@ -419,13 +419,14 @@ const categories = [
           "Natural-language decline reasons (not raw category labels)",
           "Request Manual Review after an automated decline",
           "New posts: review enters the Admin queue only after Submit (copy says so); edits persist the request immediately",
-          "Admin approve / decline with notes",
+          "Admin approve / decline with notes (inbox CTA: View Activity or Edit Activity for that listing)",
         ],
         technicalOverview:
           "processImageForUpload → event-media → /api/photo-review → reviewImageHybrid. Admin → Reviews → Activity Manual Review (AdminActivityPhotoReviewPanel). Client: PostEvent.jsx + moderateEventImage.js + imageProcess.js.",
         technicalFeatures: [
           "image_moderation_status: approved / declined / manual_review / manual_review_declined / …",
           "PostEvent handleRequestManualImageReview: editId → update events row now; create/duplicate → form-only until insert",
+          "notifyActivityPhotoDecision: approve → /event/{id}; decline → /post-event?edit={id}",
           "Phase 1: omni-moderation-latest; high score (≥0.85 or flagged ≥0.7) → decline; low (≤0.20, unflagged) → approve; else escalate",
           "Phase 2: gpt-4o-mini vision with ACTIVITY_PHOTO_VISION_PROMPT",
           "Without OPENAI_API_KEY, fails open to approved (community flagging remains)",

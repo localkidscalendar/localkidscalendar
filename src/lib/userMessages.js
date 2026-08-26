@@ -194,6 +194,7 @@ export async function notifyAdCreativeDisabledAdmin({ userId, zipCodes = [], rea
 export async function notifyActivityPhotoDecision(event, decision, reason = "") {
   if (!event?.created_by_id) return { error: null };
   const approved = decision === "approved";
+  const eventId = event.id || null;
   return createUserMessage({
     userId: event.created_by_id,
     templateKey: approved ? "activity_photo_approved_admin" : "activity_photo_declined_admin",
@@ -206,10 +207,14 @@ export async function notifyActivityPhotoDecision(event, decision, reason = "") 
           reason ? `\n\nReason: ${reason}` : "",
           "\n\nPlease edit your activity to upload a different photo. Your activity remains live in the meantime.",
         ].join(""),
-    actionLabel: "View My Activity Posts",
-    actionHref: "/account?tab=posts",
+    actionLabel: eventId
+      ? (approved ? "View Activity" : "Edit Activity")
+      : "View My Activity Posts",
+    actionHref: eventId
+      ? (approved ? `/event/${eventId}` : `/post-event?edit=${eventId}`)
+      : "/account?tab=posts",
     relatedType: "event",
-    relatedId: event.id,
+    relatedId: eventId,
     metadata: { channels: ["in_app"] },
   });
 }
