@@ -661,14 +661,15 @@ const categories = [
         id: "advertising-rules",
         title: "Rules & Terms",
         overview:
-          "Family-appropriate standards; three required Review checkboxes before Stripe; community flagging attaches to Ad Assets and can pull that creative from every zip.",
+          "Family-appropriate standards; three required Review checkboxes before Stripe; community flagging attaches to Ad Assets and can pull that creative from every zip. Supporter Terms and Rules explicitly cover account suspension/Admin deactivation from Community Rules violations or user flagging, with no advertising refunds.",
         features: [
           "Review step requires: Supporter Terms, exact zip targeting (no mile radius), and no-refunds after redirect to payment",
           "3-flag auto disable on the Ad Asset (all placements)",
+          "TOS §9 + Supporter Rules: account suspend/deactivate via community user flags or Admin manual disable — ads end, no refund",
           "Clear unavailable messaging in Ad Manager",
         ],
         technicalOverview:
-          "AdvertiserTerms.jsx; banner_ads.tos_accepted. /api/create-ad-checkout requires agree_terms, agree_exact_zip, agree_no_refunds.",
+          "supporterContent.js (SUPPORTER_RULES + TOS_SECTIONS) → AdvertiserTerms.jsx, Supporters page, Ad Manager Rules tab. banner_ads.tos_accepted. /api/create-ad-checkout requires agree_terms, agree_exact_zip, agree_no_refunds.",
         technicalFeatures: [
           "InactiveAdCard explains past_due / flagged / admin disabled states",
         ],
