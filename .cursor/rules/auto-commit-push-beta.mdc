@@ -1,0 +1,30 @@
+---
+description: During Beta 1, always commit and push completed work without waiting to be asked
+alwaysApply: true
+---
+
+# Auto commit & push (Beta 1)
+
+Until the user says otherwise (or after leaving Beta 1), **always commit and push** when finishing a task that changed the repo.
+
+## When
+
+- After implementing a fix, feature, or docs/Admin Manual update that should ship
+- Do **not** wait for “commit and push” — treat that as already ordered
+
+## How
+
+Follow the repo’s normal git safety protocol:
+
+- Commit only relevant files (no secrets, no unrelated untracked scripts unless part of the task)
+- Use a concise why-focused message via HEREDOC
+- Push to the current branch’s remote (`git push`)
+- Never force-push `main`/`master`, never amend unless amend rules are met, never skip hooks
+
+## Exceptions
+
+- User explicitly says not to commit/push for that change
+- Nothing to commit (empty / only ignored artifacts)
+- Only exploratory/read-only work with no file changes
+
+This project rule **overrides** the general “only commit when asked” preference for this repo during Beta 1.
