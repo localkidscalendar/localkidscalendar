@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,13 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { formatPhoneInput } from "@/lib/phone";
+import TurnstileWidget from "@/components/shared/TurnstileWidget";
+import { assertTurnstilePassed } from "@/lib/verifyTurnstileClient";
+import {
+  REACTIVATE_MIN_SUBMIT_MS,
+  TURNSTILE_ACTION_REACTIVATE,
+  TURNSTILE_HONEYPOT_FIELD,
+} from "../../shared/turnstileFormConstants.js";
 import moment from "moment";
 import {
   ACCOUNT_DISABLE_GENERAL_IMPACT,
@@ -15,6 +22,8 @@ import {
 } from "@/lib/accountDisableCopy";
 
 export const REACTIVATE_SUBJECT = "Request to Reactivate My Account";
+
+const TURNSTILE_SITE_KEY = (import.meta.env.VITE_TURNSTILE_SITE_KEY || "").trim();
 
 /**
  * Shared disabled-account experience for live users and admin preview.
@@ -38,7 +47,9 @@ export default function AccountDisabledView({
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
+  const turnstileRef = useRef(null);
   const [hpField, setHpField] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [formLoadTime] = useState(() => Date.now());
 
   useEffect(() => {
@@ -106,14 +117,41 @@ export default function AccountDisabledView({
       toast({ title: "Please fill in your name and email.", variant: "destructive" });
       return;
     }
-    if (hpField || Date.now() - formLoadTime < 2000) {
+    if (hpField || Date.now() - formLoadTime < REACTIVATE_MIN_SUBMIT_MS) {
       setJustSubmitted(true);
+      return;
+    }
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      toast({
+        title: "Please wait a moment",
+        description: "Security check is still loading. Try again in a second.",
+        variant: "destructive",
+      });
       return;
     }
 
     setSubmitting(true);
     let data = null;
     let error = null;
+
+    try {
+      await assertTurnstilePassed({
+        action: TURNSTILE_ACTION_REACTIVATE,
+        token: turnstileToken,
+        honeypot: hpField,
+        formLoadedAt: formLoadTime,
+      });
+    } catch (err) {
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
+      setSubmitting(false);
+      toast({
+        title: "Could not submit request",
+        description: err.message || "Security check failed. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (request?.status === "reactivated") {
       // Prior disable cycle was approved; this is a new disable — reuse the row as pending
@@ -361,6 +399,7 @@ export default function AccountDisabledView({
             {/* honeypot */}
             <input
               type="text"
+              name={TURNSTILE_HONEYPOT_FIELD}
               tabIndex={-1}
               autoComplete="off"
               value={hpField}
@@ -369,10 +408,18 @@ export default function AccountDisabledView({
               aria-hidden="true"
             />
 
+            <TurnstileWidget
+              ref={turnstileRef}
+              siteKey={TURNSTILE_SITE_KEY}
+              action={TURNSTILE_ACTION_REACTIVATE}
+              onToken={setTurnstileToken}
+              onError={() => setTurnstileToken("")}
+            />
+
             <Button
               type="submit"
               className="w-full rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
-              disabled={submitting}
+              disabled={submitting || (Boolean(TURNSTILE_SITE_KEY) && !turnstileToken)}
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Submit Request"}
             </Button>

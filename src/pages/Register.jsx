@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
@@ -6,12 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import GoogleIcon from "@/components/GoogleIcon";
+import TurnstileWidget from "@/components/shared/TurnstileWidget";
 import { Mail, Lock, Loader2, Users, Building2, MapPin, CheckCircle, AlertTriangle } from "lucide-react";
 import { DEFAULT_RADIUS_MILES, normalizeRadiusMiles } from "@/lib/locationDefaults";
 import { toStrictTitleCase, formatActivityTitle } from "@/lib/titleCase";
 import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig"; // BETA MODE
 import { useAuth } from "@/lib/AuthContext";
 import { isProfileComplete } from "@/lib/authRoles";
+import { assertTurnstilePassed } from "@/lib/verifyTurnstileClient";
+import {
+  REGISTER_MIN_SUBMIT_MS,
+  TURNSTILE_ACTION_REGISTER,
+  TURNSTILE_HONEYPOT_FIELD,
+} from "../../shared/turnstileFormConstants.js";
+
+const TURNSTILE_SITE_KEY = (import.meta.env.VITE_TURNSTILE_SITE_KEY || "").trim();
 
 function BetaZipOutsideNote({ betaConfig, zipCode }) {
   const zips = Array.isArray(betaConfig?.zip_codes) ? betaConfig.zip_codes : [];
@@ -97,8 +106,10 @@ export default function Register() {
   const [orgWebsite, setOrgWebsite] = useState("");
   const [orgEmail, setOrgEmail] = useState("");
 
-  // Bot protection: honeypot field must stay empty, and a human can't reach step 2 in under 3 seconds
+  // Bot protection: honeypot + timing + Turnstile (email signup only; verified server-side before signUp)
+  const turnstileRef = useRef(null);
   const [hpField, setHpField] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [formLoadTime] = useState(() => Date.now());
 
   // Admin invite links: /register?role=organizer&email=...
@@ -241,8 +252,11 @@ export default function Register() {
     if (finishingExisting && !agreedToRules) {
       return setError("You must agree to the Terms of Service, Privacy Policy, and Community Rules to continue.");
     }
-    if (!finishingExisting && (hpField || Date.now() - formLoadTime < 3000)) {
+    if (!finishingExisting && (hpField || Date.now() - formLoadTime < REGISTER_MIN_SUBMIT_MS)) {
       return setError("Something went wrong. Please try again.");
+    }
+    if (!finishingExisting && TURNSTILE_SITE_KEY && !turnstileToken) {
+      return setError("Please wait a moment — security check is still loading.");
     }
 
     setLoading(true);
@@ -256,6 +270,13 @@ export default function Register() {
         window.location.href = "/";
         return;
       }
+
+      await assertTurnstilePassed({
+        action: TURNSTILE_ACTION_REGISTER,
+        token: turnstileToken,
+        honeypot: hpField,
+        formLoadedAt: formLoadTime,
+      });
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -286,6 +307,8 @@ export default function Register() {
 
       setStep(3);
     } catch (err) {
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
       setError(err.message || "Registration failed. Please try again.");
     }
     setLoading(false);
@@ -367,7 +390,7 @@ export default function Register() {
                 <Label htmlFor="hp_website">Website</Label>
                 <input
                   id="hp_website"
-                  name="hp_website"
+                  name={TURNSTILE_HONEYPOT_FIELD}
                   type="text"
                   tabIndex={-1}
                   autoComplete="off"
@@ -601,6 +624,16 @@ export default function Register() {
                 </>
               )}
 
+              {!showCompleteFlow && (
+                <TurnstileWidget
+                  ref={turnstileRef}
+                  siteKey={TURNSTILE_SITE_KEY}
+                  action={TURNSTILE_ACTION_REGISTER}
+                  onToken={setTurnstileToken}
+                  onError={() => setTurnstileToken("")}
+                />
+              )}
+
               <div className="flex gap-3 pt-1">
                 {showCompleteFlow ? (
                   <Button
@@ -612,14 +645,18 @@ export default function Register() {
                     Sign out
                   </Button>
                 ) : (
-                  <Button type="button" variant="outline" className="rounded-xl flex-1 h-11" onClick={() => { setStep(1); setError(""); }}>
+                  <Button type="button" variant="outline" className="rounded-xl flex-1 h-11" onClick={() => { setStep(1); setError(""); setTurnstileToken(""); }}>
                     ← Back
                   </Button>
                 )}
                 <Button
                   type="submit"
                   className="rounded-xl flex-1 h-11 bg-mint-500 hover:bg-mint-600 text-white font-semibold"
-                  disabled={loading || (showCompleteFlow && !agreedToRules)}
+                  disabled={
+                    loading
+                    || (showCompleteFlow && !agreedToRules)
+                    || (!showCompleteFlow && Boolean(TURNSTILE_SITE_KEY) && !turnstileToken)
+                  }
                 >
                   {loading
                     ? <Loader2 className="w-4 h-4 animate-spin" />

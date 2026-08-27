@@ -84,7 +84,7 @@ const TurnstileWidget = forwardRef(function TurnstileWidget(
   if (!siteKey) {
     return (
       <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-        Contact form protection is not configured (missing Turnstile site key).
+        Bot protection is not configured (missing Turnstile site key).
       </p>
     );
   }

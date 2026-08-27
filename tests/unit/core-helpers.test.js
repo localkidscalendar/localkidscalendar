@@ -12,6 +12,7 @@ import { pickDefaultFillerAds } from "../../shared/pickDefaultFillerAds.js";
 import { buildCardFeedItems, buildListFeedSegments } from "../../src/lib/feedAdPlacement.js";
 import { buildDigestHtml, DIGEST_SAMPLE_EVENTS } from "../../shared/digestEmailHtml.js";
 import { parseContactSubmitBody } from "../../api/_lib/contactBotGuards.js";
+import { parseTurnstileVerifyBody } from "../../api/_lib/turnstileFormGuards.js";
 import { isAdminCaller } from "../../api/_lib/adminAuth.js";
 import {
   alreadySentDigestThisWeek,
@@ -183,6 +184,57 @@ describe("parseContactSubmitBody", () => {
     });
     expect(result.ok).toBe(true);
     expect(result.payload.sender_email).toBe("alex@example.com");
+  });
+});
+
+describe("parseTurnstileVerifyBody", () => {
+  it("rejects honeypot fills as bot", () => {
+    const result = parseTurnstileVerifyBody({
+      action: "register",
+      website: "http://spam.test",
+      form_loaded_at: Date.now() - 5000,
+      turnstile_token: "token",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.bot).toBe(true);
+  });
+
+  it("rejects too-fast register submits as bot", () => {
+    const result = parseTurnstileVerifyBody({
+      action: "register",
+      form_loaded_at: Date.now() - 500,
+      turnstile_token: "token",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.bot).toBe(true);
+  });
+
+  it("accepts register and reactivate after min wait", () => {
+    const register = parseTurnstileVerifyBody({
+      action: "register",
+      form_loaded_at: Date.now() - 5000,
+      turnstile_token: "token",
+    });
+    expect(register.ok).toBe(true);
+    expect(register.payload.action).toBe("register");
+
+    const reactivate = parseTurnstileVerifyBody({
+      action: "reactivate",
+      form_loaded_at: Date.now() - 5000,
+      turnstile_token: "token",
+    });
+    expect(reactivate.ok).toBe(true);
+    expect(reactivate.payload.action).toBe("reactivate");
+  });
+
+  it("rejects contact action (uses contact-submit instead)", () => {
+    const result = parseTurnstileVerifyBody({
+      action: "contact",
+      form_loaded_at: Date.now() - 5000,
+      turnstile_token: "token",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.bot).toBe(false);
   });
 });
 
