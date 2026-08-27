@@ -14,6 +14,7 @@ import { moderateAdContent } from "@/lib/moderateAdContent";
 import { deleteAdLibraryAsset } from "@/lib/quarantineAdLibrary";
 import { processImageForUpload } from "@/lib/imageProcess";
 import { formatActivityTitle } from "@/lib/titleCase";
+import SupporterAdHomePreview from "@/components/ads/SupporterAdHomePreview";
 
 const MOD_CONFIG = {
   pending: { label: "Reviewing…", color: "bg-yellow-100 text-yellow-700", icon: Clock },
@@ -422,15 +423,13 @@ function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, o
         <Label>Ad Image *</Label>
         <p className="text-xs text-muted-foreground mt-0.5 mb-1">{SUPPORTER_AD_IMAGE_RECOMMENDED}</p>
         <div className="mt-2 space-y-2">
-          {form.image_url ? (
-            <div className="w-full max-w-sm aspect-[3/2] rounded-xl border border-border overflow-hidden">
-              <img src={form.image_url} alt="Preview" className="w-full h-full object-cover" />
-            </div>
-          ) : (
-            <div className="w-full max-w-sm aspect-[3/2] rounded-xl bg-muted flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border">
-              No image
-            </div>
-          )}
+          <p className="text-xs font-medium text-muted-foreground">Homepage preview</p>
+          <div className="max-w-sm">
+            <SupporterAdHomePreview imageUrl={form.image_url} zipCode="—" />
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Black border and crop match the homepage activity feed. Your placement zip appears in the footer when the ad is live.
+          </p>
           <label className="cursor-pointer inline-block">
             <span className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-border bg-white hover:bg-muted transition-colors">
               {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
