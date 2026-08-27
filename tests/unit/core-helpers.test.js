@@ -405,8 +405,15 @@ describe("linkUrlSafety", () => {
   it("requires a public domain with a dot", () => {
     expect(validateBusinessLinkUrl("https://yourbusiness.com").ok).toBe(true);
     expect(validateBusinessLinkUrl("yourbusiness.com").ok).toBe(true);
+    expect(validateBusinessLinkUrl("https://www.yourbusiness.com").ok).toBe(true);
     expect(validateBusinessLinkUrl("mybusiness").ok).toBe(false);
     expect(validateBusinessLinkUrl("https://foo").ok).toBe(false);
+  });
+
+  it("rejects www without a real TLD (e.g. www.sftahoe)", () => {
+    expect(validateBusinessLinkUrl("www.sftahoe").ok).toBe(false);
+    expect(validateBusinessLinkUrl("https://www.sftahoe").ok).toBe(false);
+    expect(validateBusinessLinkUrl("www.sftahoe.com").ok).toBe(true);
   });
 
   it("rejects unsafe keywords in hostname or path", () => {

@@ -454,6 +454,8 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
 
 function AssetForm({ form, setForm, uploading, reviewingImage, moderating, onUpload, onSubmit, onCancel, submitLabel, note }) {
   const imageDeclined = form.image_review_status === "declined";
+  const urlCheck = form.link_url.trim() ? validateBusinessLinkUrl(form.link_url) : null;
+  const urlError = urlCheck && !urlCheck.ok ? urlCheck.reason : "";
 
   return (
     <div className="bg-muted/40 rounded-2xl border border-border p-4 space-y-3">
@@ -512,15 +514,23 @@ function AssetForm({ form, setForm, uploading, reviewingImage, moderating, onUpl
       </div>
       <div>
         <Label>Destination URL *</Label>
-        <p className="text-xs text-muted-foreground mt-0.5 mb-1">Must be a full public website link (e.g. https://yourbusiness.com).</p>
-        <Input className="mt-1" placeholder="https://yourbusiness.com" value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} />
+        <p className="text-xs text-muted-foreground mt-0.5 mb-1">Must be a full public website link (e.g. https://www.yourbusiness.com).</p>
+        <Input
+          className="mt-1"
+          placeholder="https://www.yourbusiness.com"
+          value={form.link_url}
+          onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))}
+        />
+        {urlError && (
+          <p className="text-xs text-red-600 mt-1">{urlError}</p>
+        )}
       </div>
       <div className="flex gap-2">
         <Button variant="outline" size="sm" className="rounded-xl" onClick={onCancel}>Cancel</Button>
         <Button
           size="sm"
           className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
-          disabled={!form.ad_name || !form.image_url || !form.link_url || moderating || reviewingImage || imageDeclined}
+          disabled={!form.ad_name || !form.image_url || !form.link_url || moderating || reviewingImage || imageDeclined || urlError}
           onClick={onSubmit}
         >
           {moderating ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> Reviewing…</> : submitLabel}
