@@ -751,6 +751,28 @@ const categories = [
         ],
       },
       {
+        id: "stripe-live-cutover",
+        title: "Stripe Live Mode Cutover",
+        keywords: ["stripe", "live", "test", "sandbox", "sk_live", "sk_test", "webhook", "payments", "go live"],
+        overview:
+          "App code is mode-agnostic: Checkout, webhooks, portal, and renewals use STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET. Beta used Sandbox (sk_test_). For real charges, switch Vercel Production to Live keys and a Live webhook — after clearing test Stripe IDs from banner_ads (soft reset or cancel test subs).",
+        features: [
+          "Confirm Stripe account is activated for Live (business details, payouts)",
+          "Create Live webhook → https://localkidscalendar.com/api/stripe-webhook with the same events as Sandbox",
+          "Enable Customer Portal in Live (Settings → Billing → Customer portal)",
+          "Set Vercel Production: STRIPE_SECRET_KEY=sk_live_… and STRIPE_WEBHOOK_SECRET=whsec_… from the Live endpoint",
+          "Redeploy after env change; run one real $ checkout then refund if desired",
+          "Do not mix Sandbox customer/subscription IDs with Live keys",
+        ],
+        technicalOverview:
+          "No publishable key required (hosted Checkout). Webhook events: checkout.session.completed, customer.subscription.deleted, invoice.payment_failed, invoice.payment_succeeded. Prefer soft-reset or empty banner_ads before cutover so no sk_test_ sub_* rows remain.",
+        technicalFeatures: [
+          "Sandbox keys: sk_test_ / sandbox whsec_; Live: sk_live_ / live whsec_",
+          "Prices come from ad_pricing_config via Checkout price_data (no hardcoded Stripe Price IDs)",
+          "After cutover, Checkout UI no longer says Test mode; real cards are charged",
+        ],
+      },
+      {
         id: "advertising-plan-changes",
         title: "Plan Upgrades & Downgrades",
         overview:
