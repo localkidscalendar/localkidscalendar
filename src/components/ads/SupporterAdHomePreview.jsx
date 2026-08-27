@@ -1,6 +1,10 @@
 import React from "react";
 import { ExternalLink } from "lucide-react";
-import { SUPPORTER_AD_IMAGE_CLASS, SUPPORTER_AD_IMAGE_FRAME_CLASS } from "@/lib/supporterAdDisplay.js";
+import {
+  SUPPORTER_AD_FOOTER_ROW_CLASS,
+  SUPPORTER_AD_IMAGE_CLASS,
+  SUPPORTER_AD_IMAGE_FRAME_CLASS,
+} from "@/lib/supporterAdDisplay.js";
 
 /**
  * Static frame matching SupporterAdCard on Home (3:2 creative + black footer below).
@@ -29,7 +33,7 @@ export default function SupporterAdHomePreview({
           </div>
         )}
       </div>
-      <div className="shrink-0 bg-black/90 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between gap-2 border-t border-black pointer-events-none">
+      <div className={`${SUPPORTER_AD_FOOTER_ROW_CLASS} pointer-events-none`}>
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs font-semibold text-white">{zipCode || "—"}</span>
           <span className="text-xs text-gray-300">Supporter</span>

@@ -368,6 +368,7 @@ describe("imageProcess sizing helpers", () => {
   it("exposes expected preset ceilings", () => {
     expect(IMAGE_PRESETS.activityPhoto.maxWidth).toBe(1600);
     expect(IMAGE_PRESETS.adCreative.maxHeight).toBe(800);
+    expect(IMAGE_PRESETS.defaultAd.maxHeight).toBe(858);
     expect(IMAGE_PRESETS.logo.maxOutputBytes).toBe(512 * 1024);
     expect(MAX_OUTPUT_BYTES_DEFAULT).toBe(2 * 1024 * 1024);
   });
@@ -389,5 +390,12 @@ describe("supporterAdDisplay", () => {
     expect(
       supporterAdOutputDimensions(1200, 600, 1200, 800, 300, 200)
     ).toEqual({ width: 900, height: 600 });
+  });
+
+  it("sizes default ads to match supporter card total height", async () => {
+    const { defaultAdOutputDimensions } = await import("../../src/lib/supporterAdDisplay.js");
+    expect(
+      defaultAdOutputDimensions(600, 429, 1200, 858, 200, 143)
+    ).toEqual({ width: 600, height: 429 });
   });
 });

@@ -6,6 +6,7 @@ import {
   SUPPORTER_AD_CREATIVE_HEIGHT,
   SUPPORTER_AD_CREATIVE_WIDTH,
   SUPPORTER_AD_RECOMMENDED_LABEL,
+  DEFAULT_AD_RECOMMENDED_LABEL,
 } from "@/lib/supporterAdDisplay.js";
 
 export const SUPPORTER_RULES = [
@@ -27,7 +28,7 @@ export const SUPPORTER_AD_IMAGE_RECOMMENDED =
   `Best fit for the photo area only: ${SUPPORTER_AD_RECOMMENDED_LABEL}, JPG or PNG. The black Supporter bar (zip + link) is added below on the homepage — it does not cover your image. Phone photos are OK — we resize/compress automatically before upload. Non-3:2 images are center-cropped to 3:2 on upload; exact 600×400 fits without cropping.`;
 
 export const DEFAULT_AD_IMAGE_RECOMMENDED =
-  "Best fit: 600 × 467 px (taller than Supporter ads — full photo, no footer bar), JPG or PNG. Large files are resized automatically. Keep the main subject centered — the image fills the frame and may crop edges if the ratio differs.";
+  `Best fit: ${DEFAULT_AD_RECOMMENDED_LABEL} (same total card height as Supporter ads, without the black footer bar), JPG or PNG. Large files are resized automatically. Non-matching ratios are center-cropped on upload.`;
 
 /** Shown on Ad Library upload so advertisers know what will be declined. */
 export const AD_IMAGE_REVIEW_GUIDELINES = [

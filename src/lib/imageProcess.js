@@ -6,7 +6,7 @@
  * Typical phone photos (3–8 MB+) are accepted as picks; originals over 15 MB fail fast.
  */
 
-import { supporterAdOutputDimensions } from "./supporterAdDisplay.js";
+import { supporterAdOutputDimensions, defaultAdOutputDimensions } from "./supporterAdDisplay.js";
 
 export const MAX_ORIGINAL_BYTES = 15 * 1024 * 1024; // 15 MB — absurd files fail before decode
 export const MAX_OUTPUT_BYTES_DEFAULT = 2 * 1024 * 1024; // 2 MB post-process safety net
@@ -40,13 +40,13 @@ export const IMAGE_PRESETS = {
   defaultAd: {
     id: "defaultAd",
     maxWidth: 1200,
-    maxHeight: 934,
+    maxHeight: 858,
     maxOutputBytes: MAX_OUTPUT_BYTES_DEFAULT,
     mimeType: "image/jpeg",
     quality: 0.82,
     extension: "jpg",
     minWidth: 200,
-    minHeight: 150,
+    minHeight: 143,
   },
   logo: {
     id: "logo",
@@ -309,6 +309,16 @@ export async function processImageForUpload(file, presetOrKey = "activityPhoto")
 
   if (preset.id === "adCreative") {
     outputDims = supporterAdOutputDimensions(
+      naturalW,
+      naturalH,
+      preset.maxWidth,
+      preset.maxHeight,
+      preset.minWidth,
+      preset.minHeight
+    );
+    canvas = drawCenterCover(source, outputDims.width, outputDims.height, { fillWhite });
+  } else if (preset.id === "defaultAd") {
+    outputDims = defaultAdOutputDimensions(
       naturalW,
       naturalH,
       preset.maxWidth,

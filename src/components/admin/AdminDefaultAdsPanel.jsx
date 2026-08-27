@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Upload, Trash2, ExternalLink, Plus, Star } from "lucide-react";
 import { DEFAULT_AD_IMAGE_RECOMMENDED } from "@/lib/supporterContent";
+import DefaultAdHomePreview from "@/components/ads/DefaultAdHomePreview";
 import HelpTip from "@/components/shared/HelpTip";
 import { processImageForUpload } from "@/lib/imageProcess";
 
@@ -157,9 +158,7 @@ export default function AdminDefaultAdsPanel({ toast }) {
               {ad ? (
                 <>
                   {ad.image_url && (
-                    <div className="w-full aspect-[600/467] rounded-lg border border-border mb-1 overflow-hidden">
-                      <img src={ad.image_url} alt={ad.ad_name} className="w-full h-full object-cover" />
-                    </div>
+                    <DefaultAdHomePreview imageUrl={ad.image_url} className="mb-1" />
                   )}
                   <p className="text-xs font-medium truncate">{ad.ad_name}</p>
                   <span className={`text-xs px-1.5 py-0.5 rounded-full ${ad.status === "active" ? "bg-mint-100 text-mint-600" : "bg-gray-100 text-gray-500"}`}>{ad.status}</span>
@@ -195,13 +194,9 @@ export default function AdminDefaultAdsPanel({ toast }) {
             <p className="text-xs text-muted-foreground mt-0.5 mb-1">{DEFAULT_AD_IMAGE_RECOMMENDED}</p>
             <div className="mt-2 space-y-2">
               {form.image_url ? (
-                <div className="w-full max-w-sm aspect-[600/467] rounded-xl border border-border overflow-hidden">
-                  <img src={form.image_url} alt="Preview" className="w-full h-full object-cover" />
-                </div>
+                <DefaultAdHomePreview imageUrl={form.image_url} className="max-w-sm" />
               ) : (
-                <div className="w-full max-w-sm aspect-[600/467] rounded-xl bg-muted flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border">
-                  No image
-                </div>
+                <DefaultAdHomePreview className="max-w-sm" />
               )}
               <label className="cursor-pointer inline-block">
                 <span className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-border bg-white hover:bg-muted transition-colors">
@@ -237,9 +232,7 @@ export default function AdminDefaultAdsPanel({ toast }) {
               <div key={ad.id} className="bg-muted/20 rounded-2xl border border-border p-4">
                 <div className="flex items-start gap-4">
                   {ad.image_url && (
-                    <div className="w-28 aspect-[600/467] rounded-xl border border-border shrink-0 overflow-hidden">
-                      <img src={ad.image_url} alt={ad.ad_name} className="w-full h-full object-cover" />
-                    </div>
+                    <DefaultAdHomePreview imageUrl={ad.image_url} className="w-28 shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-2">

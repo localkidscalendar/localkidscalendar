@@ -401,7 +401,7 @@ const categories = [
         technicalOverview:
           "Shared helper src/lib/imageProcess.js (processImageForUpload). Wired in PostEvent.jsx, ProfileTab.jsx, AdLibraryManager.jsx, AdminDefaultAdsPanel.jsx. Uploads go to the public event-media bucket under `{auth.uid()}/…` (RLS enforces the folder).",
         technicalFeatures: [
-          "Presets: activityPhoto ≤1600×1200 JPEG; adCreative ≤1200×800 JPEG (3:2 visible area; homepage footer is separate); defaultAd ≤1200×934 JPEG; logo ≤512×512 PNG (falls back to JPEG if still large)",
+          "Presets: activityPhoto ≤1600×1200 JPEG; adCreative ≤1200×800 JPEG (3:2 visible area; homepage footer is separate); defaultAd ≤1200×858 JPEG (full card height = Supporter 3:2 + footer row, no bar); logo ≤512×512 PNG (falls back to JPEG if still large)",
           "MAX_ORIGINAL_BYTES = 15 MB; MAX_OUTPUT_BYTES_DEFAULT = 2 MB; logo maxOutputBytes = 512 KB",
           "Pipeline: validate original → canvas fitWithin (no upscale) → quality/scale encode → validate result → upload",
           "OpenAI and Storage only see the processed file URL/bytes",
