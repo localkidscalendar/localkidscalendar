@@ -2,6 +2,14 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+export {
+  BETA_ZIPS_HIDDEN_FROM_DISPLAY,
+  sortBetaZips,
+  betaZipsForDisplay,
+  isZipAllowed,
+  betaZipBlockedCopy,
+} from "@/lib/betaZipDisplay.js";
+
 export default function useBetaConfig() {
   const [config, setConfig] = useState({
     enabled: false,
@@ -38,20 +46,4 @@ export default function useBetaConfig() {
   }, []);
 
   return { ...config, loading };
-}
-
-/** True if the zip is allowed under current Stage 2 beta restrictions. */
-export function isZipAllowed(zip, betaConfig) {
-  if (!betaConfig || !betaConfig.enabled) return true;
-  if (!betaConfig.zip_codes || betaConfig.zip_codes.length === 0) return true;
-  return betaConfig.zip_codes.includes(String(zip || "").trim());
-}
-
-/** Shared copy when a zip is outside the Stage 2 whitelist. */
-export function betaZipBlockedCopy(zip) {
-  const z = String(zip || "").trim();
-  return {
-    title: z ? `Zip ${z} isn't in our beta area yet` : "That zip isn't in our beta area yet",
-    description: "See the banner at the top of the site for available locations.",
-  };
 }

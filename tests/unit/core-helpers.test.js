@@ -10,6 +10,7 @@ import { toTitleCaseLabel } from "../../src/lib/titleCase.js";
 import { messageActionPageByHref, MESSAGE_ACTION_PAGES } from "../../src/lib/messageActionPages.js";
 import { pickDefaultFillerAds } from "../../shared/pickDefaultFillerAds.js";
 import { buildCardFeedItems, buildListFeedSegments } from "../../src/lib/feedAdPlacement.js";
+import { betaZipsForDisplay, isZipAllowed } from "../../src/lib/betaZipDisplay.js";
 import { buildDigestHtml, DIGEST_SAMPLE_EVENTS } from "../../shared/digestEmailHtml.js";
 import { parseContactSubmitBody } from "../../api/_lib/contactBotGuards.js";
 import { parseTurnstileVerifyBody } from "../../api/_lib/turnstileFormGuards.js";
@@ -156,6 +157,19 @@ describe("buildDigestHtml", () => {
     expect(html).toContain("Art & Crafts Workshop");
     expect(html).toContain("Hi Alex!");
     expect(html).toContain("unsubscribe?token=test");
+  });
+});
+
+describe("betaZipsForDisplay", () => {
+  const betaConfig = { enabled: true, zip_codes: ["89448", "00000", "89451"] };
+
+  it("hides internal sample zips from public lists", () => {
+    expect(betaZipsForDisplay(betaConfig.zip_codes)).toEqual(["89448", "89451"]);
+  });
+
+  it("still allows hidden zips for isZipAllowed", () => {
+    expect(isZipAllowed("00000", betaConfig)).toBe(true);
+    expect(isZipAllowed("90210", betaConfig)).toBe(false);
   });
 });
 

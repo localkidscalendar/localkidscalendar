@@ -1096,13 +1096,14 @@ const categories = [
           "Stage 2 allowed zip list for listings",
           "Home out-of-area notice + empty activity list (profile zip unchanged)",
           "Post Activity and Ad purchase/waitlist still blocked outside whitelist",
-          "Register / Profile beta zip note only after a 5-digit zip is entered that is outside the whitelist (lists beta zips)",
+          "Register / Profile beta zip note only after a 5-digit zip is entered that is outside the whitelist (lists public beta zips; internal sample zips like 00000 stay allowed but hidden from lists)",
           "Beta banner locations dialog works on mobile (DialogTrigger)",
         ],
         technicalOverview:
           "beta_config; AdminBetaPanel; BetaBanner / BetaStage1Gate; BetaOutOfAreaNotice on Home; isZipAllowed in useBetaConfig.js. Register BetaZipOutsideNote / Profile BetaZipOutsideNote.",
         technicalFeatures: [
           "Publicly readable config for client gates",
+          "betaZipsForDisplay() hides BETA_ZIPS_HIDDEN_FROM_DISPLAY (00000) from banner/Home/Register lists; isZipAllowed still accepts them",
           "create-ad-checkout.js rejects non-whitelist zips when beta.enabled",
           "Home filteredEvents returns [] when session zip is outside Stage 2 list",
         ],

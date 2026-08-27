@@ -9,7 +9,7 @@ import { Upload, Save, Loader2, KeyRound } from "lucide-react";
 import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
 import { processImageForUpload } from "@/lib/imageProcess";
 import { toStrictTitleCase, formatActivityTitle } from "@/lib/titleCase";
-import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig"; // BETA MODE
+import useBetaConfig, { isZipAllowed, betaZipsForDisplay } from "@/lib/useBetaConfig"; // BETA MODE
 
 function namesFromMetadata(meta = {}) {
   const full = (meta.full_name || meta.name || "").trim();
@@ -28,7 +28,8 @@ function BetaZipOutsideNote({ betaConfig, zipCode }) {
   const zip = String(zipCode || "").trim();
   if (!betaConfig?.enabled || zips.length === 0 || zip.length !== 5) return null;
   if (isZipAllowed(zip, betaConfig)) return null;
-  const list = [...zips].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ");
+  const list = betaZipsForDisplay(zips).join(", ");
+  if (!list) return null;
   return (
     <p className="sm:col-span-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
       We are currently in limited areas (beta). Your zip isn’t in our beta test markets

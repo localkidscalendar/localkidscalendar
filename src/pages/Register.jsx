@@ -10,7 +10,7 @@ import TurnstileWidget from "@/components/shared/TurnstileWidget";
 import { Mail, Lock, Loader2, Users, Building2, MapPin, CheckCircle, AlertTriangle } from "lucide-react";
 import { DEFAULT_RADIUS_MILES, normalizeRadiusMiles } from "@/lib/locationDefaults";
 import { toStrictTitleCase, formatActivityTitle } from "@/lib/titleCase";
-import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig"; // BETA MODE
+import useBetaConfig, { isZipAllowed, betaZipsForDisplay } from "@/lib/useBetaConfig"; // BETA MODE
 import { useAuth } from "@/lib/AuthContext";
 import { isProfileComplete } from "@/lib/authRoles";
 import { assertTurnstilePassed } from "@/lib/verifyTurnstileClient";
@@ -27,7 +27,8 @@ function BetaZipOutsideNote({ betaConfig, zipCode }) {
   const zip = String(zipCode || "").trim();
   if (!betaConfig?.enabled || zips.length === 0 || zip.length !== 5) return null;
   if (isZipAllowed(zip, betaConfig)) return null;
-  const list = [...zips].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ");
+  const list = betaZipsForDisplay(zips).join(", ");
+  if (!list) return null;
   return (
     <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed col-span-2">
       We are currently in limited areas (beta). Your zip isn’t in our beta test markets

@@ -1,11 +1,12 @@
 // BETA MODE — temporary banner, safe to remove along with useBetaConfig.js and AdminBetaPanel.jsx
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import useBetaConfig from "@/lib/useBetaConfig";
+import useBetaConfig, { betaZipsForDisplay } from "@/lib/useBetaConfig";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export default function BetaBanner() {
   const { enabled, zip_codes, loading } = useBetaConfig();
+  const displayZips = betaZipsForDisplay(zip_codes);
   const [open, setOpen] = useState(false);
 
   if (loading || !enabled) return null;
@@ -32,11 +33,13 @@ export default function BetaBanner() {
         <DialogHeader>
           <DialogTitle className="font-heading">Available Beta Zip Codes</DialogTitle>
         </DialogHeader>
-        {zip_codes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No zip codes have been added yet.</p>
+        {displayZips.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Available beta areas are limited. Contact us if you need help finding activities near you.
+          </p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {[...zip_codes].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).map((z) => (
+            {displayZips.map((z) => (
               <span key={z} className="px-3 py-1 rounded-full bg-mint-50 text-mint-600 text-sm font-medium">{z}</span>
             ))}
           </div>

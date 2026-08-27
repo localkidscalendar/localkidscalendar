@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import EventCard from "@/components/events/EventCard";
 import EventFilters from "@/components/events/EventFilters";
 import useGeoLocation from "@/lib/useGeoLocation";
-import useBetaConfig, { isZipAllowed } from "@/lib/useBetaConfig";
+import useBetaConfig, { isZipAllowed, betaZipsForDisplay } from "@/lib/useBetaConfig";
 import BetaOutOfAreaNotice from "@/components/beta/BetaOutOfAreaNotice"; // BETA MODE
 import SupporterAdCard from "@/components/ads/SupporterAdCard";
 import DefaultAdCard from "@/components/ads/DefaultAdCard";
@@ -836,7 +836,7 @@ export default function Home() {
       {outsideBetaArea && (
         <BetaOutOfAreaNotice
           zip={filters.zipCode}
-          betaZips={betaConfig.zip_codes}
+          betaZips={betaZipsForDisplay(betaConfig.zip_codes)}
           onSelectZip={(z) => setCurrentZip(z, filters.radiusMiles, { manual: true })}
         />
       )}
