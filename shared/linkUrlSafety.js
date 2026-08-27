@@ -133,3 +133,27 @@ export function validateBusinessLinkUrl(raw) {
 
   return { ok: true, normalizedUrl: parsed.href };
 }
+
+/**
+ * Optional public website — empty is OK; otherwise same rules as Supporter ad links.
+ * @param {string} raw
+ * @returns {{ ok: true, normalizedUrl: string } | { ok: false, reason: string }}
+ */
+export function validateOptionalPublicWebsite(raw) {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return { ok: true, normalizedUrl: "" };
+  return validateBusinessLinkUrl(trimmed);
+}
+
+/**
+ * Required public website (organizer profile, registration).
+ * @param {string} raw
+ * @returns {{ ok: true, normalizedUrl: string } | { ok: false, reason: string }}
+ */
+export function validateRequiredPublicWebsite(raw) {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) {
+    return { ok: false, reason: "A website URL is required." };
+  }
+  return validateBusinessLinkUrl(trimmed);
+}

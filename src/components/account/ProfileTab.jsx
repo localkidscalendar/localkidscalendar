@@ -10,6 +10,7 @@ import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/li
 import { processImageForUpload } from "@/lib/imageProcess";
 import { toStrictTitleCase, formatActivityTitle } from "@/lib/titleCase";
 import useBetaConfig, { isZipAllowed, betaZipsForDisplay } from "@/lib/useBetaConfig"; // BETA MODE
+import { validateRequiredPublicWebsite } from "../../../shared/linkUrlSafety.js";
 
 function namesFromMetadata(meta = {}) {
   const full = (meta.full_name || meta.name || "").trim();
@@ -164,6 +165,12 @@ export default function ProfileTab({ user, setUser }) {
           setSaving(false);
           return;
         }
+        const websiteCheck = validateRequiredPublicWebsite(form.org_website);
+        if (!websiteCheck.ok) {
+          toast({ title: "Invalid organization website", description: websiteCheck.reason, variant: "destructive" });
+          setSaving(false);
+          return;
+        }
       } else if (!isAdmin) {
         if (!nextFirst || !nextLast) {
           toast({ title: "Please enter your first and last name", variant: "destructive" });
@@ -191,12 +198,13 @@ export default function ProfileTab({ user, setUser }) {
       if (profileError) throw profileError;
 
       if (isOrganizer) {
+        const websiteCheck = validateRequiredPublicWebsite(form.org_website);
         const orgData = {
           user_id: user.id,
           org_name: nextOrgName,
           org_description: form.org_description.trim(),
           org_logo: form.org_logo || null,
-          org_website: form.org_website.trim(),
+          org_website: websiteCheck.normalizedUrl,
           org_email: form.org_email.trim(),
           updated_at: new Date().toISOString(),
         };
@@ -236,6 +244,12 @@ export default function ProfileTab({ user, setUser }) {
     }
     setSaving(false);
   };
+
+  const orgWebsiteCheck =
+    !isAdmin && form.role === "organizer" && form.org_website.trim()
+      ? validateRequiredPublicWebsite(form.org_website)
+      : null;
+  const orgWebsiteError = orgWebsiteCheck && !orgWebsiteCheck.ok ? orgWebsiteCheck.reason : "";
 
   return (
     <div className="space-y-6">
@@ -324,7 +338,15 @@ export default function ProfileTab({ user, setUser }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <Label className="text-sm">Website *</Label>
-              <Input value={form.org_website} onChange={(e) => updateField("org_website", e.target.value)} className="rounded-xl mt-1" placeholder="https://yourorg.com" />
+              <Input
+                value={form.org_website}
+                onChange={(e) => updateField("org_website", e.target.value)}
+                className="rounded-xl mt-1"
+                placeholder="https://www.yourorg.com"
+              />
+              {orgWebsiteError && (
+                <p className="text-xs text-red-600 mt-1">{orgWebsiteError}</p>
+              )}
             </div>
             <div className="sm:col-span-2">
               <Label className="text-sm">Organization Email *</Label>

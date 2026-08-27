@@ -19,6 +19,7 @@ import {
   TURNSTILE_ACTION_REGISTER,
   TURNSTILE_HONEYPOT_FIELD,
 } from "../../shared/turnstileFormConstants.js";
+import { validateRequiredPublicWebsite } from "../../shared/linkUrlSafety.js";
 
 const TURNSTILE_SITE_KEY = (import.meta.env.VITE_TURNSTILE_SITE_KEY || "").trim();
 
@@ -208,11 +209,13 @@ export default function Register() {
     if (profileError) throw profileError;
 
     if (isOrganizer) {
+      const websiteCheck = validateRequiredPublicWebsite(orgWebsite);
+      if (!websiteCheck.ok) throw new Error(websiteCheck.reason);
       const { error: orgError } = await supabase.from("organizers").upsert({
         user_id: authUser.id,
         org_name: nextOrgName,
         org_description: orgDescription.trim(),
-        org_website: orgWebsite.trim(),
+        org_website: websiteCheck.normalizedUrl,
         org_email: orgEmail.trim(),
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id" });
@@ -242,6 +245,8 @@ export default function Register() {
       if (!orgName || !orgDescription || !orgWebsite || !orgEmail) {
         return setError("Please complete all required organization fields.");
       }
+      const websiteCheck = validateRequiredPublicWebsite(orgWebsite);
+      if (!websiteCheck.ok) return setError(websiteCheck.reason);
     } else {
       if (!firstName || !lastName) return setError("Please enter your first and last name.");
     }
@@ -334,6 +339,9 @@ export default function Register() {
 
   const finishingExisting = Boolean(user && !isProfileComplete(user));
   const showCompleteFlow = finishingExisting || (completingOAuth && step === 2);
+  const orgWebsiteCheck =
+    role === "organizer" && orgWebsite.trim() ? validateRequiredPublicWebsite(orgWebsite) : null;
+  const orgWebsiteError = orgWebsiteCheck && !orgWebsiteCheck.ok ? orgWebsiteCheck.reason : "";
 
   if (!ready || isLoadingAuth) {
     return (
@@ -566,7 +574,16 @@ export default function Register() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="font-heading font-semibold text-sm">Website *</Label>
-                      <Input value={orgWebsite} onChange={(e) => setOrgWebsite(e.target.value)} className="rounded-xl" placeholder="www.example.com" required />
+                      <Input
+                        value={orgWebsite}
+                        onChange={(e) => setOrgWebsite(e.target.value)}
+                        className="rounded-xl"
+                        placeholder="https://www.example.com"
+                        required
+                      />
+                      {orgWebsiteError && (
+                        <p className="text-xs text-red-600">{orgWebsiteError}</p>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <Label className="font-heading font-semibold text-sm">Org Email *</Label>

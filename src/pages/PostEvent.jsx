@@ -18,6 +18,7 @@ import { ACTIVITY_CATEGORIES, normalizeCategoryList } from "@/lib/activityCatego
 import { Checkbox } from "@/components/ui/checkbox";
 import { moderateEventImage } from "@/lib/moderateEventImage";
 import { formatActivityTitle } from "@/lib/titleCase";
+import { validateOptionalPublicWebsite } from "../../shared/linkUrlSafety.js";
 
 /** Fields that must change when posting from Duplicate (prevents near-identical spam). */
 const DUPLICATE_SIGNIFICANT_FIELDS = [
@@ -311,6 +312,11 @@ export default function PostEvent() {
       toast({ title: "Please wait for your photo review to finish before submitting.", variant: "destructive" });
       return;
     }
+    const websiteCheck = validateOptionalPublicWebsite(form.website);
+    if (!websiteCheck.ok) {
+      toast({ title: "Invalid website URL", description: websiteCheck.reason, variant: "destructive" });
+      return;
+    }
     if (form.end_date && form.start_date && form.end_date < form.start_date) {
       toast({ title: "End date can't be before the start date", variant: "destructive" });
       endDateRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -346,6 +352,7 @@ export default function PostEvent() {
       const { categories: _cats, rules_agreed, ...formRest } = form;
       const data = {
         ...formRest,
+        website: websiteCheck.normalizedUrl || null,
         category: categories,
         subcategory: [],
         classifications: categories.map((c) => ({ category: c })),
@@ -401,6 +408,9 @@ export default function PostEvent() {
     }
     setSubmitting(false);
   };
+
+  const websiteUrlCheck = form.website.trim() ? validateOptionalPublicWebsite(form.website) : null;
+  const websiteUrlError = websiteUrlCheck && !websiteUrlCheck.ok ? websiteUrlCheck.reason : "";
 
   if (loading) {
     return (
@@ -642,7 +652,18 @@ export default function PostEvent() {
               {isOrganizer && (
                 <div><Label className="text-sm">Contact Phone</Label><Input value={form.contact_phone} onChange={(e) => updateField("contact_phone", e.target.value)} className="rounded-xl mt-1" /></div>
               )}
-              <div><Label className="text-sm">Website</Label><Input value={form.website} onChange={(e) => updateField("website", e.target.value)} className="rounded-xl mt-1" placeholder="https://" /></div>
+              <div>
+                <Label className="text-sm">Website</Label>
+                <Input
+                  value={form.website}
+                  onChange={(e) => updateField("website", e.target.value)}
+                  className="rounded-xl mt-1"
+                  placeholder="https://www.yourbusiness.com"
+                />
+                {websiteUrlError && (
+                  <p className="text-xs text-red-600 mt-1">{websiteUrlError}</p>
+                )}
+              </div>
             </div>
           </div>
 

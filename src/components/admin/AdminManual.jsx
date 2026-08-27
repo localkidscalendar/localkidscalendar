@@ -225,6 +225,7 @@ const categories = [
           "Weekly digests intentionally skip organizer and admin recipients (and suspended/disabled)",
           "ProfileTab locks role after registration for non-admins (edit Profile never offers account-type change); admins keep their real role on save",
           "authRoles.isProfileComplete gates app access until zip is set",
+          "Organizer org website: validateRequiredPublicWebsite on Register + ProfileTab (shared/linkUrlSafety.js)",
         ],
       },
       {
@@ -372,6 +373,7 @@ const categories = [
           "Categories / types for camps, classes, sports, etc.",
           "Organizer posts show org branding / highlight styling",
           "Photo optional; auto-resized then AI-reviewed on upload",
+          "Optional website field validated when provided (same public-domain rules as ad links)",
           "Zip must be 5 digits; end date required and on/after start date",
           "Title, venue, and contact name use Soft Title Case",
           "Duplicate posts must change a significant field before re-submit",
@@ -384,6 +386,7 @@ const categories = [
           "HistoryBackLink / navigation history for cancel/back UX where wired",
           "src/lib/imageProcess.js presets: activityPhoto + logo",
           "formatActivityTitle on title, location_name, contact_name",
+          "validateOptionalPublicWebsite (shared/linkUrlSafety.js) on optional activity website",
         ],
       },
       {

@@ -34,7 +34,7 @@ import {
   MAX_ORIGINAL_BYTES,
   MAX_OUTPUT_BYTES_DEFAULT,
 } from "../../src/lib/imageProcess.js";
-import { validateBusinessLinkUrl } from "../../shared/linkUrlSafety.js";
+import { validateBusinessLinkUrl, validateOptionalPublicWebsite, validateRequiredPublicWebsite } from "../../shared/linkUrlSafety.js";
 
 describe("phone helpers", () => {
   it("masks progressive input", () => {
@@ -419,5 +419,13 @@ describe("linkUrlSafety", () => {
   it("rejects unsafe keywords in hostname or path", () => {
     const bad = validateBusinessLinkUrl("https://adult.example.com");
     expect(bad.ok).toBe(false);
+  });
+
+  it("validates optional and required website helpers", () => {
+    expect(validateOptionalPublicWebsite("").ok).toBe(true);
+    expect(validateOptionalPublicWebsite("www.sftahoe").ok).toBe(false);
+    expect(validateOptionalPublicWebsite("https://example.com").ok).toBe(true);
+    expect(validateRequiredPublicWebsite("").ok).toBe(false);
+    expect(validateRequiredPublicWebsite("www.sftahoe.com").ok).toBe(true);
   });
 });
