@@ -14,7 +14,7 @@ import {
   REACTIVATE_MIN_SUBMIT_MS,
   TURNSTILE_ACTION_REACTIVATE,
   TURNSTILE_HONEYPOT_FIELD,
-} from "../../shared/turnstileFormConstants.js";
+} from "../../../shared/turnstileFormConstants.js";
 import moment from "moment";
 import {
   ACCOUNT_DISABLE_GENERAL_IMPACT,
