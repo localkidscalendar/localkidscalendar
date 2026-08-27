@@ -15,6 +15,7 @@ import AdminSectionHeader from "@/components/admin/AdminSectionHeader";
 import AdminPanelShell from "@/components/admin/AdminPanelShell";
 import Paginator, { PAGE_SIZE } from "@/components/admin/Paginator";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
+import SupporterAdHomePreview from "@/components/ads/SupporterAdHomePreview";
 import ActiveAdCard from "@/components/ads/ActiveAdCard";
 import InactiveAdCard from "@/components/ads/InactiveAdCard";
 import WaitlistManager, { joinAdWaitlist } from "@/components/ads/WaitlistManager";
@@ -566,15 +567,30 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
           )}
 
           {selectedAsset && (
-            <div className="flex items-center gap-3 p-3 rounded-2xl bg-mint-50 border border-mint-200">
-              {selectedAsset.image_url && (
-                <img src={selectedAsset.image_url} alt="" className="w-14 h-9 object-cover rounded-lg border border-mint-200 shrink-0" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm">{selectedAsset.ad_name}</p>
-                <p className="text-xs text-mint-600">Selected ✓</p>
+            <div className="space-y-3 rounded-2xl border border-mint-200 bg-mint-50 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{selectedAsset.ad_name}</p>
+                  <p className="text-xs text-mint-600">Selected creative</p>
+                </div>
+                <Button variant="ghost" size="sm" className="text-xs rounded-xl shrink-0" onClick={() => setSelectedAsset(null)}>
+                  Change
+                </Button>
               </div>
-              <Button variant="ghost" size="sm" className="text-xs rounded-xl" onClick={() => setSelectedAsset(null)}>Change</Button>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Homepage preview — zip {form.zip_code || "—"}
+                </p>
+                <div className="max-w-sm">
+                  <SupporterAdHomePreview
+                    imageUrl={selectedAsset.image_url}
+                    zipCode={form.zip_code}
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
+                  Your image is cropped to this frame on the homepage activity feed (same border and size as live Supporter ads).
+                </p>
+              </div>
             </div>
           )}
 
@@ -672,10 +688,24 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
 
       {step === 4 && (
         <div className="space-y-4">
+          {selectedAsset?.image_url && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Homepage preview — zip {form.zip_code}
+              </p>
+              <div className="max-w-sm">
+                <SupporterAdHomePreview
+                  imageUrl={selectedAsset.image_url}
+                  zipCode={form.zip_code}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Black border and crop match how families see your ad on the homepage.
+              </p>
+            </div>
+          )}
+
           <div className="bg-muted/50 rounded-2xl p-4 space-y-2 text-sm">
-            {selectedAsset?.image_url && (
-              <img src={selectedAsset.image_url} alt="" className="w-full max-h-32 object-cover rounded-xl mb-3" />
-            )}
             <div className="flex justify-between"><span className="text-muted-foreground">Creative</span><span className="font-medium">{selectedAsset?.ad_name}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Destination</span><span className="font-medium truncate max-w-[200px]">{selectedAsset?.link_url}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Zip Code</span><span className="font-medium">{form.zip_code}</span></div>
