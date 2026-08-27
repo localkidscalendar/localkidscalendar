@@ -372,3 +372,22 @@ describe("imageProcess sizing helpers", () => {
     expect(MAX_OUTPUT_BYTES_DEFAULT).toBe(2 * 1024 * 1024);
   });
 });
+
+describe("supporterAdDisplay", () => {
+  it("keeps exact 600x400 output dimensions", async () => {
+    const { supporterAdOutputDimensions } = await import("../../src/lib/supporterAdDisplay.js");
+    expect(
+      supporterAdOutputDimensions(600, 400, 1200, 800, 300, 200)
+    ).toEqual({ width: 600, height: 400 });
+  });
+
+  it("center-crops wider sources to 3:2 within max box", async () => {
+    const { supporterAdOutputDimensions } = await import("../../src/lib/supporterAdDisplay.js");
+    expect(
+      supporterAdOutputDimensions(1200, 800, 1200, 800, 300, 200)
+    ).toEqual({ width: 1200, height: 800 });
+    expect(
+      supporterAdOutputDimensions(1200, 600, 1200, 800, 300, 200)
+    ).toEqual({ width: 900, height: 600 });
+  });
+});

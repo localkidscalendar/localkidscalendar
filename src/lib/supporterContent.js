@@ -22,9 +22,9 @@ export const SUPPORTER_RULES = [
   { title: "No Refunds for Policy Violations", text: "Ads removed due to policy violations, community flags, Terms of Service breaches, account suspension, or Admin deactivation of your account are not eligible for refunds or credits, regardless of remaining plan time." },
 ];
 
-/** Display sizes for ad creatives (object-cover frames). Large originals are auto-resized before upload. */
+/** Display sizes for ad creatives (3:2 photo area; footer bar is separate on Home). */
 export const SUPPORTER_AD_IMAGE_RECOMMENDED =
-  `Best fit for the photo area only: ${SUPPORTER_AD_RECOMMENDED_LABEL}, JPG or PNG. The black Supporter bar (zip + link) is added below on the homepage — it does not cover your image. Phone photos are OK — we resize/compress automatically before upload. Keep the main subject centered; edges may crop if the ratio differs.`;
+  `Best fit for the photo area only: ${SUPPORTER_AD_RECOMMENDED_LABEL}, JPG or PNG. The black Supporter bar (zip + link) is added below on the homepage — it does not cover your image. Phone photos are OK — we resize/compress automatically before upload. Non-3:2 images are center-cropped to 3:2 on upload; exact 600×400 fits without cropping.`;
 
 export const DEFAULT_AD_IMAGE_RECOMMENDED =
   "Best fit: 600 × 467 px (taller than Supporter ads — full photo, no footer bar), JPG or PNG. Large files are resized automatically. Keep the main subject centered — the image fills the frame and may crop edges if the ratio differs.";

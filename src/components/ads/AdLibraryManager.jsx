@@ -265,7 +265,7 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                   onClick={() => onSelectAsset && isSelectable && onSelectAsset(asset)}
                 >
                   {asset.image_url && (
-                    <img src={asset.image_url} alt={asset.ad_name} className="w-20 aspect-[3/2] object-cover rounded-lg border border-border shrink-0" />
+                    <img src={asset.image_url} alt={asset.ad_name} className="w-20 aspect-[3/2] object-contain rounded-lg border border-border shrink-0 bg-muted" />
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{asset.ad_name}</p>

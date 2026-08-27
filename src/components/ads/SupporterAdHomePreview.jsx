@@ -1,6 +1,6 @@
 import React from "react";
 import { ExternalLink } from "lucide-react";
-import { SUPPORTER_AD_IMAGE_FRAME_CLASS } from "@/lib/supporterAdDisplay.js";
+import { SUPPORTER_AD_IMAGE_CLASS, SUPPORTER_AD_IMAGE_FRAME_CLASS } from "@/lib/supporterAdDisplay.js";
 
 /**
  * Static frame matching SupporterAdCard on Home (3:2 creative + black footer below).
@@ -21,10 +21,10 @@ export default function SupporterAdHomePreview({
           <img
             src={imageUrl}
             alt=""
-            className="w-full h-full object-cover"
+            className={SUPPORTER_AD_IMAGE_CLASS}
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-peach-50 to-peach-100 flex items-center justify-center text-xs text-muted-foreground">
+          <div className="absolute inset-0 bg-gradient-to-br from-peach-50 to-peach-100 flex items-center justify-center text-xs text-muted-foreground">
             No image
           </div>
         )}

@@ -6,6 +6,8 @@
  * Typical phone photos (3–8 MB+) are accepted as picks; originals over 15 MB fail fast.
  */
 
+import { supporterAdOutputDimensions } from "./supporterAdDisplay.js";
+
 export const MAX_ORIGINAL_BYTES = 15 * 1024 * 1024; // 15 MB — absurd files fail before decode
 export const MAX_OUTPUT_BYTES_DEFAULT = 2 * 1024 * 1024; // 2 MB post-process safety net
 
@@ -142,6 +144,25 @@ function loadImageElement(file) {
   });
 }
 
+/** Decode with EXIF orientation when the browser supports it. */
+async function loadImageSource(file) {
+  if (typeof createImageBitmap === "function") {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch {
+      // Fall back to <img> decode (may ignore EXIF rotation).
+    }
+  }
+  return await loadImageElement(file);
+}
+
+function sourceDimensions(source) {
+  return {
+    width: source.naturalWidth || source.width,
+    height: source.naturalHeight || source.height,
+  };
+}
+
 function canvasToBlob(canvas, mimeType, quality) {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -170,6 +191,39 @@ function drawToCanvas(source, width, height, { fillWhite = false } = {}) {
     ctx.fillRect(0, 0, width, height);
   }
   ctx.drawImage(source, 0, 0, width, height);
+  return canvas;
+}
+
+/** Center-crop source to exact output size (3:2 for Supporter ads). */
+function drawCenterCover(source, width, height, { fillWhite = false } = {}) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new ImageProcessError("This browser can’t process images.");
+  if (fillWhite) {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  const { width: srcW, height: srcH } = sourceDimensions(source);
+  const destRatio = width / height;
+  const srcRatio = srcW / srcH;
+
+  let cropW = srcW;
+  let cropH = srcH;
+  let cropX = 0;
+  let cropY = 0;
+
+  if (srcRatio > destRatio) {
+    cropW = srcH * destRatio;
+    cropX = (srcW - cropW) / 2;
+  } else if (srcRatio < destRatio) {
+    cropH = srcW / destRatio;
+    cropY = (srcH - cropH) / 2;
+  }
+
+  ctx.drawImage(source, cropX, cropY, cropW, cropH, 0, 0, width, height);
   return canvas;
 }
 
@@ -240,9 +294,8 @@ export async function processImageForUpload(file, presetOrKey = "activityPhoto")
 
   validateOriginalImageFile(file, preset);
 
-  const img = await loadImageElement(file);
-  const naturalW = img.naturalWidth || img.width;
-  const naturalH = img.naturalHeight || img.height;
+  const source = await loadImageSource(file);
+  const { width: naturalW, height: naturalH } = sourceDimensions(source);
 
   if (naturalW < preset.minWidth || naturalH < preset.minHeight) {
     throw new ImageProcessError(
@@ -250,9 +303,29 @@ export async function processImageForUpload(file, presetOrKey = "activityPhoto")
     );
   }
 
-  const fitted = fitWithin(naturalW, naturalH, preset.maxWidth, preset.maxHeight);
   const fillWhite = preset.mimeType === "image/jpeg";
-  const canvas = drawToCanvas(img, fitted.width, fitted.height, { fillWhite });
+  let canvas;
+  let outputDims;
+
+  if (preset.id === "adCreative") {
+    outputDims = supporterAdOutputDimensions(
+      naturalW,
+      naturalH,
+      preset.maxWidth,
+      preset.maxHeight,
+      preset.minWidth,
+      preset.minHeight
+    );
+    canvas = drawCenterCover(source, outputDims.width, outputDims.height, { fillWhite });
+  } else {
+    outputDims = fitWithin(naturalW, naturalH, preset.maxWidth, preset.maxHeight);
+    canvas = drawToCanvas(source, outputDims.width, outputDims.height, { fillWhite });
+  }
+
+  if (typeof source.close === "function") {
+    source.close();
+  }
+
   const encoded = await encodeUnderLimit(canvas, preset);
 
   validateProcessedImage(encoded.blob, preset, {
@@ -271,6 +344,9 @@ export async function processImageForUpload(file, presetOrKey = "activityPhoto")
     width: encoded.width,
     height: encoded.height,
     bytes: outFile.size,
-    wasResized: outFile.size !== file.size || fitted.width !== naturalW || fitted.height !== naturalH,
+    wasResized:
+      outFile.size !== file.size ||
+      encoded.width !== naturalW ||
+      encoded.height !== naturalH,
   };
 }

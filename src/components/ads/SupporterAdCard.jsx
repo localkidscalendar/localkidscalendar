@@ -6,16 +6,18 @@ import FlagReportForm, { AD_FLAG_REASONS, FlagWithdrawDialog } from "@/component
 import { useToast } from "@/components/ui/use-toast";
 import { notifyAdAssetDisabled } from "@/lib/quarantineAdLibrary";
 import { alreadyFlaggedMessage, getUserFlagReport, withdrawFlag } from "@/lib/flagReports";
-import { SUPPORTER_AD_IMAGE_FRAME_CLASS } from "@/lib/supporterAdDisplay.js";
+import { SUPPORTER_AD_IMAGE_CLASS, SUPPORTER_AD_IMAGE_FRAME_CLASS } from "@/lib/supporterAdDisplay.js";
 
 export function SupporterAdPlaceholder() {
   // Image area uses 3:2 aspect; black footer is a separate row below (not over the photo).
   return (
     <div className="bg-white rounded-2xl border-2 border-dashed border-peach-200 overflow-hidden animate-settle flex flex-col">
-      <div className={`${SUPPORTER_AD_IMAGE_FRAME_CLASS} bg-gradient-to-br from-peach-50 to-mint-50 flex flex-col items-center justify-center gap-2 px-4 text-center`}>
+      <div className={`${SUPPORTER_AD_IMAGE_FRAME_CLASS} bg-gradient-to-br from-peach-50 to-mint-50`}>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center">
         <Heart className="w-10 h-10 text-peach-300" />
         <p className="font-heading font-semibold text-sm text-peach-600">Your business could shine here!</p>
         <p className="text-xs text-muted-foreground max-w-[200px]">Support local kids. Reach local families.</p>
+        </div>
       </div>
       <div className="bg-black/90 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between gap-2">
         <span className="text-xs text-gray-300">Open spot</span>
@@ -145,10 +147,10 @@ export default function SupporterAdCard({ ad, user, onAssetFlagged }) {
           <img
             src={ad.image_url}
             alt="Supporter ad"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className={`${SUPPORTER_AD_IMAGE_CLASS} group-hover:scale-105 transition-transform duration-500`}
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-peach-50 to-peach-100 flex items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-br from-peach-50 to-peach-100 flex items-center justify-center">
             <Heart className="w-10 h-10 text-peach-300" />
           </div>
         )}
