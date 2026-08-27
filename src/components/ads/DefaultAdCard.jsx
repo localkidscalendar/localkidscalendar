@@ -2,7 +2,7 @@ import React from "react";
 
 /**
  * Default/filler ad — photo only (no footer).
- * h-56 ≈ paid SupporterAdCard total (h-48 creative + black footer).
+ * h-56 ≈ paid SupporterAdCard total (3:2 creative + black footer).
  * object-cover fills the taller frame; keep subject centered when uploading.
  */
 export default function DefaultAdCard({ ad }) {

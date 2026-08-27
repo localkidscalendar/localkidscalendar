@@ -2,13 +2,19 @@
 // Edit this file to update content everywhere it's displayed: the Supporters page,
 // Ad Manager (Rules & Terms tab), and the Advertiser Terms page.
 
+import {
+  SUPPORTER_AD_CREATIVE_HEIGHT,
+  SUPPORTER_AD_CREATIVE_WIDTH,
+  SUPPORTER_AD_RECOMMENDED_LABEL,
+} from "@/lib/supporterAdDisplay.js";
+
 export const SUPPORTER_RULES = [
   { title: "Family-Friendly Content Only", text: "All ads must be appropriate for children and families. Content that is violent, obscene, pornographic, sexually suggestive, or otherwise inappropriate for a family audience will be immediately rejected and removed." },
   { title: "Honest & Accurate Advertising", text: "Ads must accurately represent your business, products, or services. Misleading claims, deceptive pricing, or false statements are strictly prohibited." },
   { title: "Working, Safe Links", text: "All destination URLs must be active, safe, and relevant to your ad content. Links to malware, phishing sites, or unrelated content will result in immediate removal." },
   { title: "Local Community Focus", text: "We prioritize businesses and services that are genuinely relevant to local families and children. Ads should have a clear connection to the community they are targeting." },
   { title: "No Competitor Targeting", text: "Ads may not directly disparage or negatively target competing businesses, organizations, or individuals." },
-  { title: "Image Quality Standards", text: "Ad images must be high resolution, clear, and professional. Blurry, pixelated, or low-quality images that reflect poorly on the platform will not be approved. Best display fit for Supporter ads is 600 × 400 px (3:2 landscape). The site resizes and compresses photos before upload." },
+  { title: "Image Quality Standards", text: `Ad images must be high resolution, clear, and professional. Blurry, pixelated, or low-quality images that reflect poorly on the platform will not be approved. Best display fit for the visible photo area is ${SUPPORTER_AD_RECOMMENDED_LABEL} — the black Supporter bar on the homepage is added below your image, not over it. The site resizes and compresses photos before upload.` },
   { title: "Compliance with Laws", text: "All ads must comply with applicable local, state, and federal laws, including truth-in-advertising standards, privacy laws, and any regulations relevant to your industry." },
   { title: "Community Flagging", text: "Our community of parents can flag ad creatives they feel are inappropriate or spam. Flags attach to the Ad Asset (creative), not a single zip placement — so reports from any zip count together. An asset flagged by 3 or more distinct users is automatically disabled everywhere that creative is running, pending review. Separately, community members may flag a user account for rule violations; repeated or serious reports can lead to suspension or Admin deactivation of the account. Repeated creative or account violations may result in permanent removal without refund." },
   { title: "Replacement Ads", text: "If your ad creative is disabled due to flagging or violation, you must assign a compliant replacement asset before each affected zip spot can go live again. New replacement creatives undergo review." },
@@ -18,14 +24,14 @@ export const SUPPORTER_RULES = [
 
 /** Display sizes for ad creatives (object-cover frames). Large originals are auto-resized before upload. */
 export const SUPPORTER_AD_IMAGE_RECOMMENDED =
-  "Best fit: 600 × 400 px (3:2 landscape), JPG or PNG. Phone photos are OK — we resize/compress automatically before upload. Keep the main subject centered — the image fills the frame and may crop edges if the ratio differs.";
+  `Best fit for the photo area only: ${SUPPORTER_AD_RECOMMENDED_LABEL}, JPG or PNG. The black Supporter bar (zip + link) is added below on the homepage — it does not cover your image. Phone photos are OK — we resize/compress automatically before upload. Keep the main subject centered; edges may crop if the ratio differs.`;
 
 export const DEFAULT_AD_IMAGE_RECOMMENDED =
   "Best fit: 600 × 467 px (taller than Supporter ads — full photo, no footer bar), JPG or PNG. Large files are resized automatically. Keep the main subject centered — the image fills the frame and may crop edges if the ratio differs.";
 
 /** Shown on Ad Library upload so advertisers know what will be declined. */
 export const AD_IMAGE_REVIEW_GUIDELINES = [
-  "Best fit: 600 × 400 px (3:2 landscape) — keep the main subject centered",
+  `Best fit for the photo area only: ${SUPPORTER_AD_RECOMMENDED_LABEL} — footer bar is separate on the homepage`,
   "The site resizes and compresses photos before upload",
   "No nudity, sexual content, or sexually suggestive imagery",
   "No graphic violence, gore, weapons, or hate symbols",

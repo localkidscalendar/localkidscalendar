@@ -1,8 +1,9 @@
 import React from "react";
 import { ExternalLink } from "lucide-react";
+import { SUPPORTER_AD_IMAGE_FRAME_CLASS } from "@/lib/supporterAdDisplay.js";
 
 /**
- * Static frame matching SupporterAdCard on Home (h-48 creative + black footer).
+ * Static frame matching SupporterAdCard on Home (3:2 creative + black footer below).
  * Use in Ad Manager so supporters see exact crop and border before paying.
  */
 export default function SupporterAdHomePreview({
@@ -15,7 +16,7 @@ export default function SupporterAdHomePreview({
       className={`rounded-2xl border-2 border-black bg-white overflow-hidden flex flex-col shadow-sm ${className}`}
       aria-label="Homepage ad preview"
     >
-      <div className="h-48 overflow-hidden bg-muted pointer-events-none">
+      <div className={`${SUPPORTER_AD_IMAGE_FRAME_CLASS} bg-muted pointer-events-none shrink-0`}>
         {imageUrl ? (
           <img
             src={imageUrl}
@@ -28,7 +29,7 @@ export default function SupporterAdHomePreview({
           </div>
         )}
       </div>
-      <div className="bg-black/90 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between gap-2 pointer-events-none">
+      <div className="shrink-0 bg-black/90 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between gap-2 border-t border-black pointer-events-none">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs font-semibold text-white">{zipCode || "—"}</span>
           <span className="text-xs text-gray-300">Supporter</span>

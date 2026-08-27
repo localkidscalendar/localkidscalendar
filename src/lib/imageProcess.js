@@ -32,8 +32,8 @@ export const IMAGE_PRESETS = {
     mimeType: "image/jpeg",
     quality: 0.82,
     extension: "jpg",
-    minWidth: 200,
-    minHeight: 120,
+    minWidth: 300,
+    minHeight: 200,
   },
   defaultAd: {
     id: "defaultAd",
