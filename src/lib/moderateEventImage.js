@@ -1,10 +1,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { apiUrl } from "@/lib/apiBase";
 
-/**
- * Automated activity cover-photo review via hybrid OpenAI Moderation + vision.
- */
-export async function moderateEventImage(imageUrl) {
+async function callPhotoReview(imageUrl, reviewType) {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
   const accessToken = sessionData?.session?.access_token;
@@ -16,7 +13,7 @@ export async function moderateEventImage(imageUrl) {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ image_url: imageUrl }),
+    body: JSON.stringify({ image_url: imageUrl, review_type: reviewType }),
   });
 
   const raw = await res.text();
@@ -39,4 +36,18 @@ export async function moderateEventImage(imageUrl) {
   }
 
   return { status, reason: payload.reason || "" };
+}
+
+/**
+ * Automated activity cover-photo review via hybrid OpenAI Moderation + vision.
+ */
+export async function moderateEventImage(imageUrl) {
+  return callPhotoReview(imageUrl, "activity");
+}
+
+/**
+ * Automated Ad Asset image review (same API path as activity photos, ad-specific prompt).
+ */
+export async function moderateAdCreativeImage(imageUrl) {
+  return callPhotoReview(imageUrl, "ad_creative");
 }

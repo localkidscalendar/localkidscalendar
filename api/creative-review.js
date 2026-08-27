@@ -4,72 +4,9 @@ import {
   reviewImageHybrid,
   AD_CREATIVE_VISION_PROMPT,
 } from "./_lib/imageModeration.js";
+import { validateBusinessLinkUrl } from "../shared/linkUrlSafety.js";
 
-const PRIVATE_HOST_PATTERNS = [
-  /^localhost$/i,
-  /^127\./,
-  /^0\.0\.0\.0$/,
-  /^10\./,
-  /^172\.(1[6-9]|2\d|3[0-1])\./,
-  /^192\.168\./,
-  /^169\.254\./,
-  /^::1$/,
-  /^\[::1\]$/,
-  /^fc00:/i,
-  /^fe80:/i,
-  /\.local$/i,
-  /\.internal$/i,
-];
-
-const UNSAFE_URL_PATTERN =
-  /\b(porn|xxx|adult|sex|escort|nude|onlyfans|camgirl|gambling|casino|weed|cocaine|viagra)\b/i;
-
-function isPrivateOrUnsafeUrl(rawUrl) {
-  let parsed;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    return true;
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return true;
-  return PRIVATE_HOST_PATTERNS.some((pattern) => pattern.test(parsed.hostname));
-}
-
-function normalizeUrl(raw) {
-  const trimmed = (raw || "").trim();
-  if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
-}
-
-async function checkUrlSafety(linkUrl) {
-  let normalizedUrl = normalizeUrl(linkUrl);
-  if (!normalizedUrl) {
-    return { ok: false, reason: "A destination URL is required." };
-  }
-
-  try {
-    const parsed = new URL(normalizedUrl);
-    if (UNSAFE_URL_PATTERN.test(parsed.hostname + parsed.pathname)) {
-      return {
-        ok: false,
-        reason: "The destination URL appears inappropriate for a family audience. Please use a safe, business-related link.",
-      };
-    }
-  } catch {
-    return {
-      ok: false,
-      reason: "The destination URL is not valid. Please enter a full working link (e.g. https://yourbusiness.com).",
-    };
-  }
-
-  if (isPrivateOrUnsafeUrl(normalizedUrl)) {
-    return {
-      ok: false,
-      reason: "The destination URL points to a private or internal address and cannot be used.",
-    };
-  }
-
+async function checkUrlReachability(normalizedUrl) {
   let urlStatus = null;
   try {
     const headCheck = await fetch(normalizedUrl, {
@@ -98,7 +35,17 @@ async function checkUrlSafety(linkUrl) {
     };
   }
 
-  return { ok: true, normalizedUrl };
+  return { ok: true };
+}
+
+async function checkUrlSafety(linkUrl) {
+  const formatCheck = validateBusinessLinkUrl(linkUrl);
+  if (!formatCheck.ok) return formatCheck;
+
+  const reachability = await checkUrlReachability(formatCheck.normalizedUrl);
+  if (!reachability.ok) return reachability;
+
+  return { ok: true, normalizedUrl: formatCheck.normalizedUrl };
 }
 
 export default async function handler(req, res) {

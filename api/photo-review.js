@@ -3,6 +3,7 @@ import {
   getEnv,
   reviewImageHybrid,
   ACTIVITY_PHOTO_VISION_PROMPT,
+  AD_CREATIVE_VISION_PROMPT,
 } from "./_lib/imageModeration.js";
 
 /**
@@ -47,10 +48,14 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "image_url is required" });
     }
 
+    const reviewType = req.body?.review_type === "ad_creative" ? "ad_creative" : "activity";
+    const prompt =
+      reviewType === "ad_creative" ? AD_CREATIVE_VISION_PROMPT : ACTIVITY_PHOTO_VISION_PROMPT;
+
     let aiResult;
     try {
       aiResult = await reviewImageHybrid({
-        prompt: ACTIVITY_PHOTO_VISION_PROMPT,
+        prompt,
         imageUrl,
       });
     } catch (err) {

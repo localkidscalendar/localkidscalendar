@@ -15,6 +15,8 @@ import { deleteAdLibraryAsset } from "@/lib/quarantineAdLibrary";
 import { processImageForUpload } from "@/lib/imageProcess";
 import { formatActivityTitle } from "@/lib/titleCase";
 import SupporterAdHomePreview from "@/components/ads/SupporterAdHomePreview";
+import { validateBusinessLinkUrl } from "../../../shared/linkUrlSafety.js";
+import { moderateAdCreativeImage } from "@/lib/moderateEventImage";
 
 const MOD_CONFIG = {
   pending: { label: "Reviewing…", color: "bg-yellow-100 text-yellow-700", icon: Clock },
@@ -25,14 +27,13 @@ const MOD_CONFIG = {
   manual_review_declined: { label: "Manual Review Decline", color: "bg-red-100 text-red-700", icon: XCircle },
 };
 
-const EMPTY_FORM = { ad_name: "", image_url: "", link_url: "" };
-
-function normalizeUrl(raw) {
-  const trimmed = (raw || "").trim();
-  if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
-}
+const EMPTY_FORM = {
+  ad_name: "",
+  image_url: "",
+  link_url: "",
+  image_review_status: "",
+  image_review_notes: "",
+};
 
 export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = false }) {
   const [assets, setAssets] = useState([]);
@@ -40,6 +41,7 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [reviewingImage, setReviewingImage] = useState(false);
   const [moderating, setModerating] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [previewImage, setPreviewImage] = useState(null);
@@ -105,7 +107,45 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
         .upload(path, processed.file, { upsert: false, contentType: processed.file.type });
       if (uploadError) throw uploadError;
       const { data: publicData } = supabase.storage.from("event-media").getPublicUrl(path);
-      setForm((f) => ({ ...f, image_url: publicData.publicUrl }));
+      const fileUrl = publicData.publicUrl;
+      setForm((f) => ({
+        ...f,
+        image_url: fileUrl,
+        image_review_status: "",
+        image_review_notes: "",
+      }));
+
+      setUploading(false);
+      setReviewingImage(true);
+      try {
+        const result = await moderateAdCreativeImage(fileUrl);
+        setForm((f) => ({
+          ...f,
+          image_review_status: result.status,
+          image_review_notes: result.reason || "",
+        }));
+        if (result.status === "declined") {
+          toast({
+            title: "Image not approved",
+            description: result.reason || "Please upload a different image or request a manual review after saving.",
+            variant: "destructive",
+          });
+        }
+      } catch (modErr) {
+        toast({
+          title: "Image review unavailable",
+          description: modErr.message || "Please try uploading again.",
+          variant: "destructive",
+        });
+        setForm((f) => ({
+          ...f,
+          image_review_status: "declined",
+          image_review_notes: "Automated review could not finish. Please retry or request a manual review.",
+        }));
+      } finally {
+        setReviewingImage(false);
+      }
+      return;
     } catch (err) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
     }
@@ -143,14 +183,33 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
 
   const handleSubmit = async () => {
     if (!form.ad_name || !form.image_url || !form.link_url) return;
+
+    if (form.image_review_status === "declined") {
+      toast({
+        title: "Your ad image wasn't approved",
+        description: form.image_review_notes || "Please upload a different image before saving this asset.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (reviewingImage) {
+      toast({ title: "Please wait for image review to finish before saving.", variant: "destructive" });
+      return;
+    }
+
+    const urlCheck = validateBusinessLinkUrl(form.link_url);
+    if (!urlCheck.ok) {
+      toast({ title: "Invalid destination URL", description: urlCheck.reason, variant: "destructive" });
+      return;
+    }
+
     setModerating("new");
     try {
-      const linkUrl = normalizeUrl(form.link_url);
       const { data: asset, error } = await supabase.from("ad_library").insert({
         user_id: user.id,
         ad_name: form.ad_name.trim(),
         image_url: form.image_url,
-        link_url: linkUrl,
+        link_url: urlCheck.normalizedUrl,
         moderation_status: "pending",
         moderation_notes: "",
         moderation_date: new Date().toISOString(),
@@ -233,6 +292,7 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
           form={form}
           setForm={setForm}
           uploading={uploading}
+          reviewingImage={reviewingImage}
           moderating={moderating === "new"}
           onUpload={handleImageUpload}
           onSubmit={handleSubmit}
@@ -392,7 +452,9 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
   );
 }
 
-function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, onCancel, submitLabel, note }) {
+function AssetForm({ form, setForm, uploading, reviewingImage, moderating, onUpload, onSubmit, onCancel, submitLabel, note }) {
+  const imageDeclined = form.image_review_status === "declined";
+
   return (
     <div className="bg-muted/40 rounded-2xl border border-border p-4 space-y-3">
       {note && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">{note}</p>}
@@ -400,7 +462,7 @@ function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, o
       <div className="bg-white border border-border rounded-xl p-3 space-y-2">
         <p className="text-sm font-semibold text-foreground">Automated image & link review</p>
         <p className="text-xs text-muted-foreground">
-          After you submit, the site automatically checks your image and destination link. If it looks OK, your creative is approved right away. Community flagging catches anything that slips through. If it’s declined, create a new asset or request a manual review.
+          Your image is checked right after upload (like Post Activity). On submit we also verify your destination link. If both pass, your creative is approved immediately. Community flagging catches anything that slips through.
         </p>
         <ul className="space-y-1">
           {AD_IMAGE_REVIEW_GUIDELINES.map((item) => (
@@ -432,15 +494,25 @@ function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, o
           </p>
           <label className="cursor-pointer inline-block">
             <span className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-border bg-white hover:bg-muted transition-colors">
-              {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-              {uploading ? "Uploading…" : form.image_url ? "Replace Image" : "Upload Image"}
+              {(uploading || reviewingImage) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+              {reviewingImage ? "Reviewing image…" : uploading ? "Uploading…" : form.image_url ? "Replace Image" : "Upload Image"}
             </span>
-            <input type="file" accept="image/*" className="hidden" onChange={onUpload} />
+            <input type="file" accept="image/*" className="hidden" onChange={onUpload} disabled={uploading || reviewingImage} />
           </label>
+          {imageDeclined && (
+            <div className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              <p>{form.image_review_notes || "This image doesn't meet our community guidelines."}</p>
+              <p className="mt-1 text-red-600/80">Upload a different image before submitting this asset.</p>
+            </div>
+          )}
+          {form.image_review_status === "approved" && form.image_url && !reviewingImage && (
+            <p className="text-xs text-mint-600">Image passed automated review.</p>
+          )}
         </div>
       </div>
       <div>
         <Label>Destination URL *</Label>
+        <p className="text-xs text-muted-foreground mt-0.5 mb-1">Must be a full public website link (e.g. https://yourbusiness.com).</p>
         <Input className="mt-1" placeholder="https://yourbusiness.com" value={form.link_url} onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} />
       </div>
       <div className="flex gap-2">
@@ -448,7 +520,7 @@ function AssetForm({ form, setForm, uploading, moderating, onUpload, onSubmit, o
         <Button
           size="sm"
           className="rounded-xl bg-mint-500 hover:bg-mint-600 text-white"
-          disabled={!form.ad_name || !form.image_url || !form.link_url || moderating}
+          disabled={!form.ad_name || !form.image_url || !form.link_url || moderating || reviewingImage || imageDeclined}
           onClick={onSubmit}
         >
           {moderating ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> Reviewing…</> : submitLabel}

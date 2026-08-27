@@ -679,19 +679,20 @@ const categories = [
         title: "Ad Creative Review",
         keywords: ["moderation api", "openai", "vision", "ad review", "url check", "hybrid"],
         overview:
-          "On submit, destination URL safety is checked first (separately from images). Ad images are resized/compressed in the browser first, then go through the same hybrid flow as activity photos: free Moderation API first, custom vision only for gray scores, still one seamless review for the Supporter. Declines from either image phase (or from URL checks) can request Admin → Reviews → Advertising Manual Review. Status changes that hurt the Supporter require an explanation and notify them.",
+          "On submit, destination URL safety is checked (public domain with a dot required, e.g. .com, plus private-host, keyword, and 404 checks). Ad images are resized/compressed in the browser, then reviewed on upload like Post Activity (Moderation API first, custom vision on gray scores). Submit runs creative-review for URL reachability and final status. Declines can request Admin → Reviews → Advertising Manual Review.",
         features: [
           "Client resize/compress before upload (adCreative preset)",
-          "Separate URL safety checks (invalid, private, unsafe keywords, 404)",
+          "Image review immediately after upload (like Post Activity)",
+          "URL checks on submit (domain required, private hosts, unsafe keywords, 404)",
           "Hybrid image review (Moderation API → custom vision when needed)",
           "Natural-language decline reasons",
           "Manual review after automated decline",
           "Required admin reason on damaging actions",
         ],
         technicalOverview:
-          "AdLibraryManager processImageForUpload → event-media → /api/creative-review (URL then reviewImageHybrid); ManualReviewPanel; AdminAdsPanel. Client: moderateAdContent.js + imageProcess.js.",
+          "AdLibraryManager: processImageForUpload → event-media → moderateAdCreativeImage (/api/photo-review review_type=ad_creative) on upload; validateBusinessLinkUrl (shared/linkUrlSafety.js) on submit; /api/creative-review for URL reachability + final status. ManualReviewPanel; AdminAdsPanel.",
         technicalFeatures: [
-          "URL declined before any OpenAI image call",
+          "shared/linkUrlSafety.js — validateBusinessLinkUrl (client + creative-review)",
           "Image phases same thresholds as activity photos (api/_lib/imageModeration.js)",
           "Fail-open image approve if OPENAI_API_KEY missing (URL checks still run)",
         ],

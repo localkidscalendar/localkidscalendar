@@ -34,6 +34,7 @@ import {
   MAX_ORIGINAL_BYTES,
   MAX_OUTPUT_BYTES_DEFAULT,
 } from "../../src/lib/imageProcess.js";
+import { validateBusinessLinkUrl } from "../../shared/linkUrlSafety.js";
 
 describe("phone helpers", () => {
   it("masks progressive input", () => {
@@ -397,5 +398,19 @@ describe("supporterAdDisplay", () => {
     expect(
       defaultAdOutputDimensions(600, 429, 1200, 858, 200, 143)
     ).toEqual({ width: 600, height: 429 });
+  });
+});
+
+describe("linkUrlSafety", () => {
+  it("requires a public domain with a dot", () => {
+    expect(validateBusinessLinkUrl("https://yourbusiness.com").ok).toBe(true);
+    expect(validateBusinessLinkUrl("yourbusiness.com").ok).toBe(true);
+    expect(validateBusinessLinkUrl("mybusiness").ok).toBe(false);
+    expect(validateBusinessLinkUrl("https://foo").ok).toBe(false);
+  });
+
+  it("rejects unsafe keywords in hostname or path", () => {
+    const bad = validateBusinessLinkUrl("https://adult.example.com");
+    expect(bad.ok).toBe(false);
   });
 });
