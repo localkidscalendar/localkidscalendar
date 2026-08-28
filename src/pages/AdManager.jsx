@@ -685,6 +685,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
           <AdLibraryManager
             key={`select-${libraryRefreshKey}`}
             user={user}
+            selectedAssetId={selectedAsset?.id}
             onSelectAsset={(asset) => setSelectedAsset(asset)}
           />
 

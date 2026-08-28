@@ -35,7 +35,7 @@ const EMPTY_FORM = {
   image_review_notes: "",
 };
 
-export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = false }) {
+export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = false, selectedAssetId = null }) {
   const [assets, setAssets] = useState([]);
   const [inUseAssetIds, setInUseAssetIds] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
@@ -315,14 +315,24 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
             const isAnyDeclined = isDeclined || isManualDeclined || isFlaggedAsset;
             const isManualPending = asset.moderation_status === "manual_review";
             const isSelectable = isApproved && !isFlaggedAsset;
+            const isSelected = Boolean(selectedAssetId && asset.id === selectedAssetId);
 
             const isInUse = inUseAssetIds.has(asset.id);
 
             return (
-              <div key={asset.id} className="rounded-2xl border bg-white overflow-hidden">
+              <div
+                key={asset.id}
+                className={`rounded-2xl border bg-white overflow-hidden ${
+                  isSelected ? "border-mint-400 ring-1 ring-mint-200" : ""
+                }`}
+              >
                 <div
-                  className={`flex items-center gap-3 p-3 ${onSelectAsset && isSelectable ? "cursor-pointer hover:border-mint-300" : ""}`}
-                  onClick={() => onSelectAsset && isSelectable && onSelectAsset(asset)}
+                  className={`flex items-center gap-3 p-3 ${
+                    onSelectAsset && isSelectable && !isSelected
+                      ? "cursor-pointer hover:border-mint-300"
+                      : ""
+                  } ${isSelected ? "bg-mint-50/80" : ""}`}
+                  onClick={() => onSelectAsset && isSelectable && !isSelected && onSelectAsset(asset)}
                 >
                   {asset.image_url && (
                     <img src={asset.image_url} alt={asset.ad_name} className="w-20 aspect-[3/2] object-contain rounded-lg border border-border shrink-0 bg-muted" />
@@ -338,10 +348,16 @@ export default function AdLibraryManager({ user, onSelectAsset, allowAddNew = fa
                           In use
                         </span>
                       )}
+                      {isSelected && (
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium bg-mint-100 text-mint-700">
+                          <CheckCircle className="w-3 h-3" />
+                          Selected
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    {onSelectAsset && isSelectable && (
+                    {onSelectAsset && isSelectable && !isSelected && (
                       <Button size="sm" className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white" onClick={() => onSelectAsset(asset)}>
                         Use
                       </Button>
