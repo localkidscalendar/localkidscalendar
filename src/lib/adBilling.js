@@ -112,6 +112,11 @@ export async function cancelAdRenewal({ ad_id } = {}) {
   return postJson("/api/cancel-ad-renewal", { ad_id });
 }
 
+/** Turn auto-renew back on before the 14-day renewal lock window. */
+export async function resumeAdRenewal({ ad_id } = {}) {
+  return postJson("/api/resume-ad-renewal", { ad_id });
+}
+
 /** Schedule or cancel a monthly ↔ annual plan switch at next renewal. */
 export async function requestAdPlanChange({ ad_id, action } = {}) {
   return postJson("/api/request-ad-plan-change", { ad_id, action });

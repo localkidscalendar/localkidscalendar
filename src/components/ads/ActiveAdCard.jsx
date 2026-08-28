@@ -3,7 +3,7 @@ import moment from "moment";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import {
-  Loader2, ImagePlus, TrendingUp, BellOff, CreditCard,
+  Loader2, ImagePlus, TrendingUp, BellOff, CreditCard, RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
@@ -13,7 +13,14 @@ import {
   getAdPaymentMethod,
   openBillingPortal,
   requestAdPlanChange,
+  resumeAdRenewal,
 } from "@/lib/adBilling";
+import {
+  RENEWAL_CANCELLATION_WINDOW_DAYS,
+  canResumeAutoRenew,
+  renewalDeadline,
+  daysUntilDate,
+} from "../../../shared/adRenewalPolicy.js";
 
 const STATUS_CONFIG = {
   pending_payment: { label: "Pending Payment", color: "bg-yellow-100 text-yellow-700" },
@@ -35,6 +42,8 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   const [creativeLoading, setCreativeLoading] = useState(false);
   const [showNonRenewConfirm, setShowNonRenewConfirm] = useState(false);
   const [nonRenewLoading, setNonRenewLoading] = useState(false);
+  const [showResumeRenewConfirm, setShowResumeRenewConfirm] = useState(false);
+  const [resumeRenewLoading, setResumeRenewLoading] = useState(false);
   const [planSwitchLoading, setPlanSwitchLoading] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [cardLoading, setCardLoading] = useState(false);
@@ -43,7 +52,9 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   const cfg = STATUS_CONFIG[ad.status] || STATUS_CONFIG.pending_review;
   const renewalDate = ad.next_renewal_date ? moment(ad.next_renewal_date) : null;
   const daysUntilRenewal = renewalDate ? renewalDate.diff(moment(), "days") : null;
-  const withinCancellationWindow = daysUntilRenewal !== null && daysUntilRenewal < 14;
+  const withinCancellationWindow = daysUntilRenewal !== null && daysUntilRenewal < RENEWAL_CANCELLATION_WINDOW_DAYS;
+  const resumeAutoRenewAllowed = ad.auto_renew === false && canResumeAutoRenew(ad);
+  const daysUntilDeadline = daysUntilDate(renewalDeadline(ad));
   const nextTermEnd = renewalDate
     ? moment(renewalDate).add(1, ad.plan_type === "annual" ? "year" : "month").format("MMM D, YYYY")
     : null;
@@ -88,8 +99,8 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   const handlePlanSwitch = async () => {
     if (ad.auto_renew === false) {
       toast({
-        title: "Turn off Non-renew first",
-        description: "Plan switches apply at renewal, so auto-renew must stay on.",
+        title: "Turn auto-renew back on first",
+        description: "Plan switches apply at renewal, so auto-renew must be on.",
         variant: "destructive",
       });
       return;
@@ -180,6 +191,24 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
     setNonRenewLoading(false);
+  };
+
+  const handleResumeAutoRenew = async () => {
+    setResumeRenewLoading(true);
+    try {
+      await resumeAdRenewal({ ad_id: ad.id });
+      toast({
+        title: "Auto-renew restored",
+        description: renewalDate
+          ? `Your ad will renew on ${renewalDate.format("MMM D, YYYY")} and continue billing after that.`
+          : "Your ad will renew automatically at the end of the current term.",
+      });
+      setShowResumeRenewConfirm(false);
+      onRefresh?.();
+    } catch (err) {
+      toast({ title: "Could not restore auto-renew", description: err.message, variant: "destructive" });
+    }
+    setResumeRenewLoading(false);
   };
 
   const renewalLine = (() => {
@@ -301,6 +330,16 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
             <BellOff className="w-3 h-3 mr-1" /> Set Non-Renew
           </Button>
         ) : null}
+        {ad.auto_renew === false && resumeAutoRenewAllowed && !showResumeRenewConfirm ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl h-7 text-xs border-mint-200 text-mint-700 hover:bg-mint-50"
+            onClick={() => setShowResumeRenewConfirm(true)}
+          >
+            <RefreshCw className="w-3 h-3 mr-1" /> Turn Auto-Renew Back On
+          </Button>
+        ) : null}
       </div>
 
       <div className="mt-2 grid grid-cols-4 gap-1.5">
@@ -322,6 +361,17 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
           Switching to {upgradePending ? "Annual" : "Monthly"} at renewal
           {renewalDate ? <> (<strong>{renewalDate.format("MMM D, YYYY")}</strong>)</> : null}.
           You’ll get a My Messages notice when the rate is locked in (~21 days before renewal). The locked rate uses published pricing at that time — not the rate shown when you schedule the switch.
+        </div>
+      ) : null}
+
+      {ad.auto_renew === false && !resumeAutoRenewAllowed && daysUntilDeadline !== null && daysUntilDeadline >= 0 ? (
+        <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 text-[11px] text-amber-800">
+          <p className="font-semibold">Auto-renew cannot be turned back on</p>
+          <p className="mt-0.5">
+            Your renewal is within {RENEWAL_CANCELLATION_WINDOW_DAYS} days
+            {renewalDate ? <> (<strong>{renewalDate.format("MMM D, YYYY")}</strong>)</> : null}.
+            This ad will end at the close of the current paid term.
+          </p>
         </div>
       ) : null}
 
@@ -357,6 +407,43 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
           ) : (
             <AdLibraryManager user={user} onSelectAsset={handleChangeCreative} />
           )}
+        </div>
+      ) : null}
+
+      {showResumeRenewConfirm ? (
+        <div className="mt-2 bg-mint-50 border border-mint-200 rounded-xl p-3 text-xs space-y-2">
+          <p className="font-semibold text-mint-800">Turn auto-renew back on?</p>
+          <p className="text-mint-700">
+            Your ad will keep renewing
+            {renewalDate ? (
+              <>
+                {" "}
+                starting <strong>{renewalDate.format("MMM D, YYYY")}</strong>
+              </>
+            ) : (
+              " at the end of the current term"
+            )}
+            . You can set non-renew again later, at least {RENEWAL_CANCELLATION_WINDOW_DAYS} days before renewal.
+          </p>
+          <div className="flex gap-2 pt-1">
+            <Button
+              size="sm"
+              className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white"
+              disabled={resumeRenewLoading}
+              onClick={handleResumeAutoRenew}
+            >
+              {resumeRenewLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+              Confirm Auto-Renew
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-xl h-7 text-xs"
+              onClick={() => setShowResumeRenewConfirm(false)}
+            >
+              Cancel
+            </Button>
+          </div>
         </div>
       ) : null}
 

@@ -744,16 +744,18 @@ const categories = [
         features: [
           "Stripe monthly/annual",
           "My Active Ads: masked card on file (brand, last4, expiry) plus Update Payment Method via Stripe Customer Portal",
+          "Set Non-Renew (cancel_at_period_end); Turn Auto-Renew Back On while still ≥14 days before renewal",
           "7-day grace on payment failure (cron cleanup 10:00 AM PT)",
           "14-day cancel warning UI",
           "21-day renewal-soon notices (in-app; cron 9:00 AM PT)",
         ],
         technicalOverview:
-          "api/stripe-webhook.js; cancel-ad-renewal; billing-portal; ad-payment-method; cron-grace-period-cleanup (10:00 AM PT); cron-renewal-reminders (9:00 AM PT); adBillingNotices.js. Full table: Scheduled Jobs (Crons).",
+          "api/stripe-webhook.js; cancel-ad-renewal; resume-ad-renewal; billing-portal; ad-payment-method; shared/adRenewalPolicy.js (14-day lock); cron-grace-period-cleanup (10:00 AM PT); cron-renewal-reminders (9:00 AM PT); adBillingNotices.js. Full table: Scheduled Jobs (Crons).",
         technicalFeatures: [
           "invoice.payment_failed → notifyPaymentFailed (message + email)",
           "invoice.payment_succeeded → renew notices / plan switches as applicable",
           "ActiveAdCard loads /api/ad-payment-method (brand/last4/exp only) and opens /api/billing-portal to update the card; full numbers stay in Stripe",
+          "resume-ad-renewal clears Stripe cancel_at_period_end and sets banner_ads.auto_renew true when outside 14-day window",
         ],
       },
       {
