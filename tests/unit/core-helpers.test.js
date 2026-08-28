@@ -107,11 +107,25 @@ describe("feedAdPlacement", () => {
   const events = (n) => Array.from({ length: n }, (_, i) => ({ id: `e${i + 1}` }));
   const ads = (n) => Array.from({ length: n }, (_, i) => ({ type: "paid", ad: { id: `a${i + 1}` } }));
 
-  it("cards: dumps ads after events when fewer than 6 activities", () => {
+  it("cards: dumps ads after events when fewer than one full row of activities", () => {
+    const items = buildCardFeedItems(events(2), ads(3), 0);
+    expect(items.map((x) => x.type)).toEqual([
+      "event", "event", "ad", "ad", "ad",
+    ]);
+  });
+
+  it("cards: interleaves ads into first rows when at least 3 activities", () => {
     const items = buildCardFeedItems(events(3), ads(3), 0);
     expect(items.map((x) => x.type)).toEqual([
-      "event", "event", "event", "ad", "ad", "ad",
+      "ad", "event", "event",
+      "event", "ad", "ad",
     ]);
+    expect(items[0].type).toBe("ad");
+  });
+
+  it("cards: rotationIndex moves first-row ad across columns", () => {
+    const items = buildCardFeedItems(events(6), ads(1), 1);
+    expect(items.slice(0, 3).map((x) => x.type)).toEqual(["event", "ad", "event"]);
   });
 
   it("cards: places first three ads in first three rows then content gap before 4th", () => {

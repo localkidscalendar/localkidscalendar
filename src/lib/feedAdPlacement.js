@@ -10,7 +10,8 @@
  */
 
 export const CARD_COLS = 3;
-export const CARD_MIN_EVENTS_TO_INTERLEAVE = 6;
+/** Interleave when at least one full card row of activities (otherwise ads append after events). */
+export const CARD_MIN_EVENTS_TO_INTERLEAVE = CARD_COLS;
 /** Ad-rows per wave, then one content-only row. */
 export const CARD_AD_ROWS_PER_WAVE = 3;
 export const CARD_CONTENT_GAP_ROWS = 1;
