@@ -653,10 +653,10 @@ const categories = [
           "Usage limits and personal codes",
           "All / Active / Inactive filter pills",
           "Usage History expand link (user name + timestamp, chronological)",
-          "Live discount preview at plan step",
+          "Live discount preview on Review step (Apply) and pending-payment resume via /api/validate-ad-discount",
         ],
         technicalOverview:
-          "discount_codes validated in create-ad-checkout (null expires_date never expires by date; status must be active). Stripe coupon duration: once (1 cycle), repeating (N cycles), or forever (renewals_applicable ≤ 0). Deactivate blocks new checkouts only. Successful checkout appends used_by_records via stripe-webhook.",
+          "discount_codes validated in create-ad-checkout and /api/validate-ad-discount (null expires_date never expires by date; status must be active). Invalid codes block checkout with a clear error. Stripe coupon duration: once (1 cycle), repeating (N cycles), or forever (renewals_applicable ≤ 0). Deactivate blocks new checkouts only. Successful checkout appends used_by_records via stripe-webhook.",
         technicalFeatures: [
           "DiscountCodesPanel in Admin → Ads → Discounts; empty date uses data-empty muted placeholder styling",
           "stripe-webhook checkout.session.completed increments times_used and appends used_by_records (user_name, used_date)",

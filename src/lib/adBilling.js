@@ -74,8 +74,13 @@ export async function createAdCheckout({
 }
 
 /** Resume Stripe Checkout for an ad left in pending_payment (e.g. user backed out of Stripe). */
-export async function resumeAdCheckout({ ad_id, success_url, cancel_url } = {}) {
-  return postJson("/api/resume-ad-checkout", { ad_id, success_url, cancel_url });
+export async function resumeAdCheckout({ ad_id, success_url, cancel_url, discount_code } = {}) {
+  return postJson("/api/resume-ad-checkout", { ad_id, success_url, cancel_url, discount_code });
+}
+
+/** Validate a discount code and return pricing preview before Stripe Checkout. */
+export async function validateAdDiscount({ discount_code, plan_type } = {}) {
+  return postJson("/api/validate-ad-discount", { discount_code, plan_type });
 }
 
 /** Open the Stripe billing portal for an ad's subscription. Returns the portal URL. */

@@ -20,7 +20,7 @@ import ActiveAdCard from "@/components/ads/ActiveAdCard";
 import InactiveAdCard from "@/components/ads/InactiveAdCard";
 import WaitlistManager, { joinAdWaitlist } from "@/components/ads/WaitlistManager";
 import CurrentAdRates from "@/components/ads/CurrentAdRates";
-import { createAdCheckout } from "@/lib/adBilling";
+import { createAdCheckout, validateAdDiscount } from "@/lib/adBilling";
 import { SUPPORTER_RULES, TOS_INTRO, TOS_SECTIONS, TOS_FOOTER } from "@/lib/supporterContent";
 import { countOpenAdSlots, SLOT_HOLDING_STATUSES } from "@/lib/waitlistQueue";
 import useBetaConfig, { isZipAllowed, betaZipBlockedCopy } from "@/lib/useBetaConfig"; // BETA MODE
@@ -38,6 +38,20 @@ const chipClass = (active) =>
       ? "border-mint-300 bg-mint-50 text-mint-700"
       : "border-border bg-white hover:bg-mint-50 hover:border-mint-200 hover:text-mint-700 text-muted-foreground"
   }`;
+
+function formatAdAmount(amount, planType) {
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return "—";
+  const formatted = Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2);
+  return planType === "annual" ? `$${formatted}/yr` : `$${formatted}/mo`;
+}
+
+function formatDollars(amount) {
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return "—";
+  const formatted = Number.isInteger(value) ? value.toLocaleString() : value.toFixed(2);
+  return `$${formatted}`;
+}
 
 const RESERVATION_MINUTES = 10;
 
@@ -180,6 +194,8 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
     exactZip: false,
     noRefunds: false,
   });
+  const [discountPreview, setDiscountPreview] = useState(null);
+  const [discountApplying, setDiscountApplying] = useState(false);
   const allAgreementsChecked = agreements.terms && agreements.exactZip && agreements.noRefunds;
 
   useEffect(() => {
@@ -244,6 +260,72 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
   }, [prefill?.zip_code, prefill?.plan_type, prefill?.waitlist_entry_id, user?.id]);
 
   const annualPrice = Math.round(Number(pricing.monthly_rate) * 12 * (1 - Number(pricing.annual_discount_percent) / 100));
+  const baseAmount = form.plan_type === "annual" ? annualPrice : Number(pricing.monthly_rate);
+  const discountApplied =
+    discountPreview?.valid &&
+    discountPreview.code &&
+    discountPreview.plan_type === form.plan_type &&
+    (form.discount_code || "").trim().toUpperCase() === discountPreview.code;
+  const amountDue = discountApplied ? discountPreview.discounted_amount : baseAmount;
+
+  useEffect(() => {
+    setDiscountPreview(null);
+  }, [form.plan_type]);
+
+  const handleApplyDiscount = async () => {
+    const code = form.discount_code.trim();
+    if (!code) {
+      setDiscountPreview(null);
+      return;
+    }
+    setDiscountApplying(true);
+    try {
+      const result = await validateAdDiscount({
+        discount_code: code,
+        plan_type: form.plan_type,
+      });
+      setDiscountPreview(result);
+      if (!result.valid) {
+        toast({
+          title: "Discount code not valid",
+          description: result.error,
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      setDiscountPreview(null);
+      toast({ title: "Could not validate code", description: err.message, variant: "destructive" });
+    }
+    setDiscountApplying(false);
+  };
+
+  const ensureDiscountReady = async () => {
+    const code = form.discount_code.trim();
+    if (!code) return true;
+
+    if (
+      discountPreview?.valid &&
+      discountPreview.code === code.toUpperCase() &&
+      discountPreview.plan_type === form.plan_type
+    ) {
+      return true;
+    }
+
+    const result = await validateAdDiscount({
+      discount_code: code,
+      plan_type: form.plan_type,
+    });
+    setDiscountPreview(result);
+    if (!result.valid) {
+      toast({
+        title: "Discount code not valid",
+        description: result.error || "Apply a valid code before continuing to payment.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
 
   const checkZipAvailability = async () => {
     const zip = form.zip_code.trim();
@@ -327,6 +409,12 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
     }
     setSubmitting(true);
     try {
+      const discountOk = await ensureDiscountReady();
+      if (!discountOk) {
+        setSubmitting(false);
+        return;
+      }
+
       const result = await createAdCheckout({
         plan_type: form.plan_type,
         zip_code: zip,
@@ -712,13 +800,30 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
             <div className="flex justify-between">
               <span className="text-muted-foreground">Plan</span>
               <span className="font-medium capitalize">
-                {form.plan_type} — {form.plan_type === "annual" ? `$${annualPrice.toLocaleString()}/yr` : `$${pricing.monthly_rate}/mo`}
+                {form.plan_type} — {formatAdAmount(baseAmount, form.plan_type)}
               </span>
             </div>
+            {discountApplied ? (
+              <div className="flex justify-between text-mint-700">
+                <span>Discount ({discountPreview.discount_percent}% off)</span>
+                <span className="font-medium">
+                  You save {formatDollars(discountPreview.original_amount - discountPreview.discounted_amount)}
+                </span>
+              </div>
+            ) : null}
             <div className="flex justify-between pt-2 border-t border-border">
               <span className="text-muted-foreground font-medium">Amount due today</span>
               <span className="font-semibold text-foreground">
-                {form.plan_type === "annual" ? `$${annualPrice.toLocaleString()}/yr` : `$${pricing.monthly_rate}/mo`}
+                {discountApplied ? (
+                  <>
+                    <span className="text-muted-foreground line-through font-normal mr-2">
+                      {formatAdAmount(baseAmount, form.plan_type)}
+                    </span>
+                    {formatAdAmount(amountDue, form.plan_type)}
+                  </>
+                ) : (
+                  formatAdAmount(amountDue, form.plan_type)
+                )}
               </span>
             </div>
           </div>
@@ -727,13 +832,38 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
             <label className="text-xs font-medium flex items-center gap-1 mb-1">
               <Tag className="w-3 h-3" /> Discount code (optional)
             </label>
-            <Input
-              placeholder="e.g. LAUNCH20"
-              value={form.discount_code}
-              onChange={(e) => setForm((f) => ({ ...f, discount_code: e.target.value.toUpperCase() }))}
-              className="rounded-xl"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Applied at Stripe Checkout if valid.</p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="e.g. LAUNCH20"
+                value={form.discount_code}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, discount_code: e.target.value.toUpperCase() }));
+                  setDiscountPreview(null);
+                }}
+                className="rounded-xl flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-xl shrink-0"
+                disabled={discountApplying || !form.discount_code.trim()}
+                onClick={handleApplyDiscount}
+              >
+                {discountApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+              </Button>
+            </div>
+            {discountApplied ? (
+              <p className="text-xs text-mint-700 mt-1.5">
+                <CheckCircle className="w-3 h-3 inline mr-1" />
+                Code <strong>{discountPreview.code}</strong> applied — {discountPreview.renewals_label}.
+              </p>
+            ) : discountPreview && !discountPreview.valid ? (
+              <p className="text-xs text-destructive mt-1.5">{discountPreview.error}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Apply your code here to see the discounted rate before Stripe Checkout.
+              </p>
+            )}
           </div>
 
           <div className="space-y-3 rounded-2xl border border-border bg-muted/30 p-4">

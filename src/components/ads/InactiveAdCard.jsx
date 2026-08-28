@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import moment from "moment";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Loader2, ImagePlus, CreditCard, XCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, ImagePlus, CreditCard, XCircle, Tag, CheckCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
-import { openBillingPortal, resumeAdCheckout } from "@/lib/adBilling";
+import { openBillingPortal, resumeAdCheckout, validateAdDiscount } from "@/lib/adBilling";
 
 // Statuses where the Supporter can swap creative and go live again immediately.
 const RECOVERABLE_STATUSES = ["flagged", "rejected"];
@@ -58,6 +59,28 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
   const [portalLoading, setPortalLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [discountCode, setDiscountCode] = useState(ad.discount_code_used || "");
+  const [discountPreview, setDiscountPreview] = useState(null);
+  const [discountApplying, setDiscountApplying] = useState(false);
+
+  useEffect(() => {
+    if (ad.status !== "pending_payment" || !ad.discount_code_used) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await validateAdDiscount({
+          discount_code: ad.discount_code_used,
+          plan_type: ad.plan_type,
+        });
+        if (!cancelled) setDiscountPreview(result);
+      } catch {
+        // Preview is optional on load.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ad.id, ad.status, ad.discount_code_used, ad.plan_type]);
 
   const handleOpenBillingPortal = async () => {
     setPortalLoading(true);
@@ -112,14 +135,76 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
     setCreativeLoading(false);
   };
 
+  const handleApplyDiscount = async () => {
+    const code = discountCode.trim();
+    if (!code) {
+      setDiscountPreview(null);
+      return;
+    }
+    setDiscountApplying(true);
+    try {
+      const result = await validateAdDiscount({
+        discount_code: code,
+        plan_type: ad.plan_type,
+      });
+      setDiscountPreview(result);
+      if (!result.valid) {
+        toast({
+          title: "Discount code not valid",
+          description: result.error,
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      setDiscountPreview(null);
+      toast({ title: "Could not validate code", description: err.message, variant: "destructive" });
+    }
+    setDiscountApplying(false);
+  };
+
+  const ensureDiscountReady = async () => {
+    const code = discountCode.trim();
+    if (!code) return true;
+
+    if (
+      discountPreview?.valid &&
+      discountPreview.code === code.toUpperCase() &&
+      discountPreview.plan_type === ad.plan_type
+    ) {
+      return true;
+    }
+
+    const result = await validateAdDiscount({
+      discount_code: code,
+      plan_type: ad.plan_type,
+    });
+    setDiscountPreview(result);
+    if (!result.valid) {
+      toast({
+        title: "Discount code not valid",
+        description: result.error || "Apply a valid code before continuing to payment.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
+
   const handleCompletePayment = async () => {
     setCheckoutLoading(true);
     try {
+      const discountOk = await ensureDiscountReady();
+      if (!discountOk) {
+        setCheckoutLoading(false);
+        return;
+      }
+
       const origin = typeof window !== "undefined" ? window.location.origin : "";
       const result = await resumeAdCheckout({
         ad_id: ad.id,
         success_url: `${origin}/ad-manager?success=true&ad_id=${ad.id}`,
         cancel_url: `${origin}/ad-manager?cancelled=true&ad_id=${ad.id}`,
+        discount_code: discountCode.trim() || null,
       });
       if (!result?.url) throw new Error("Could not open checkout.");
       window.location.href = result.url;
@@ -212,6 +297,47 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
         {ad.status === "pending_payment" ? (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-2 text-[11px] text-yellow-800">
             <p className="mb-2">{getReasonText(ad)}</p>
+
+            <div className="mb-2">
+              <label className="text-[10px] font-medium flex items-center gap-1 mb-1 text-yellow-900">
+                <Tag className="w-3 h-3" /> Discount code (optional)
+              </label>
+              <div className="flex gap-1.5">
+                <Input
+                  placeholder="e.g. LAUNCH20"
+                  value={discountCode}
+                  onChange={(e) => {
+                    setDiscountCode(e.target.value.toUpperCase());
+                    setDiscountPreview(null);
+                  }}
+                  className="rounded-lg h-8 text-xs flex-1 bg-white"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg h-8 text-xs shrink-0 bg-white"
+                  disabled={discountApplying || !discountCode.trim()}
+                  onClick={handleApplyDiscount}
+                >
+                  {discountApplying ? <Loader2 className="w-3 h-3 animate-spin" /> : "Apply"}
+                </Button>
+              </div>
+              {discountPreview?.valid && discountPreview.code ? (
+                <p className="text-[10px] text-mint-700 mt-1">
+                  <CheckCircle className="w-3 h-3 inline mr-0.5" />
+                  {discountPreview.discount_percent}% off —{" "}
+                  <span className="line-through text-yellow-700/70">
+                    ${Number(discountPreview.original_amount).toLocaleString()}
+                  </span>{" "}
+                  <strong>${Number(discountPreview.discounted_amount).toLocaleString()}</strong>
+                  {ad.plan_type === "annual" ? "/yr" : "/mo"}
+                </p>
+              ) : discountPreview && !discountPreview.valid ? (
+                <p className="text-[10px] text-destructive mt-1">{discountPreview.error}</p>
+              ) : null}
+            </div>
+
             {!showChangeCreative ? (
               <div className="flex flex-wrap gap-1.5">
                 <Button

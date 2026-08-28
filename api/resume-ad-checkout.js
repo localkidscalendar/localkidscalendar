@@ -9,7 +9,7 @@ import {
 import {
   checkoutCancelUrl,
   createAdSubscriptionCheckoutSession,
-  resolveCheckoutDiscount,
+  validateCheckoutDiscount,
 } from "./_lib/stripeCheckoutSession.js";
 
 export default async function handler(req, res) {
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     const { user: authUser, error: authError, status: authStatus } = await requireUser(req);
     if (authError) return res.status(authStatus).json({ error: authError });
 
-    const { ad_id: adId, success_url: successUrlOverride, cancel_url: cancelUrlOverride } =
+    const { ad_id: adId, success_url: successUrlOverride, cancel_url: cancelUrlOverride, discount_code: discountCodeOverride } =
       req.body || {};
 
     if (!adId) {
@@ -82,13 +82,40 @@ export default async function handler(req, res) {
     const annualRate = computeAnnualPrice(monthlyRate, pricing.annual_discount_percent);
     const rateAtPurchase = planType === "annual" ? annualRate : monthlyRate;
 
-    const { discountPercent, discountCodeId, discountRenewalsApplicable } =
-      await resolveCheckoutDiscount(admin, {
-        discountCode: ad.discount_code_used,
-        planType,
-        userId: authUser.id,
-        userEmail,
-      });
+    const discountCode =
+      discountCodeOverride !== undefined
+        ? (discountCodeOverride || "").trim().toUpperCase() || null
+        : ad.discount_code_used;
+
+    const validation = await validateCheckoutDiscount(admin, {
+      discountCode,
+      planType,
+      userId: authUser.id,
+      userEmail,
+    });
+
+    if (discountCode && !validation.valid) {
+      return res.status(400).json({ error: validation.error || "Invalid discount code" });
+    }
+
+    const discountPercent = validation.discountPercent || 0;
+    const discountCodeId = validation.discountCodeId;
+    const discountRenewalsApplicable = validation.discountRenewalsApplicable;
+
+    if (
+      discountCode !== ad.discount_code_used ||
+      Number(ad.discount_amount || 0) !== discountPercent
+    ) {
+      const { error: updateError } = await admin
+        .from("banner_ads")
+        .update({
+          discount_code_used: discountCode,
+          discount_amount: discountPercent || null,
+        })
+        .eq("id", ad.id)
+        .eq("user_id", authUser.id);
+      if (updateError) throw updateError;
+    }
 
     const stripe = new Stripe(stripeSecret);
     const origin = req.headers.origin || `https://${req.headers.host}`;

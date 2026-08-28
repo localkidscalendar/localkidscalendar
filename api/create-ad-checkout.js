@@ -191,13 +191,18 @@ export default async function handler(req, res) {
     const annualRate = computeAnnualPrice(monthlyRate, pricing.annual_discount_percent);
     const rateAtPurchase = planType === "annual" ? annualRate : monthlyRate;
 
-    const { discountPercent, discountCodeId, discountRenewalsApplicable } =
-      await resolveCheckoutDiscount(admin, {
+    const discountResult = await resolveCheckoutDiscount(admin, {
         discountCode,
         planType,
         userId: authUser.id,
         userEmail,
       });
+
+    if ((discountCode || "").trim() && discountResult.invalid) {
+      return res.status(400).json({ error: discountResult.error || "Invalid discount code" });
+    }
+
+    const { discountPercent, discountCodeId, discountRenewalsApplicable } = discountResult;
 
     const { data: ad, error: adError } = await admin
       .from("banner_ads")
