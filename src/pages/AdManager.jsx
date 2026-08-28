@@ -834,12 +834,16 @@ export default function AdManager() {
       next.delete("ad_id");
       setSearchParams(next, { replace: true });
     } else if (searchParams.get("cancelled") === "true") {
+      const pendingAdId = searchParams.get("ad_id");
       toast({
         title: "Checkout cancelled",
-        description: "No payment was made. Your ad was not published.",
+        description: pendingAdId
+          ? "Payment wasn't completed. Use Complete Payment on that ad below, or cancel the request to release the zip slot."
+          : "Payment wasn't completed. If your ad shows Pending Payment, use Complete Payment below or cancel the request.",
       });
       const next = new URLSearchParams(searchParams);
       next.delete("cancelled");
+      next.delete("ad_id");
       setSearchParams(next, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -10,6 +10,11 @@ import {
   planDates,
 } from "./_lib/stripeHelpers.js";
 import { countOpenAdSlots } from "./_lib/waitlistQueue.js";
+import {
+  checkoutCancelUrl,
+  createAdSubscriptionCheckoutSession,
+  resolveCheckoutDiscount,
+} from "./_lib/stripeCheckoutSession.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
@@ -186,31 +191,13 @@ export default async function handler(req, res) {
     const annualRate = computeAnnualPrice(monthlyRate, pricing.annual_discount_percent);
     const rateAtPurchase = planType === "annual" ? annualRate : monthlyRate;
 
-    // Discount code validation
-    let discountPercent = 0;
-    let discountCodeId = null;
-    let discountRenewalsApplicable = 1;
-    if (discountCode) {
-      const { data: dc } = await admin
-        .from("discount_codes")
-        .select("*")
-        .eq("code", discountCode.trim().toUpperCase())
-        .eq("status", "active")
-        .maybeSingle();
-      if (dc) {
-        const today = new Date().toISOString().slice(0, 10);
-        const notExpired = !dc.expires_date || dc.expires_date >= today;
-        const planMatches = dc.plan_type === "both" || dc.plan_type === planType;
-        const usesByUser = (dc.used_by_user_ids || []).filter((id) => id === authUser.id).length;
-        const notMaxedForUser = usesByUser < Number(dc.max_uses_per_user || 1);
-        const emailMatches = !dc.restricted_email || dc.restricted_email.toLowerCase() === userEmail.toLowerCase();
-        if (notExpired && planMatches && notMaxedForUser && emailMatches) {
-          discountPercent = Number(dc.discount_percent);
-          discountCodeId = dc.id;
-          discountRenewalsApplicable = Number(dc.renewals_applicable ?? 1);
-        }
-      }
-    }
+    const { discountPercent, discountCodeId, discountRenewalsApplicable } =
+      await resolveCheckoutDiscount(admin, {
+        discountCode,
+        planType,
+        userId: authUser.id,
+        userEmail,
+      });
 
     const { data: ad, error: adError } = await admin
       .from("banner_ads")
@@ -236,66 +223,25 @@ export default async function handler(req, res) {
     const stripe = new Stripe(stripeSecret);
     const origin = req.headers.origin || `https://${req.headers.host}`;
     const successUrl = successUrlOverride || `${origin}/ad-manager?success=true&ad_id=${ad.id}`;
-    const cancelUrl = cancelUrlOverride || `${origin}/ad-manager?cancelled=true`;
-
-    const sessionParams = {
-      mode: "subscription",
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            unit_amount: Math.round(rateAtPurchase * 100),
-            recurring: { interval: planType === "annual" ? "year" : "month" },
-            product_data: {
-              name: `Local Kids Calendar Supporter Ad — Zip ${zipCode} (${planType === "annual" ? "Annual" : "Monthly"})`,
-            },
-          },
-          quantity: 1,
-        },
-      ],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: {
-        ad_id: ad.id,
-        user_id: authUser.id,
-        zip_code: zipCode,
-        plan_type: planType,
-        discount_code_id: discountCodeId || "",
-        ad_library_id: adLibraryId || "",
-        waitlist_entry_id: waitlistEntryId || "",
-        rate_at_purchase: String(rateAtPurchase),
-      },
-      subscription_data: {
-        metadata: {
-          ad_id: ad.id,
-          user_id: authUser.id,
-        },
-      },
-    };
-    if (userEmail) sessionParams.customer_email = userEmail;
-
-    if (discountPercent > 0) {
-      // renewals_applicable: 1 = first invoice only; N>1 = N billing cycles; <=0 = ongoing
-      const cycles = Number.isFinite(discountRenewalsApplicable) ? discountRenewalsApplicable : 1;
-      let coupon;
-      if (cycles <= 0) {
-        coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: "forever" });
-      } else if (cycles === 1) {
-        coupon = await stripe.coupons.create({ percent_off: discountPercent, duration: "once" });
-      } else {
-        const durationInMonths = planType === "annual" ? cycles * 12 : cycles;
-        coupon = await stripe.coupons.create({
-          percent_off: discountPercent,
-          duration: "repeating",
-          duration_in_months: durationInMonths,
-        });
-      }
-      sessionParams.discounts = [{ coupon: coupon.id }];
-    }
+    const cancelUrl = checkoutCancelUrl(origin, ad.id, cancelUrlOverride);
 
     let session;
     try {
-      session = await stripe.checkout.sessions.create(sessionParams);
+      session = await createAdSubscriptionCheckoutSession(stripe, {
+        adId: ad.id,
+        userId: authUser.id,
+        zipCode,
+        planType,
+        rateAtPurchase,
+        discountPercent,
+        discountCodeId,
+        discountRenewalsApplicable,
+        adLibraryId,
+        waitlistEntryId: waitlistEntryId || "",
+        userEmail,
+        successUrl,
+        cancelUrl,
+      });
     } catch (stripeError) {
       // Release the reserved slot if Stripe checkout could not be created.
       await admin.from("banner_ads").delete().eq("id", ad.id);

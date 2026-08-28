@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import moment from "moment";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
-import { Loader2, ImagePlus, CreditCard } from "lucide-react";
+import { Loader2, ImagePlus, CreditCard, XCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
-import { openBillingPortal } from "@/lib/adBilling";
+import { openBillingPortal, resumeAdCheckout } from "@/lib/adBilling";
 
 // Statuses where the Supporter can swap creative and go live again immediately.
 const RECOVERABLE_STATUSES = ["flagged", "rejected"];
@@ -43,7 +43,7 @@ function getReasonText(ad) {
     case "expired":
       return "This ad's subscription expired after a failed payment grace period.";
     case "pending_payment":
-      return "Waiting for payment to be completed.";
+      return "Payment wasn't finished. Complete checkout to publish this ad, change the creative below, or cancel to release the zip slot.";
     case "pending_review":
       return "Awaiting review by our Admin team.";
     default:
@@ -56,6 +56,8 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
   const [showChangeCreative, setShowChangeCreative] = useState(false);
   const [creativeLoading, setCreativeLoading] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const handleOpenBillingPortal = async () => {
     setPortalLoading(true);
@@ -86,10 +88,10 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
         image_url: asset.image_url,
         link_url: asset.link_url,
         ad_library_id: asset.id,
-        moderation_status: "approved",
-        moderation_notes: null,
       };
       if (isRecoverable) {
+        update.moderation_status = "approved";
+        update.moderation_notes = null;
         update.status = "active";
       }
       const { error } = await supabase
@@ -108,6 +110,47 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
     setCreativeLoading(false);
+  };
+
+  const handleCompletePayment = async () => {
+    setCheckoutLoading(true);
+    try {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const result = await resumeAdCheckout({
+        ad_id: ad.id,
+        success_url: `${origin}/ad-manager?success=true&ad_id=${ad.id}`,
+        cancel_url: `${origin}/ad-manager?cancelled=true&ad_id=${ad.id}`,
+      });
+      if (!result?.url) throw new Error("Could not open checkout.");
+      window.location.href = result.url;
+    } catch (err) {
+      toast({ title: "Could not resume checkout", description: err.message, variant: "destructive" });
+      setCheckoutLoading(false);
+    }
+  };
+
+  const handleCancelPending = async () => {
+    if (
+      !window.confirm(
+        "Cancel this ad request? Your zip slot hold will be released and you can submit again later."
+      )
+    ) {
+      return;
+    }
+    setCancelLoading(true);
+    try {
+      const { error } = await supabase
+        .from("banner_ads")
+        .delete()
+        .eq("id", ad.id)
+        .eq("user_id", user.id);
+      if (error) throw error;
+      toast({ title: "Ad request cancelled" });
+      onRefresh?.();
+    } catch (err) {
+      toast({ title: "Could not cancel request", description: err.message, variant: "destructive" });
+    }
+    setCancelLoading(false);
   };
 
   return (
@@ -165,6 +208,66 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
           Updates
         </p>
+
+        {ad.status === "pending_payment" ? (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-2 text-[11px] text-yellow-800">
+            <p className="mb-2">{getReasonText(ad)}</p>
+            {!showChangeCreative ? (
+              <div className="flex flex-wrap gap-1.5">
+                <Button
+                  size="sm"
+                  className="rounded-xl h-7 text-xs bg-mint-500 hover:bg-mint-600 text-white"
+                  disabled={checkoutLoading || cancelLoading}
+                  onClick={handleCompletePayment}
+                >
+                  {checkoutLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <CreditCard className="w-3 h-3 mr-1" />}
+                  Complete Payment
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl h-7 text-xs"
+                  disabled={checkoutLoading || cancelLoading}
+                  onClick={() => setShowChangeCreative(true)}
+                >
+                  <ImagePlus className="w-3 h-3 mr-1" /> Change Creative
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl h-7 text-xs text-destructive border-destructive/30 hover:bg-destructive/5"
+                  disabled={checkoutLoading || cancelLoading}
+                  onClick={handleCancelPending}
+                >
+                  {cancelLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <XCircle className="w-3 h-3 mr-1" />}
+                  Cancel Request
+                </Button>
+              </div>
+            ) : (
+              <div className="bg-white/80 border border-yellow-200 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-yellow-900">Select an approved asset</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-xl h-7 text-xs"
+                    onClick={() => setShowChangeCreative(false)}
+                    disabled={creativeLoading}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {creativeLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-mint-500" />
+                  </div>
+                ) : (
+                  <AdLibraryManager user={user} onSelectAsset={handleChangeCreative} allowAddNew />
+                )}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {ad.status === "past_due" ? (
           <div className="bg-orange-50 border border-orange-200 rounded-lg px-2.5 py-2 text-[11px] text-orange-700">
@@ -226,7 +329,7 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
           )
         ) : null}
 
-        {!isRecoverable && ad.status !== "past_due" && getReasonText(ad) ? (
+        {!isRecoverable && ad.status !== "past_due" && ad.status !== "pending_payment" && getReasonText(ad) ? (
           <p className="text-[11px] text-muted-foreground">{getReasonText(ad)}</p>
         ) : null}
       </div>

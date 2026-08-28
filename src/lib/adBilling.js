@@ -73,6 +73,11 @@ export async function createAdCheckout({
   });
 }
 
+/** Resume Stripe Checkout for an ad left in pending_payment (e.g. user backed out of Stripe). */
+export async function resumeAdCheckout({ ad_id, success_url, cancel_url } = {}) {
+  return postJson("/api/resume-ad-checkout", { ad_id, success_url, cancel_url });
+}
+
 /** Open the Stripe billing portal for an ad's subscription. Returns the portal URL. */
 export async function openBillingPortal({ ad_id, return_url } = {}) {
   const { url } = await postJson("/api/billing-portal", { ad_id, return_url });

@@ -604,6 +604,7 @@ const categories = [
         features: [
           "Monthly / annual pricing",
           "Homepage + digest placement",
+          "Abandoned Stripe checkout leaves ad in Pending Payment with Complete Payment / Cancel Request in Ad Manager",
           "Homepage feed rotates ad positions about every 30s when multiple ads are present; rotation pauses while the user scrolls",
           "Cards (incl. phone): waves of up to 3 ad-rows (one ad per row, staggered), then 1 content-only row; repeats for 4+ slots. Under 6 activities → ads after the list",
           "Desktop List: first up-to-3 ads after the 3rd activity; next waves after every 6 more activities (leftovers at the end)",
@@ -612,9 +613,10 @@ const categories = [
           "AI + URL review on Ad Assets",
         ],
         technicalOverview:
-          "ad_zip_config, banner_ads, ad_library, ad pricing tables. Checkout /api/create-ad-checkout. Review /api/creative-review.",
+          "ad_zip_config, banner_ads, ad_library, ad pricing tables. Checkout /api/create-ad-checkout; resume abandoned checkout /api/resume-ad-checkout. Review /api/creative-review.",
         technicalFeatures: [
           "Statuses: pending_payment, pending_review, active, past_due, rejected, expired, cancelled, flagged, …",
+          "pending_payment: Complete Payment (resume checkout), Change Creative, or Cancel Request in Ad Manager",
           "Filler ads fill empty slots (admin_default_ads)",
           "feedAdPlacement.js (buildCardFeedItems / buildListFeedSegments); Home.jsx AdInjectedFeed; list layout is lg+ only",
           "Home.jsx adRotationIndex interval; paused on window scroll until ~1.2s idle (does not increment impressions)",
