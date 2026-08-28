@@ -20,7 +20,11 @@ import {
   TURNSTILE_HONEYPOT_FIELD,
 } from "../../shared/turnstileFormConstants.js";
 import { validateRequiredPublicWebsite } from "../../shared/linkUrlSafety.js";
-import { AUTH_CONFIRMATION_INBOX_HINT, AUTH_CONFIRMATION_INBOX_HINT_CLASS } from "../../shared/authEmailCopy.js";
+import {
+  AUTH_CONFIRMATION_INBOX_HINT,
+  AUTH_CONFIRMATION_INBOX_HINT_CLASS,
+  AUTH_EMAIL_SIGNUP_CONFIRM_NOTE,
+} from "../../shared/authEmailCopy.js";
 
 const TURNSTILE_SITE_KEY = (import.meta.env.VITE_TURNSTILE_SITE_KEY || "").trim();
 
@@ -696,7 +700,7 @@ export default function Register() {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   We sent a confirmation link to <span className="font-semibold text-foreground">{email}</span>.
-                  Open that email, confirm your address, then log in to finish setup.
+                  {" "}{AUTH_EMAIL_SIGNUP_CONFIRM_NOTE}
                 </p>
                 <p className={`text-sm mt-3 ${AUTH_CONFIRMATION_INBOX_HINT_CLASS}`}>
                   {AUTH_CONFIRMATION_INBOX_HINT}

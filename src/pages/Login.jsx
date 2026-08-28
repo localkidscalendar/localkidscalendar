@@ -12,7 +12,8 @@ import { isProfileComplete } from "@/lib/authRoles";
 import {
   AUTH_CONFIRMATION_INBOX_HINT,
   AUTH_CONFIRMATION_INBOX_HINT_CLASS,
-  AUTH_EMAIL_LOGIN_CONFIRM_NOTE,
+  AUTH_EMAIL_NOT_CONFIRMED_HELP,
+  isEmailNotConfirmedError,
 } from "../../shared/authEmailCopy.js";
 
 export default function Login() {
@@ -21,6 +22,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [showEmailConfirmHelp, setShowEmailConfirmHelp] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setShowEmailConfirmHelp(false);
     setLoading(true);
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -64,7 +67,13 @@ export default function Login() {
       }
       window.location.href = "/";
     } catch (err) {
-      setError(err.message || "Invalid email or password");
+      if (isEmailNotConfirmedError(err)) {
+        setShowEmailConfirmHelp(true);
+        setError(AUTH_EMAIL_NOT_CONFIRMED_HELP);
+      } else {
+        setShowEmailConfirmHelp(false);
+        setError(err.message || "Invalid email or password");
+      }
     } finally {
       setLoading(false);
     }
@@ -119,14 +128,12 @@ export default function Login() {
         </div>
       </div>
 
-      <div className="mb-4 p-3 rounded-lg bg-mint-50 border border-mint-200 text-sm text-foreground">
-        <p>{AUTH_EMAIL_LOGIN_CONFIRM_NOTE}</p>
-        <p className={`mt-1 text-sm ${AUTH_CONFIRMATION_INBOX_HINT_CLASS}`}>{AUTH_CONFIRMATION_INBOX_HINT}</p>
-      </div>
-
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {error}
+          <p>{error}</p>
+          {showEmailConfirmHelp && (
+            <p className={`mt-2 ${AUTH_CONFIRMATION_INBOX_HINT_CLASS}`}>{AUTH_CONFIRMATION_INBOX_HINT}</p>
+          )}
         </div>
       )}
 
