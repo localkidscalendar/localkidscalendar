@@ -8,6 +8,7 @@ import { Loader2, UserCog } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ACTIVITY_CATEGORIES } from "@/lib/activityCategories";
 import HelpTip from "@/components/shared/HelpTip";
+import { clampActivityAgeInput, clampActivityAgeNumber } from "../../../shared/activityAgeLimits.js";
 
 export default function SavedFiltersTab({ user }) {
   const { toast } = useToast();
@@ -45,8 +46,8 @@ export default function SavedFiltersTab({ user }) {
             sort_by: data.sort_by || "posted",
             zip_code: data.zip_code || "",
             radius_miles: Number(data.radius_miles) || 15,
-            age_min: data.age_min != null ? String(data.age_min) : "",
-            age_max: data.age_max != null ? String(data.age_max) : "",
+            age_min: clampActivityAgeInput(data.age_min != null ? String(data.age_min) : ""),
+            age_max: clampActivityAgeInput(data.age_max != null ? String(data.age_max) : ""),
             price_min: freeOnly ? "" : (data.price_min != null ? String(data.price_min) : ""),
             price_max: freeOnly ? "" : (data.price_max != null ? String(data.price_max) : ""),
             free_only: freeOnly,
@@ -71,8 +72,8 @@ export default function SavedFiltersTab({ user }) {
         sort_by: form.sort_by || "posted",
         zip_code: form.zip_code?.trim() || null,
         radius_miles: Number(form.radius_miles) || 15,
-        age_min: form.age_min !== "" ? Number(form.age_min) : null,
-        age_max: form.age_max !== "" ? Number(form.age_max) : null,
+        age_min: clampActivityAgeNumber(form.age_min),
+        age_max: clampActivityAgeNumber(form.age_max),
         price_min: form.free_only || form.price_min === "" ? null : Number(form.price_min),
         price_max: form.free_only || form.price_max === "" ? null : Number(form.price_max),
         free_only: Boolean(form.free_only),
@@ -177,11 +178,11 @@ export default function SavedFiltersTab({ user }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-sm font-medium block mb-1">Age Min</label>
-            <Input type="number" value={form.age_min} onChange={(e) => setForm((p) => ({ ...p, age_min: e.target.value }))} className="rounded-xl" />
+            <Input type="number" value={form.age_min} onChange={(e) => setForm((p) => ({ ...p, age_min: clampActivityAgeInput(e.target.value) }))} className="rounded-xl" min={0} max={18} />
           </div>
           <div>
             <label className="text-sm font-medium block mb-1">Age Max</label>
-            <Input type="number" value={form.age_max} onChange={(e) => setForm((p) => ({ ...p, age_max: e.target.value }))} className="rounded-xl" />
+            <Input type="number" value={form.age_max} onChange={(e) => setForm((p) => ({ ...p, age_max: clampActivityAgeInput(e.target.value) }))} className="rounded-xl" min={0} max={18} />
           </div>
         </div>
 

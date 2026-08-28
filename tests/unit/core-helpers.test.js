@@ -35,6 +35,23 @@ import {
   MAX_OUTPUT_BYTES_DEFAULT,
 } from "../../src/lib/imageProcess.js";
 import { validateBusinessLinkUrl, validateOptionalPublicWebsite, validateRequiredPublicWebsite } from "../../shared/linkUrlSafety.js";
+import {
+  MAX_KIDS_ACTIVITY_AGE,
+  clampActivityAgeInput,
+  clampActivityAgeNumber,
+} from "../../shared/activityAgeLimits.js";
+
+describe("activityAgeLimits", () => {
+  it("caps age inputs at 18", () => {
+    expect(MAX_KIDS_ACTIVITY_AGE).toBe(18);
+    expect(clampActivityAgeInput("")).toBe("");
+    expect(clampActivityAgeInput("12")).toBe("12");
+    expect(clampActivityAgeInput("20")).toBe("18");
+    expect(clampActivityAgeInput("-1")).toBe("0");
+    expect(clampActivityAgeNumber("20")).toBe(18);
+    expect(clampActivityAgeNumber("")).toBe(null);
+  });
+});
 
 describe("phone helpers", () => {
   it("masks progressive input", () => {

@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { ACTIVITY_CATEGORIES } from "@/lib/activityCategories";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DEFAULT_RADIUS_MILES, RADIUS_OPTIONS, normalizeRadiusMiles } from "@/lib/locationDefaults";
+import { clampActivityAgeInput } from "../../../shared/activityAgeLimits.js";
 
 const SORT_OPTIONS = [
   { value: "posted", label: "Sort By Date Posted" },
@@ -83,7 +84,9 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
   }, [filters, localSearch, appliedSnapshot, savedFiltersApplied]);
 
   const updateFilter = (key, value) => {
-    onFiltersChange({ ...filters, [key]: value });
+    const next =
+      key === "ageMin" || key === "ageMax" ? clampActivityAgeInput(value) : value;
+    onFiltersChange({ ...filters, [key]: next });
   };
 
   const clearMyFiltersApplied = () => {
@@ -176,8 +179,8 @@ export default function EventFilters({ filters, onFiltersChange, detectedZip, us
           sortBy: data.sort_by || "posted",
           zipCode: data.zip_code || filters.zipCode || "",
           radiusMiles: Number(data.radius_miles) || 15,
-          ageMin: data.age_min != null ? String(data.age_min) : "",
-          ageMax: data.age_max != null ? String(data.age_max) : "",
+          ageMin: clampActivityAgeInput(data.age_min != null ? String(data.age_min) : ""),
+          ageMax: clampActivityAgeInput(data.age_max != null ? String(data.age_max) : ""),
           priceMin: freeOnly ? "" : (data.price_min != null ? String(data.price_min) : ""),
           priceMax: freeOnly ? "" : (data.price_max != null ? String(data.price_max) : ""),
           freeOnly,

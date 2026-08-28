@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { moderateEventImage } from "@/lib/moderateEventImage";
 import { formatActivityTitle } from "@/lib/titleCase";
 import { validateOptionalPublicWebsite } from "../../shared/linkUrlSafety.js";
+import { clampActivityAgeInput, clampActivityAgeNumber } from "../../shared/activityAgeLimits.js";
 
 /** Fields that must change when posting from Duplicate (prevents near-identical spam). */
 const DUPLICATE_SIGNIFICANT_FIELDS = [
@@ -149,8 +150,8 @@ export default function PostEvent() {
         categories,
         is_free: isFree,
         cost: isFree ? "" : (rest.cost || ""),
-        age_min: rest.age_min?.toString() || "",
-        age_max: rest.age_max?.toString() || "",
+        age_min: clampActivityAgeInput(rest.age_min?.toString() || ""),
+        age_max: clampActivityAgeInput(rest.age_max?.toString() || ""),
         rules_agreed: false,
       };
       setForm(nextForm);
@@ -163,7 +164,11 @@ export default function PostEvent() {
     setLoading(false);
   };
 
-  const updateField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const updateField = (key, value) => {
+    const next =
+      key === "age_min" || key === "age_max" ? clampActivityAgeInput(value) : value;
+    setForm((prev) => ({ ...prev, [key]: next }));
+  };
 
   const handleImageUpload = async (e, field) => {
     const file = e.target.files?.[0];
@@ -358,8 +363,8 @@ export default function PostEvent() {
         classifications: categories.map((c) => ({ category: c })),
         is_free: Boolean(form.is_free),
         cost: form.is_free ? "Free" : (form.cost || null),
-        age_min: form.age_min ? Number(form.age_min) : null,
-        age_max: form.age_max ? Number(form.age_max) : null,
+        age_min: clampActivityAgeNumber(form.age_min),
+        age_max: clampActivityAgeNumber(form.age_max),
         event_image: form.event_image || null,
         org_logo: form.org_logo || null,
         status: "active",

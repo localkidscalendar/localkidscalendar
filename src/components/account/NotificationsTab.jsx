@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { clampActivityAgeInput, clampActivityAgeNumber } from "../../../shared/activityAgeLimits.js";
 
 export default function NotificationsTab({ user }) {
   const { toast } = useToast();
@@ -44,8 +45,8 @@ export default function NotificationsTab({ user }) {
             zip_code: data.zip_code || user.zip_code || "",
             radius_miles: Number(data.radius_miles) || 15,
             keywords: data.keywords || "",
-            age_min: data.age_min != null ? String(data.age_min) : "",
-            age_max: data.age_max != null ? String(data.age_max) : "",
+            age_min: clampActivityAgeInput(data.age_min != null ? String(data.age_min) : ""),
+            age_max: clampActivityAgeInput(data.age_max != null ? String(data.age_max) : ""),
           });
         } else {
           setForm((prev) => ({
@@ -78,8 +79,8 @@ export default function NotificationsTab({ user }) {
         zip_code: form.zip_code?.trim() || null,
         radius_miles: Number(form.radius_miles) || 15,
         keywords: form.keywords?.trim() || null,
-        age_min: form.age_min !== "" ? Number(form.age_min) : null,
-        age_max: form.age_max !== "" ? Number(form.age_max) : null,
+        age_min: clampActivityAgeNumber(form.age_min),
+        age_max: clampActivityAgeNumber(form.age_max),
         locations,
         updated_at: new Date().toISOString(),
       };
@@ -201,8 +202,10 @@ export default function NotificationsTab({ user }) {
                   <Input
                     type="number"
                     value={form.age_min}
-                    onChange={(e) => setForm((p) => ({ ...p, age_min: e.target.value }))}
+                    onChange={(e) => setForm((p) => ({ ...p, age_min: clampActivityAgeInput(e.target.value) }))}
                     className="rounded-xl"
+                    min={0}
+                    max={18}
                   />
                 </div>
                 <div>
@@ -210,8 +213,10 @@ export default function NotificationsTab({ user }) {
                   <Input
                     type="number"
                     value={form.age_max}
-                    onChange={(e) => setForm((p) => ({ ...p, age_max: e.target.value }))}
+                    onChange={(e) => setForm((p) => ({ ...p, age_max: clampActivityAgeInput(e.target.value) }))}
                     className="rounded-xl"
+                    min={0}
+                    max={18}
                   />
                 </div>
               </div>

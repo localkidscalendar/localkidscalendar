@@ -368,7 +368,7 @@ const categories = [
         id: "posting-activity",
         title: "Posting an Activity",
         overview:
-          "Community Members and Organizers post activities with dates, ages, cost, location, categories (up to three), and optional photo. End date is required and cannot be before start date (clamped on change; iOS pickers may not gray out earlier days). Community Rules and Terms of Service must be accepted. Validation toasts appear near the bottom on mobile so they stay visible by Submit.",
+          "Community Members and Organizers post activities with dates, ages (capped at 18 per Our Community Rules), cost, location, categories (up to three), and optional photo. End date is required and cannot be before start date (clamped on change; iOS pickers may not gray out earlier days). Community Rules and Terms of Service must be accepted. Validation toasts appear near the bottom on mobile so they stay visible by Submit.",
         features: [
           "Categories / types for camps, classes, sports, etc.",
           "Organizer posts show org branding / highlight styling",

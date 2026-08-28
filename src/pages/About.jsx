@@ -44,6 +44,10 @@ const COMMUNITY_RULES = [
     text: "Don't post spam, adult content, or unrelated ads. Keep all posts relevant to kids' activities and family interests.",
   },
   {
+    title: "Kids & Teens Through Age 18",
+    text: "Local Kids Calendar is for activities targeted to or appropriate for children and teens up through age 18. When you post, search, or set digest or saved filters, age ranges are limited to that scope.",
+  },
+  {
     title: "Geographic Scope",
     text: "LocalKidsCalendar.com is intended exclusively for use within the United States. By using this site, you confirm that you are located within the U.S.",
   },
