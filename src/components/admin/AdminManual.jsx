@@ -879,6 +879,7 @@ const categories = [
           "Default: Supabase built-in SMTP (limited rate; team-only destinations on free tier; generic From)",
           "Production: Authentication → SMTP in Supabase — host smtp.resend.com, user resend, password = Resend API key, sender on a Resend-verified domain (e.g. noreply@yourdomain.com)",
           "Minimum interval per user (default 60s) limits resend spam — leave as-is unless you have a reason",
+          "Login (email/password) and Register step 3 show spam/junk folder hint (shared/authEmailCopy.js); Google OAuth path does not",
           "Google OAuth consent branding is configured in Google Cloud (app name/logo/domain), not in this repo; fully hiding *.supabase.co in the allow line needs a Supabase custom Auth domain",
         ],
         technicalOverview:

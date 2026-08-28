@@ -9,6 +9,10 @@ import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { useAuth } from "@/lib/AuthContext";
 import { isProfileComplete } from "@/lib/authRoles";
+import {
+  AUTH_CONFIRMATION_INBOX_HINT,
+  AUTH_EMAIL_LOGIN_CONFIRM_NOTE,
+} from "../../shared/authEmailCopy.js";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -112,6 +116,11 @@ export default function Login() {
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-card px-3 text-muted-foreground">or</span>
         </div>
+      </div>
+
+      <div className="mb-4 p-3 rounded-lg bg-mint-50 border border-mint-200 text-sm text-foreground">
+        <p>{AUTH_EMAIL_LOGIN_CONFIRM_NOTE}</p>
+        <p className="mt-1 text-muted-foreground">{AUTH_CONFIRMATION_INBOX_HINT}</p>
       </div>
 
       {error && (
