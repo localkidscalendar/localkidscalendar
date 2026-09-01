@@ -9,8 +9,8 @@ export const SESSION_IDLE_WARNING_MS = 5 * 60 * 1000;
 /** Max time since last activity across browser restarts (overnight protection). */
 export const SESSION_MAX_INACTIVITY_MS = 8 * 60 * 60 * 1000;
 
-/** Grace after redirecting to Stripe Checkout (back button / slow payer). */
-export const SESSION_CHECKOUT_GRACE_MS = 90 * 60 * 1000;
+/** Grace after redirecting to Stripe Checkout (aligned with 10-min zip hold + buffer). */
+export const SESSION_CHECKOUT_GRACE_MS = 15 * 60 * 1000;
 
 export const SESSION_LAST_ACTIVITY_KEY = "lkc_last_activity_at";
 export const SESSION_CHECKOUT_GRACE_KEY = "lkc_stripe_checkout_grace_until";

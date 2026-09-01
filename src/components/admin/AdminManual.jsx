@@ -201,7 +201,7 @@ const categories = [
           "Navbar/Admin access: role === 'admin' (Admin page hard-requires admin)",
           "Register honeypot + timing + Turnstile action register via /api/verify-turnstile before signUp (OAuth complete path skips Turnstile)",
           "registeredUser in AuthContext requires isRegistered && isProfileComplete",
-          "AuthContext init signs out when lkc_last_activity_at is older than 8h; markStripeCheckoutGrace before Stripe redirect (90m grace)",
+          "AuthContext init signs out when lkc_last_activity_at is older than 8h; markStripeCheckoutGrace before Stripe redirect (15m grace, matches zip hold + buffer)",
           "Migration allow_initial_role_selection.sql — one-time CM↔Organizer while zip empty",
         ],
       },

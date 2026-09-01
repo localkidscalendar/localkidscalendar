@@ -44,14 +44,16 @@ import {
   SESSION_IDLE_MS,
   SESSION_IDLE_WARNING_MS,
   SESSION_MAX_INACTIVITY_MS,
+  SESSION_CHECKOUT_GRACE_MS,
   isActivityExpired,
 } from "../../shared/sessionActivityPolicy.js";
 
 describe("sessionActivityPolicy", () => {
-  it("uses 45m idle, 5m warning, and 8h overnight window", () => {
+  it("uses 45m idle, 5m warning, 8h overnight, and 15m Stripe grace", () => {
     expect(SESSION_IDLE_MS).toBe(45 * 60 * 1000);
     expect(SESSION_IDLE_WARNING_MS).toBe(5 * 60 * 1000);
     expect(SESSION_MAX_INACTIVITY_MS).toBe(8 * 60 * 60 * 1000);
+    expect(SESSION_CHECKOUT_GRACE_MS).toBe(15 * 60 * 1000);
   });
 
   it("detects expired persisted activity", () => {
