@@ -757,7 +757,7 @@ const categories = [
           "invoice.payment_failed → notifyPaymentFailed (message + email)",
           "invoice.payment_succeeded → renew notices / plan switches as applicable",
           "ActiveAdCard shows plan label + current term rate (rate_at_purchase), renewal date, and rate-lock note (21 days before renewal; 14 days is non-renew/cancel window only)",
-          "ActiveAdCard loads /api/ad-payment-method per zip (brand/last4/exp when Stripe returns a card; otherwise “Payment method on file”) and opens /api/billing-portal in a new tab; full numbers stay in Stripe",
+          "ActiveAdCard loads /api/ad-payment-method per zip (card last4 when available; Stripe Link or bank when not) and opens /api/billing-portal in a new tab; full numbers stay in Stripe",
           "resume-ad-renewal clears Stripe cancel_at_period_end and sets banner_ads.auto_renew true when outside 14-day window",
         ],
       },

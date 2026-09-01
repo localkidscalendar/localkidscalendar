@@ -10,7 +10,7 @@ import AdLibraryManager from "@/components/ads/AdLibraryManager";
 import {
   cancelAdRenewal,
   formatAdPlanRate,
-  formatMaskedCard,
+  formatPaymentMethodLabel,
   formatPlanTypeLabel,
   getAdPaymentMethod,
   openBillingPortalInNewTab,
@@ -144,8 +144,8 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
     let cancelled = false;
     setCardLoading(true);
     getAdPaymentMethod({ ad_id: ad.id })
-      .then((card) => {
-        if (!cancelled) setCardLabel(formatMaskedCard(card));
+      .then((paymentMethod) => {
+        if (!cancelled) setCardLabel(formatPaymentMethodLabel(paymentMethod));
       })
       .catch(() => {
         if (!cancelled) setCardLabel(null);
@@ -281,7 +281,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
                 title={
                   cardLabel
                     ? undefined
-                    : "Each zip has its own Stripe billing profile. Card details show when Stripe returns them."
+                    : "Each zip has its own Stripe billing profile. Card digits are hidden when paid with Stripe Link or a non-card method."
                 }
               >
                 {cardLoading

@@ -118,10 +118,10 @@ export function formatAdPlanRate(ad) {
   return ad?.plan_type === "annual" ? `$${amount}/yr` : `$${amount}/mo`;
 }
 
-/** Load the masked default card on file for an ad (brand, last4, expiry). Never returns a full number. */
+/** Load masked payment method details for an ad (never returns a full card number). */
 export async function getAdPaymentMethod({ ad_id } = {}) {
-  const { card } = await postJson("/api/ad-payment-method", { ad_id });
-  return card || null;
+  const { payment_method: paymentMethod } = await postJson("/api/ad-payment-method", { ad_id });
+  return paymentMethod || null;
 }
 
 export function formatMaskedCard(card) {
@@ -134,6 +134,15 @@ export function formatMaskedCard(card) {
       ? ` · Exp ${String(card.exp_month).padStart(2, "0")}/${String(card.exp_year).slice(-2)}`
       : "";
   return `${brand} •••• ${card.last4}${exp}`;
+}
+
+export function formatPaymentMethodLabel(paymentMethod) {
+  if (!paymentMethod) return null;
+  if (paymentMethod.label) return paymentMethod.label;
+  if (paymentMethod.type === "link") return "Stripe Link";
+  const masked = formatMaskedCard(paymentMethod);
+  if (!masked) return null;
+  return paymentMethod.via_link ? `${masked} (via Link)` : masked;
 }
 
 /** Cancel auto-renewal for an ad's subscription (runs through the end of the paid term). */

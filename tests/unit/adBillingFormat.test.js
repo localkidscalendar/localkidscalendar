@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatAdPlanRate, formatPlanTypeLabel } from "@/lib/adBilling";
+import {
+  formatAdPlanRate,
+  formatPaymentMethodLabel,
+  formatPlanTypeLabel,
+} from "@/lib/adBilling";
 
 describe("formatPlanTypeLabel", () => {
   it("labels monthly and annual plans", () => {
@@ -17,5 +21,30 @@ describe("formatAdPlanRate", () => {
   it("returns null when rate is missing", () => {
     expect(formatAdPlanRate({ plan_type: "monthly" })).toBeNull();
     expect(formatAdPlanRate({ plan_type: "monthly", rate_at_purchase: null })).toBeNull();
+  });
+});
+
+describe("formatPaymentMethodLabel", () => {
+  it("formats cards, Link, and bank accounts", () => {
+    expect(
+      formatPaymentMethodLabel({
+        type: "card",
+        brand: "visa",
+        last4: "4242",
+        exp_month: 12,
+        exp_year: 2030,
+      })
+    ).toBe("Visa •••• 4242 · Exp 12/30");
+    expect(formatPaymentMethodLabel({ type: "link", label: "Stripe Link" })).toBe("Stripe Link");
+    expect(
+      formatPaymentMethodLabel({
+        type: "card",
+        brand: "visa",
+        last4: "4242",
+        exp_month: 12,
+        exp_year: 2030,
+        via_link: true,
+      })
+    ).toBe("Visa •••• 4242 · Exp 12/30 (via Link)");
   });
 });
