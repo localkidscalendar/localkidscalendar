@@ -21,6 +21,8 @@ import InactiveAdCard from "@/components/ads/InactiveAdCard";
 import WaitlistManager, { joinAdWaitlist } from "@/components/ads/WaitlistManager";
 import CurrentAdRates from "@/components/ads/CurrentAdRates";
 import { createAdCheckout, validateAdDiscount } from "@/lib/adBilling";
+import { markStripeCheckoutGrace } from "@/lib/sessionActivityStorage";
+import { useSessionActivityPause } from "@/lib/SessionActivityContext";
 import { SUPPORTER_RULES, TOS_INTRO, TOS_SECTIONS, TOS_FOOTER } from "@/lib/supporterContent";
 import { countOpenAdSlots, SLOT_HOLDING_STATUSES } from "@/lib/waitlistQueue";
 import useBetaConfig, { isZipAllowed, betaZipBlockedCopy } from "@/lib/useBetaConfig"; // BETA MODE
@@ -197,6 +199,8 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
   const [discountPreview, setDiscountPreview] = useState(null);
   const [discountApplying, setDiscountApplying] = useState(false);
   const allAgreementsChecked = agreements.terms && agreements.exactZip && agreements.noRefunds;
+
+  useSessionActivityPause("ad-checkout-submit", submitting);
 
   useEffect(() => {
     supabase.from("ad_pricing_config").select("*").eq("config_key", "global").maybeSingle()
@@ -441,6 +445,7 @@ function NewAdForm({ user, onSuccess, onCancel, onGoToLibrary, prefill, onJoined
       }
 
       // Redirect to Stripe Checkout to complete payment.
+      markStripeCheckoutGrace();
       window.location.href = result.url;
     } catch (err) {
       toast({ title: "Request failed", description: err.message, variant: "destructive" });
@@ -941,6 +946,8 @@ export default function AdManager() {
     const tab = searchParams.get("tab");
     return ["ads", "library", "waitlist", "rules", "rates"].includes(tab) ? tab : "ads";
   });
+
+  useSessionActivityPause("ad-manager-new-form", showNewForm);
 
   useEffect(() => {
     const tab = searchParams.get("tab");

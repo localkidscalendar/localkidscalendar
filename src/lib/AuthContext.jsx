@@ -1,6 +1,11 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { isAccountDisabled, isProfileComplete, isRegisteredUser, isAccountSuspended } from "@/lib/authRoles";
+import {
+  clearSessionActivityStorage,
+  isLastActivityExpired,
+  writeLastActivityAt,
+} from "@/lib/sessionActivityStorage";
 
 const AuthContext = createContext();
 
@@ -111,6 +116,18 @@ export const AuthProvider = ({ children }) => {
         setAuthChecked(true);
         return;
       }
+      if (data.session && isLastActivityExpired()) {
+        await supabase.auth.signOut();
+        clearSessionActivityStorage();
+        setUser(null);
+        setIsAuthenticated(false);
+        setIsLoadingAuth(false);
+        setAuthChecked(true);
+        return;
+      }
+      if (data.session) {
+        writeLastActivityAt();
+      }
       await applySession(data.session);
     };
 
@@ -141,6 +158,7 @@ export const AuthProvider = ({ children }) => {
     await supabase.auth.signOut();
     setUser(null);
     setIsAuthenticated(false);
+    clearSessionActivityStorage();
     // Drop Home location cache so the next guest visit uses geo / manual zip, not the prior profile.
     try {
       sessionStorage.removeItem("session_zip_current");

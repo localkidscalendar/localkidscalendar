@@ -187,12 +187,13 @@ const categories = [
           "Account type: Community Member or Organizer — locked after registration completes",
           "Register asks for names/org + zip (not distance); agreement required for Terms of Service, Privacy Policy, and Community Rules",
           "Incomplete signed-in users cannot browse the site until they finish Register (About / Community Rules / Terms / Privacy still allowed)",
+          "Idle security: 45 min inactivity warning then sign-out; 8h max since last activity (overnight); paused during Post Activity, Register/finish-profile, Ad checkout, and Stripe return",
           "Email verification / password reset via Supabase Auth email (branded From requires Custom SMTP — see Email / Auth SMTP)",
           "Register header uses the site /logo.png (same mark as Login)",
           "First-line bot defense on email Register: honeypot + ~3s minimum + Cloudflare Turnstile (verified server-side before signUp)",
         ],
         technicalOverview:
-          "Register.jsx / Login.jsx / AuthCallback.jsx / AppLayout.jsx. Google creates auth.users + handle_new_user profile (default community_member, empty zip). AuthCallback and AppLayout send incomplete users to /register?complete=1. isProfileComplete (authRoles.js) requires zip (admins/disabled exempt). Role may change once while zip is still empty (DB trigger prevent_non_admin_role_change).",
+          "Register.jsx / Login.jsx / AuthCallback.jsx / AppLayout.jsx. Google creates auth.users + handle_new_user profile (default community_member, empty zip). AuthCallback and AppLayout send incomplete users to /register?complete=1. isProfileComplete (authRoles.js) requires zip (admins/disabled exempt). Role may change once while zip is still empty (DB trigger prevent_non_admin_role_change). SessionActivityContext.jsx + shared/sessionActivityPolicy.js: client-only idle (45m + 5m warning) and 8h persisted inactivity; sessionActivityStorage.js; BroadcastChannel sync across tabs.",
         technicalFeatures: [
           "profiles.role from metadata; default community_member if missing",
           "Auth invite links can prefill role/email query params on Register",
@@ -200,6 +201,7 @@ const categories = [
           "Navbar/Admin access: role === 'admin' (Admin page hard-requires admin)",
           "Register honeypot + timing + Turnstile action register via /api/verify-turnstile before signUp (OAuth complete path skips Turnstile)",
           "registeredUser in AuthContext requires isRegistered && isProfileComplete",
+          "AuthContext init signs out when lkc_last_activity_at is older than 8h; markStripeCheckoutGrace before Stripe redirect (90m grace)",
           "Migration allow_initial_role_selection.sql — one-time CM↔Organizer while zip empty",
         ],
       },

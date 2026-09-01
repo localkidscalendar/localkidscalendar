@@ -7,6 +7,7 @@ import { Loader2, ImagePlus, CreditCard, XCircle, Tag, CheckCircle } from "lucid
 import { useToast } from "@/components/ui/use-toast";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
 import { openBillingPortal, resumeAdCheckout, validateAdDiscount } from "@/lib/adBilling";
+import { markStripeCheckoutGrace } from "@/lib/sessionActivityStorage";
 
 // Statuses where the Supporter can swap creative and go live again immediately.
 const RECOVERABLE_STATUSES = ["flagged", "rejected"];
@@ -207,6 +208,7 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
         discount_code: discountCode.trim() || null,
       });
       if (!result?.url) throw new Error("Could not open checkout.");
+      markStripeCheckoutGrace();
       window.location.href = result.url;
     } catch (err) {
       toast({ title: "Could not resume checkout", description: err.message, variant: "destructive" });

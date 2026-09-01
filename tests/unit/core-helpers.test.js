@@ -40,6 +40,26 @@ import {
   clampActivityAgeInput,
   clampActivityAgeNumber,
 } from "../../shared/activityAgeLimits.js";
+import {
+  SESSION_IDLE_MS,
+  SESSION_IDLE_WARNING_MS,
+  SESSION_MAX_INACTIVITY_MS,
+  isActivityExpired,
+} from "../../shared/sessionActivityPolicy.js";
+
+describe("sessionActivityPolicy", () => {
+  it("uses 45m idle, 5m warning, and 8h overnight window", () => {
+    expect(SESSION_IDLE_MS).toBe(45 * 60 * 1000);
+    expect(SESSION_IDLE_WARNING_MS).toBe(5 * 60 * 1000);
+    expect(SESSION_MAX_INACTIVITY_MS).toBe(8 * 60 * 60 * 1000);
+  });
+
+  it("detects expired persisted activity", () => {
+    const now = Date.now();
+    expect(isActivityExpired(now - 9 * 60 * 60 * 1000, now)).toBe(true);
+    expect(isActivityExpired(now - 7 * 60 * 60 * 1000, now)).toBe(false);
+  });
+});
 
 describe("activityAgeLimits", () => {
   it("caps age inputs at 18", () => {

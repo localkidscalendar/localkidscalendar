@@ -9,6 +9,8 @@ import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { useAuth } from "@/lib/AuthContext";
 import { isProfileComplete } from "@/lib/authRoles";
+import { consumeIdleLogoutFlag } from "@/lib/sessionActivityStorage";
+import { useToast } from "@/components/ui/use-toast";
 import {
   AUTH_CONFIRMATION_INBOX_HINT,
   AUTH_CONFIRMATION_INBOX_HINT_CLASS,
@@ -18,6 +20,7 @@ import {
 
 export default function Login() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { user, isLoadingAuth, authChecked } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,6 +40,15 @@ export default function Login() {
     }
     navigate("/", { replace: true });
   }, [authChecked, isLoadingAuth, user, navigate]);
+
+  useEffect(() => {
+    if (consumeIdleLogoutFlag()) {
+      toast({
+        title: "Signed out for inactivity",
+        description: "You were signed out after a period of inactivity. Sign in again to continue.",
+      });
+    }
+  }, [toast]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
