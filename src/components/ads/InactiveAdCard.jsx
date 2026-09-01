@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, ImagePlus, CreditCard, XCircle, Tag, CheckCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
-import { openBillingPortal, resumeAdCheckout, validateAdDiscount } from "@/lib/adBilling";
+import { openBillingPortalInNewTab, resumeAdCheckout, validateAdDiscount } from "@/lib/adBilling";
 import { markStripeCheckoutGrace } from "@/lib/sessionActivityStorage";
 
 // Statuses where the Supporter can swap creative and go live again immediately.
@@ -86,10 +86,13 @@ export default function InactiveAdCard({ ad, user, onRefresh }) {
   const handleOpenBillingPortal = async () => {
     setPortalLoading(true);
     try {
-      const url = await openBillingPortal({ ad_id: ad.id });
-      window.location.href = url;
+      await openBillingPortalInNewTab({
+        ad_id: ad.id,
+        return_url: typeof window !== "undefined" ? window.location.href : undefined,
+      });
     } catch (err) {
       toast({ title: "Could not open billing portal", description: err.message, variant: "destructive" });
+    } finally {
       setPortalLoading(false);
     }
   };

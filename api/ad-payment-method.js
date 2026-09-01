@@ -12,27 +12,57 @@ function cardSummary(paymentMethod) {
   };
 }
 
+async function cardFromPaymentMethod(stripe, paymentMethod) {
+  if (!paymentMethod) return null;
+  if (typeof paymentMethod === "string") {
+    try {
+      const retrieved = await stripe.paymentMethods.retrieve(paymentMethod);
+      return cardSummary(retrieved);
+    } catch {
+      return null;
+    }
+  }
+  return cardSummary(paymentMethod);
+}
+
 async function resolveDefaultCard(stripe, customerId, subscriptionId) {
   const customer = await stripe.customers.retrieve(customerId, {
     expand: ["invoice_settings.default_payment_method"],
   });
-  const fromCustomer = cardSummary(customer.invoice_settings?.default_payment_method);
+  const fromCustomer = await cardFromPaymentMethod(
+    stripe,
+    customer.invoice_settings?.default_payment_method
+  );
   if (fromCustomer) return fromCustomer;
 
   if (subscriptionId) {
     const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
-      expand: ["default_payment_method"],
+      expand: ["default_payment_method", "latest_invoice.payment_intent.payment_method"],
     });
-    const fromSub = cardSummary(subscription.default_payment_method);
+    const fromSub = await cardFromPaymentMethod(stripe, subscription.default_payment_method);
     if (fromSub) return fromSub;
+
+    const invoice = subscription.latest_invoice;
+    const paymentIntent =
+      typeof invoice === "object" ? invoice?.payment_intent : null;
+    const fromInvoice = await cardFromPaymentMethod(
+      stripe,
+      typeof paymentIntent === "object" ? paymentIntent?.payment_method : null
+    );
+    if (fromInvoice) return fromInvoice;
   }
 
   const listed = await stripe.paymentMethods.list({
     customer: customerId,
     type: "card",
-    limit: 1,
+    limit: 3,
   });
-  return cardSummary(listed.data[0]) || null;
+  for (const method of listed.data || []) {
+    const summary = cardSummary(method);
+    if (summary) return summary;
+  }
+
+  return null;
 }
 
 export default async function handler(req, res) {

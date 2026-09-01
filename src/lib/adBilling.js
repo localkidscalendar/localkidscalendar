@@ -89,6 +89,35 @@ export async function openBillingPortal({ ad_id, return_url } = {}) {
   return url;
 }
 
+/** Open Stripe billing in a new tab (keeps Ad Manager open). */
+export async function openBillingPortalInNewTab({ ad_id, return_url } = {}) {
+  const url = await openBillingPortal({ ad_id, return_url });
+  const { markStripeCheckoutGrace } = await import("@/lib/sessionActivityStorage");
+  markStripeCheckoutGrace();
+  const portal = window.open(url, "_blank", "noopener,noreferrer");
+  if (!portal) {
+    throw new Error("Pop-up blocked. Allow pop-ups for this site to open Stripe billing.");
+  }
+  portal.opener = null;
+  return url;
+}
+
+export function formatPlanTypeLabel(planType) {
+  return planType === "annual" ? "Annual plan" : "Monthly plan";
+}
+
+/** Current term rate stored on the ad at purchase (or last renewal if updated). */
+export function formatAdPlanRate(ad) {
+  const raw = ad?.rate_at_purchase;
+  if (raw === null || raw === undefined || raw === "") return null;
+  const rate = Number(raw);
+  if (!Number.isFinite(rate) || rate < 0) return null;
+  const amount = Number.isInteger(rate)
+    ? rate.toLocaleString("en-US")
+    : rate.toFixed(2);
+  return ad?.plan_type === "annual" ? `$${amount}/yr` : `$${amount}/mo`;
+}
+
 /** Load the masked default card on file for an ad (brand, last4, expiry). Never returns a full number. */
 export async function getAdPaymentMethod({ ad_id } = {}) {
   const { card } = await postJson("/api/ad-payment-method", { ad_id });

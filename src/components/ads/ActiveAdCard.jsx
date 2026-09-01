@@ -9,9 +9,11 @@ import { useToast } from "@/components/ui/use-toast";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
 import {
   cancelAdRenewal,
+  formatAdPlanRate,
   formatMaskedCard,
+  formatPlanTypeLabel,
   getAdPaymentMethod,
-  openBillingPortal,
+  openBillingPortalInNewTab,
   requestAdPlanChange,
   resumeAdRenewal,
 } from "@/lib/adBilling";
@@ -21,6 +23,7 @@ import {
   renewalDeadline,
   daysUntilDate,
 } from "../../../shared/adRenewalPolicy.js";
+import { RENEWAL_RATE_LOCK_DAYS } from "../../../shared/adBillingPolicy.js";
 
 const STATUS_CONFIG = {
   pending_payment: { label: "Pending Payment", color: "bg-yellow-100 text-yellow-700" },
@@ -67,6 +70,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   const downgradePending = Boolean(ad.downgrade_to_monthly_pending);
   const planChangePending = upgradePending || downgradePending;
   const targetPlanLabel = ad.plan_type === "annual" ? "Monthly" : "Annual";
+  const planRate = formatAdPlanRate(ad);
 
   const handleChangeCreative = async (asset) => {
     setCreativeLoading(true);
@@ -155,13 +159,13 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   const handleOpenBillingPortal = async () => {
     setPortalLoading(true);
     try {
-      const url = await openBillingPortal({
+      await openBillingPortalInNewTab({
         ad_id: ad.id,
         return_url: typeof window !== "undefined" ? window.location.href : undefined,
       });
-      window.location.href = url;
     } catch (err) {
       toast({ title: "Could not open billing portal", description: err.message, variant: "destructive" });
+    } finally {
       setPortalLoading(false);
     }
   };
@@ -251,7 +255,10 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
           </div>
           <p className="text-xs text-muted-foreground truncate">{ad.business_name}</p>
           <p className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5">
-            <span className="capitalize">{ad.plan_type} plan</span>
+            <span>
+              {formatPlanTypeLabel(ad.plan_type)}
+              {planRate ? ` · ${planRate}` : ""}
+            </span>
             {ad.plan_start_date ? (
               <span>
                 {moment(ad.plan_start_date).format("MMM D, YYYY")}
@@ -260,11 +267,23 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
               </span>
             ) : null}
             {renewalLine}
+            {ad.auto_renew !== false && renewalDate ? (
+              <span className="w-full text-[10px] text-muted-foreground/90">
+                Next renewal uses the published rate locked {RENEWAL_RATE_LOCK_DAYS} days before renewal.
+              </span>
+            ) : null}
           </p>
           {hasBillingAccount ? (
             <p className="text-[11px] text-muted-foreground flex items-start gap-1.5 min-w-0">
               <CreditCard className="w-3 h-3 shrink-0 mt-0.5" />
-              <span className="min-w-0 break-words">
+              <span
+                className="min-w-0 break-words"
+                title={
+                  cardLabel
+                    ? undefined
+                    : "Each zip has its own Stripe billing profile. Card details show when Stripe returns them."
+                }
+              >
                 {cardLoading
                   ? "Loading card on file…"
                   : cardLabel || "Payment method on file"}
