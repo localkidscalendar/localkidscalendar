@@ -264,8 +264,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
             </span>
             {termRates.discountActive && termRates.listRate > termRates.effectiveRate ? (
               <span className="w-full text-[10px] text-muted-foreground/90">
-                List {formatAdListRate(ad)} · {termRates.discountPercent}% off
-                {termRates.discountCode ? ` (${termRates.discountCode})` : ""} · you pay {payingRate} this term
+                List {formatAdListRate(ad)} · {termRates.discountPercent}% off · you pay {payingRate} this term
               </span>
             ) : payingRate ? (
               <span className="w-full text-[10px] text-muted-foreground/90">
