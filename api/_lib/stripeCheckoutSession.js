@@ -2,12 +2,9 @@
  * Shared Stripe Checkout session builder for new + resumed Supporter ad payments.
  */
 
-export function applyDiscountToRate(rate, discountPercent) {
-  const base = Number(rate);
-  const pct = Number(discountPercent);
-  if (!pct || pct <= 0) return base;
-  return Math.round(base * (1 - pct / 100) * 100) / 100;
-}
+import { applyDiscountToRate } from "../../shared/adRateDisplay.js";
+
+export { applyDiscountToRate };
 
 export function formatDiscountRenewalsLabel(renewalsApplicable, planType) {
   const cycles = Number(renewalsApplicable);
@@ -171,6 +168,8 @@ export async function createAdSubscriptionCheckoutSession(stripe, {
       ad_library_id: adLibraryId || "",
       waitlist_entry_id: waitlistEntryId || "",
       rate_at_purchase: String(rateAtPurchase),
+      discount_renewals_applicable:
+        discountPercent > 0 ? String(discountRenewalsApplicable ?? 1) : "",
     },
     subscription_data: {
       metadata: {

@@ -9,10 +9,12 @@ import { useToast } from "@/components/ui/use-toast";
 import AdLibraryManager from "@/components/ads/AdLibraryManager";
 import {
   cancelAdRenewal,
-  formatAdPlanRate,
+  formatAdListRate,
+  formatAdPayingRate,
   formatPaymentMethodLabel,
   formatPlanTypeLabel,
   getAdPaymentMethod,
+  getAdTermRates,
   openBillingPortalInNewTab,
   requestAdPlanChange,
   resumeAdRenewal,
@@ -70,7 +72,8 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   const downgradePending = Boolean(ad.downgrade_to_monthly_pending);
   const planChangePending = upgradePending || downgradePending;
   const targetPlanLabel = ad.plan_type === "annual" ? "Monthly" : "Annual";
-  const planRate = formatAdPlanRate(ad);
+  const termRates = getAdTermRates(ad);
+  const payingRate = formatAdPayingRate(ad);
 
   const handleChangeCreative = async (asset) => {
     setCreativeLoading(true);
@@ -257,8 +260,18 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
           <p className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5">
             <span>
               {formatPlanTypeLabel(ad.plan_type)}
-              {planRate ? ` · ${planRate}` : ""}
+              {payingRate ? ` · ${payingRate}` : ""}
             </span>
+            {termRates.discountActive && termRates.listRate > termRates.effectiveRate ? (
+              <span className="w-full text-[10px] text-muted-foreground/90">
+                List {formatAdListRate(ad)} · {termRates.discountPercent}% off
+                {termRates.discountCode ? ` (${termRates.discountCode})` : ""} · you pay {payingRate} this term
+              </span>
+            ) : payingRate ? (
+              <span className="w-full text-[10px] text-muted-foreground/90">
+                Your rate for this term (locked at purchase; not the site-wide published rate).
+              </span>
+            ) : null}
             {ad.plan_start_date ? (
               <span>
                 {moment(ad.plan_start_date).format("MMM D, YYYY")}

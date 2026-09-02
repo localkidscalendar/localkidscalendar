@@ -106,16 +106,20 @@ export function formatPlanTypeLabel(planType) {
   return planType === "annual" ? "Annual plan" : "Monthly plan";
 }
 
-/** Current term rate stored on the ad at purchase (or last renewal if updated). */
+export {
+  applyDiscountToRate,
+  formatAdListRate,
+  formatAdPayingRate,
+  formatRateAmount,
+  getAdTermRates,
+  isAdDiscountActive,
+} from "../../shared/adRateDisplay.js";
+
+import { formatAdPayingRate } from "../../shared/adRateDisplay.js";
+
+/** @deprecated Use formatAdPayingRate — shows the discounted amount actually paid this term. */
 export function formatAdPlanRate(ad) {
-  const raw = ad?.rate_at_purchase;
-  if (raw === null || raw === undefined || raw === "") return null;
-  const rate = Number(raw);
-  if (!Number.isFinite(rate) || rate < 0) return null;
-  const amount = Number.isInteger(rate)
-    ? rate.toLocaleString("en-US")
-    : rate.toFixed(2);
-  return ad?.plan_type === "annual" ? `$${amount}/yr` : `$${amount}/mo`;
+  return formatAdPayingRate(ad);
 }
 
 /** Load masked payment method details for an ad (never returns a full card number). */

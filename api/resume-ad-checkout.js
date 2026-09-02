@@ -111,6 +111,9 @@ export default async function handler(req, res) {
         .update({
           discount_code_used: discountCode,
           discount_amount: discountPercent || null,
+          discount_renewals_applicable:
+            discountPercent > 0 ? (discountRenewalsApplicable ?? 1) : null,
+          discount_cycles_used: 0,
         })
         .eq("id", ad.id)
         .eq("user_id", authUser.id);

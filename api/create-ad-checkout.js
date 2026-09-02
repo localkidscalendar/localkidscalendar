@@ -220,6 +220,9 @@ export default async function handler(req, res) {
         ad_library_id: adLibraryId || null,
         discount_code_used: discountCode || null,
         discount_amount: discountPercent || null,
+        discount_renewals_applicable:
+          discountPercent > 0 ? (discountRenewalsApplicable ?? 1) : null,
+        discount_cycles_used: 0,
       })
       .select("id")
       .single();

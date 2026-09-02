@@ -6,6 +6,7 @@ import {
   notifyPaymentFailed,
   notifySubscriptionRenewed,
 } from "./_lib/adBillingNotices.js";
+import { isAdDiscountActive } from "../shared/adRateDisplay.js";
 
 // Stripe requires the raw request body to verify the webhook signature.
 export const config = { api: { bodyParser: false } };
@@ -43,9 +44,14 @@ async function handleCheckoutCompleted(admin, session) {
     plan_end_date: planEnd,
     next_renewal_date: planEnd,
     rate_at_purchase: meta.rate_at_purchase ? Number(meta.rate_at_purchase) : null,
+    discount_cycles_used: 0,
     grace_period_start: null,
     cancelled_at: null,
   };
+
+  if (meta.discount_renewals_applicable !== undefined && meta.discount_renewals_applicable !== "") {
+    adUpdate.discount_renewals_applicable = Number(meta.discount_renewals_applicable);
+  }
 
   if (meta.ad_library_id) {
     const { data: libAd } = await admin
@@ -187,7 +193,24 @@ async function handlePaymentFailed(admin, invoice) {
   }
 }
 
-async function handlePaymentSucceeded(admin, invoice) {
+async function syncAdDiscountFromSubscription(stripe, ad) {
+  if (!ad?.stripe_subscription_id) return {};
+  try {
+    const subscription = await stripe.subscriptions.retrieve(ad.stripe_subscription_id);
+    const percentOff = subscription.discount?.coupon?.percent_off;
+    if (Number.isFinite(Number(percentOff)) && Number(percentOff) > 0) {
+      return { discount_amount: Number(percentOff) };
+    }
+    if (ad.discount_amount) {
+      return { discount_amount: null };
+    }
+  } catch (err) {
+    console.error(`stripe-webhook: failed to sync discount for ad ${ad.id}:`, err.message);
+  }
+  return {};
+}
+
+async function handlePaymentSucceeded(admin, stripe, invoice) {
   const subId = subscriptionIdOf(invoice.subscription);
   if (!subId || invoice.billing_reason === "subscription_create") return;
 
@@ -202,6 +225,21 @@ async function handlePaymentSucceeded(admin, invoice) {
       updates.plan_start_date = start;
       updates.plan_end_date = end;
       updates.next_renewal_date = end;
+      updates.discount_cycles_used = (Number(ad.discount_cycles_used) || 0) + 1;
+    }
+
+    Object.assign(updates, await syncAdDiscountFromSubscription(stripe, { ...ad, ...updates }));
+
+    if (
+      isRenewal &&
+      ad.discount_renewals_applicable != null &&
+      Number(ad.discount_renewals_applicable) > 0 &&
+      Number(updates.discount_cycles_used ?? ad.discount_cycles_used) >=
+        Number(ad.discount_renewals_applicable)
+    ) {
+      updates.discount_amount = null;
+    } else if (!isAdDiscountActive({ ...ad, ...updates })) {
+      updates.discount_amount = null;
     }
 
     if (wasPastDue) {
@@ -268,7 +306,7 @@ export default async function handler(req, res) {
         await handlePaymentFailed(admin, event.data.object);
         break;
       case "invoice.payment_succeeded":
-        await handlePaymentSucceeded(admin, event.data.object);
+        await handlePaymentSucceeded(admin, stripe, event.data.object);
         break;
       default:
         break;
