@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   applyDiscountToRate,
   formatAdPayingRate,
+  formatAdRenewalRateNote,
   getAdTermRates,
   isAdDiscountActive,
+  willDiscountApplyAtNextRenewal,
 } from "../../shared/adRateDisplay.js";
 import { formatAdPlanRate, formatPlanTypeLabel } from "@/lib/adBilling";
 
@@ -62,5 +64,52 @@ describe("applyDiscountToRate", () => {
   it("rounds discounted amounts to cents", () => {
     expect(applyDiscountToRate(150, 20)).toBe(120);
     expect(applyDiscountToRate(1260, 15)).toBe(1071);
+  });
+});
+
+describe("formatAdRenewalRateNote", () => {
+  it("mentions ongoing discount continuing past renewal", () => {
+    expect(
+      formatAdRenewalRateNote({
+        rate_at_purchase: 150,
+        discount_amount: 20,
+        discount_renewals_applicable: 0,
+        discount_cycles_used: 0,
+      })
+    ).toContain("with your 20% discount still applied");
+    expect(
+      willDiscountApplyAtNextRenewal({
+        discount_amount: 20,
+        discount_renewals_applicable: 0,
+        discount_cycles_used: 0,
+      })
+    ).toBe(true);
+  });
+
+  it("marks the last discounted term when the next renewal drops the discount", () => {
+    expect(
+      formatAdRenewalRateNote({
+        rate_at_purchase: 150,
+        discount_amount: 20,
+        discount_renewals_applicable: 1,
+        discount_cycles_used: 0,
+      })
+    ).toContain("last discounted term");
+    expect(
+      willDiscountApplyAtNextRenewal({
+        discount_amount: 20,
+        discount_renewals_applicable: 1,
+        discount_cycles_used: 0,
+      })
+    ).toBe(false);
+  });
+
+  it("uses the plain published-rate note when no discount applies", () => {
+    expect(
+      formatAdRenewalRateNote({
+        rate_at_purchase: 150,
+        discount_amount: null,
+      })
+    ).toBe("Next renewal uses the published rate locked 21 days before renewal.");
   });
 });

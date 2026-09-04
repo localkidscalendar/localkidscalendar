@@ -11,6 +11,7 @@ import {
   cancelAdRenewal,
   formatAdListRate,
   formatAdPayingRate,
+  formatAdRenewalRateNote,
   formatPaymentMethodLabel,
   formatPlanTypeLabel,
   getAdPaymentMethod,
@@ -281,7 +282,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
             {renewalLine}
             {ad.auto_renew !== false && renewalDate ? (
               <span className="w-full text-[10px] text-muted-foreground/90">
-                Next renewal uses the published rate locked {RENEWAL_RATE_LOCK_DAYS} days before renewal.
+                {formatAdRenewalRateNote(ad, RENEWAL_RATE_LOCK_DAYS)}
               </span>
             ) : null}
           </p>

@@ -110,9 +110,12 @@ export {
   applyDiscountToRate,
   formatAdListRate,
   formatAdPayingRate,
+  formatAdRenewalRateNote,
   formatRateAmount,
   getAdTermRates,
   isAdDiscountActive,
+  isAdDiscountOngoing,
+  willDiscountApplyAtNextRenewal,
 } from "../../shared/adRateDisplay.js";
 
 import { formatAdPayingRate } from "../../shared/adRateDisplay.js";

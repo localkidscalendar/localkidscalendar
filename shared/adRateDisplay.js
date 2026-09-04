@@ -47,6 +47,24 @@ export function isAdDiscountActive(ad) {
   return cyclesUsed < renewalLimit;
 }
 
+/** Forever / ongoing discount (including legacy rows with an active percent and no limit). */
+export function isAdDiscountOngoing(ad) {
+  if (!isAdDiscountActive(ad)) return false;
+  const renewals = ad?.discount_renewals_applicable;
+  if (renewals === null || renewals === undefined || renewals === "") return true;
+  const renewalLimit = Number(renewals);
+  return !Number.isFinite(renewalLimit) || renewalLimit <= 0;
+}
+
+/** True when the next renewal charge should still include the discount. */
+export function willDiscountApplyAtNextRenewal(ad) {
+  if (!isAdDiscountActive(ad)) return false;
+  if (isAdDiscountOngoing(ad)) return true;
+  const renewalLimit = Number(ad.discount_renewals_applicable);
+  const cyclesUsed = Number(ad.discount_cycles_used) || 0;
+  return cyclesUsed + 1 < renewalLimit;
+}
+
 export function getAdTermRates(ad) {
   const rawList = ad?.rate_at_purchase;
   if (rawList === null || rawList === undefined || rawList === "") {
@@ -92,4 +110,26 @@ export function formatAdPayingRate(ad) {
 export function formatAdListRate(ad) {
   const { listRate } = getAdTermRates(ad);
   return formatRateAmount(listRate, ad?.plan_type);
+}
+
+/**
+ * Renewal pricing note for Ad Manager. List rates lock ~lockDays before renewal;
+ * an active multi-term / ongoing discount still applies on top of that list rate.
+ */
+export function formatAdRenewalRateNote(ad, lockDays = 21) {
+  const days = Number(lockDays) || 21;
+  const { discountActive, discountPercent } = getAdTermRates(ad);
+
+  if (discountActive && willDiscountApplyAtNextRenewal(ad)) {
+    if (isAdDiscountOngoing(ad)) {
+      return `Next renewal uses the published list rate locked ${days} days before renewal, with your ${discountPercent}% discount still applied.`;
+    }
+    return `Next renewal uses the published list rate locked ${days} days before renewal, with your ${discountPercent}% discount still applied for remaining discounted terms.`;
+  }
+
+  if (discountActive) {
+    return `This is the last discounted term; next renewal uses the published rate locked ${days} days before renewal.`;
+  }
+
+  return `Next renewal uses the published rate locked ${days} days before renewal.`;
 }
