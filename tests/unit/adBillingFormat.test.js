@@ -68,7 +68,7 @@ describe("applyDiscountToRate", () => {
 });
 
 describe("formatAdRenewalRateNote", () => {
-  it("mentions ongoing discount continuing past renewal", () => {
+  it("leads with discount continuation for ongoing discounts", () => {
     expect(
       formatAdRenewalRateNote({
         rate_at_purchase: 150,
@@ -76,7 +76,9 @@ describe("formatAdRenewalRateNote", () => {
         discount_renewals_applicable: 0,
         discount_cycles_used: 0,
       })
-    ).toContain("with your 20% discount still applied");
+    ).toBe(
+      "Your 20% discount continues at each renewal (on the published list rate locked 21 days prior)."
+    );
     expect(
       willDiscountApplyAtNextRenewal({
         discount_amount: 20,
@@ -84,6 +86,16 @@ describe("formatAdRenewalRateNote", () => {
         discount_cycles_used: 0,
       })
     ).toBe(true);
+  });
+
+  it("treats legacy discount rows without a renewals limit as ongoing", () => {
+    expect(
+      formatAdRenewalRateNote({
+        rate_at_purchase: 150,
+        discount_amount: 15,
+        discount_code_used: "SAVE15",
+      })
+    ).toContain("continues at each renewal");
   });
 
   it("marks the last discounted term when the next renewal drops the discount", () => {

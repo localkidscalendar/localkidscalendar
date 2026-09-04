@@ -59,8 +59,10 @@ export default function CurrentAdRates() {
       <div className="bg-muted/20 rounded-xl p-4 text-xs text-muted-foreground space-y-1.5">
         <p className="font-semibold text-foreground text-sm mb-2">Renewal Policy</p>
         <p>
-          • Plans automatically renew for the same period at the{" "}
-          <strong>current ad rate as of 21 days before renewal</strong>.
+          • Plans automatically renew for the same period. The{" "}
+          <strong>published list rate locks 21 days before renewal</strong>
+          {"; "}
+          if your plan has an ongoing discount, that discount still applies on top of the locked list rate.
         </p>
         <p>
           • To avoid renewal, you must cancel at least <strong>14 days before your renewal date</strong>.

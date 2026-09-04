@@ -281,7 +281,13 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
             ) : null}
             {renewalLine}
             {ad.auto_renew !== false && renewalDate ? (
-              <span className="w-full text-[10px] text-muted-foreground/90">
+              <span
+                className={`w-full text-[10px] ${
+                  termRates.discountActive || ad.discount_code_used
+                    ? "text-mint-700 font-medium"
+                    : "text-muted-foreground/90"
+                }`}
+              >
                 {formatAdRenewalRateNote(ad, RENEWAL_RATE_LOCK_DAYS)}
               </span>
             ) : null}

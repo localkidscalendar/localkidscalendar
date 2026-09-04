@@ -49,7 +49,11 @@ export function isAdDiscountActive(ad) {
 
 /** Forever / ongoing discount (including legacy rows with an active percent and no limit). */
 export function isAdDiscountOngoing(ad) {
-  if (!isAdDiscountActive(ad)) return false;
+  const pct = Number(ad?.discount_amount);
+  const hasPct = Number.isFinite(pct) && pct > 0;
+  const hasCode = Boolean(ad?.discount_code_used);
+  if (!hasPct && !hasCode) return false;
+
   const renewals = ad?.discount_renewals_applicable;
   if (renewals === null || renewals === undefined || renewals === "") return true;
   const renewalLimit = Number(renewals);
@@ -58,10 +62,18 @@ export function isAdDiscountOngoing(ad) {
 
 /** True when the next renewal charge should still include the discount. */
 export function willDiscountApplyAtNextRenewal(ad) {
-  if (!isAdDiscountActive(ad)) return false;
-  if (isAdDiscountOngoing(ad)) return true;
-  const renewalLimit = Number(ad.discount_renewals_applicable);
-  const cyclesUsed = Number(ad.discount_cycles_used) || 0;
+  const pct = Number(ad?.discount_amount);
+  const hasPct = Number.isFinite(pct) && pct > 0;
+  const hasCode = Boolean(ad?.discount_code_used);
+  if (!hasPct && !hasCode) return false;
+
+  const renewals = ad?.discount_renewals_applicable;
+  if (renewals === null || renewals === undefined || renewals === "") return true;
+
+  const renewalLimit = Number(renewals);
+  if (!Number.isFinite(renewalLimit) || renewalLimit <= 0) return true;
+
+  const cyclesUsed = Number(ad?.discount_cycles_used) || 0;
   return cyclesUsed + 1 < renewalLimit;
 }
 
@@ -118,17 +130,21 @@ export function formatAdListRate(ad) {
  */
 export function formatAdRenewalRateNote(ad, lockDays = 21) {
   const days = Number(lockDays) || 21;
-  const { discountActive, discountPercent } = getAdTermRates(ad);
+  const pct = Number(ad?.discount_amount);
+  const hasPct = Number.isFinite(pct) && pct > 0;
+  const hasCode = Boolean(ad?.discount_code_used);
+  const hasDiscountSignal = hasPct || hasCode;
 
-  if (discountActive && willDiscountApplyAtNextRenewal(ad)) {
+  if (hasDiscountSignal && willDiscountApplyAtNextRenewal(ad)) {
+    const pctLabel = hasPct ? `${pct}% ` : "";
     if (isAdDiscountOngoing(ad)) {
-      return `Next renewal uses the published list rate locked ${days} days before renewal, with your ${discountPercent}% discount still applied.`;
+      return `Your ${pctLabel}discount continues at each renewal (on the published list rate locked ${days} days prior).`;
     }
-    return `Next renewal uses the published list rate locked ${days} days before renewal, with your ${discountPercent}% discount still applied for remaining discounted terms.`;
+    return `Your ${pctLabel}discount continues at renewal for remaining discounted terms (on the published list rate locked ${days} days prior).`;
   }
 
-  if (discountActive) {
-    return `This is the last discounted term; next renewal uses the published rate locked ${days} days before renewal.`;
+  if (hasDiscountSignal) {
+    return `This is your last discounted term. After that, renewal uses the published rate locked ${days} days prior.`;
   }
 
   return `Next renewal uses the published rate locked ${days} days before renewal.`;
