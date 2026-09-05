@@ -261,11 +261,25 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
           <p className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5">
             <span>
               {formatPlanTypeLabel(ad.plan_type)}
-              {payingRate ? ` · ${payingRate}` : ""}
+              {payingRate && !(termRates.discountActive && termRates.listRate > termRates.effectiveRate)
+                ? ` · ${payingRate}`
+                : ""}
             </span>
             {termRates.discountActive && termRates.listRate > termRates.effectiveRate ? (
-              <span className="w-full text-[10px] text-muted-foreground/90">
-                List {formatAdListRate(ad)} · {termRates.discountPercent}% off · you pay {payingRate} this term
+              <span className="w-full flex flex-wrap items-center gap-1.5 text-[10px]">
+                <span className="text-muted-foreground/80 line-through decoration-muted-foreground/50">
+                  {formatAdListRate(ad)}
+                </span>
+                <span className="inline-flex items-center rounded-md bg-mint-50 px-1.5 py-0.5 font-semibold text-mint-700 ring-1 ring-inset ring-mint-200/80">
+                  {termRates.discountPercent}% off
+                </span>
+                <span className="text-muted-foreground/70" aria-hidden="true">
+                  →
+                </span>
+                <span className="font-semibold text-foreground">
+                  {payingRate}
+                  <span className="font-normal text-muted-foreground"> this term</span>
+                </span>
               </span>
             ) : payingRate ? (
               <span className="w-full text-[10px] text-muted-foreground/90">
