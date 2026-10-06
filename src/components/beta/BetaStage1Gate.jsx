@@ -1,7 +1,7 @@
 // BETA MODE — temporary access gate (Stage 1).
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { BETA_STAGE1_STORAGE_KEY } from "@/lib/betaStage1Access";
+import { getBetaStage1Access, setBetaStage1Access } from "@/lib/betaStage1Access";
 
 export default function BetaStage1Gate({ children }) {
   const [config, setConfig] = useState(null);
@@ -33,12 +33,10 @@ export default function BetaStage1Gate({ children }) {
 
   useEffect(() => {
     if (!config) return;
-    try {
-      const stored = localStorage.getItem(BETA_STAGE1_STORAGE_KEY);
-      if (stored && config.access_code && stored === config.access_code) {
-        setVerified(true);
-      }
-    } catch {}
+    const stored = getBetaStage1Access();
+    if (stored && config.access_code && stored === config.access_code) {
+      setVerified(true);
+    }
   }, [config]);
 
   if (loading) {
@@ -57,7 +55,7 @@ export default function BetaStage1Gate({ children }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (input.trim() === config.access_code) {
-      try { localStorage.setItem(BETA_STAGE1_STORAGE_KEY, input.trim()); } catch {}
+      setBetaStage1Access(input.trim());
       setVerified(true);
       setError("");
     } else {
