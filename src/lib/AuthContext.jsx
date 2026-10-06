@@ -6,6 +6,7 @@ import {
   isLastActivityExpired,
   writeLastActivityAt,
 } from "@/lib/sessionActivityStorage";
+import { clearBetaStage1Access } from "@/lib/betaStage1Access";
 
 const AuthContext = createContext();
 
@@ -119,6 +120,7 @@ export const AuthProvider = ({ children }) => {
       if (data.session && isLastActivityExpired()) {
         await supabase.auth.signOut();
         clearSessionActivityStorage();
+        clearBetaStage1Access();
         setUser(null);
         setIsAuthenticated(false);
         setIsLoadingAuth(false);
@@ -159,6 +161,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     clearSessionActivityStorage();
+    clearBetaStage1Access();
     // Drop Home location cache so the next guest visit uses geo / manual zip, not the prior profile.
     try {
       sessionStorage.removeItem("session_zip_current");

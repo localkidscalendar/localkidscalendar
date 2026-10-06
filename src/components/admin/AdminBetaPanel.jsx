@@ -116,7 +116,7 @@ export default function AdminBetaPanel({ toast }) {
           <Switch checked={!!config.stage1_enabled} disabled={saving} onCheckedChange={(v) => save({ stage1_enabled: v })} />
         </div>
         <p className="text-xs text-muted-foreground">
-          When enabled, every visitor (regardless of account or login status) must enter the access code below before they can view any part of the site.
+          When enabled, every visitor (regardless of account or login status) must enter the access code below before they can view any part of the site. Unlock is remembered in this browser until sign-out (including idle sign-out), which clears it so the code is required again.
         </p>
         <div>
           <label className="text-sm font-medium block mb-2">Access Code</label>

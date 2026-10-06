@@ -1104,6 +1104,7 @@ const categories = [
         overview:
           "Temporary access controls for a limited launch. Stage 1 is an access code gate. Stage 2 limits where activities and ads can be listed (whitelist zips) — not who may create an account. Users may store any real profile zip; if Home’s session zip is outside the whitelist, a highly visible notice explains that activities won’t appear until they pick a beta zip for browsing (session only).",
         features: [
+          "When enabled, every visitor must enter the access code before viewing the site. Unlock is stored in the browser; signing out (including idle sign-out) clears it so the next visit must enter the code again.",
           "Toggle beta / stage 1 access code",
           "Stage 2 allowed zip list for listings",
           "Home out-of-area notice + empty activity list (profile zip unchanged)",
