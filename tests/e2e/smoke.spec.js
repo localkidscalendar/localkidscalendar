@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 /**
  * Public smoke tests — no login required.
- * Handles Stage 1 beta gate ("Private Preview") when enabled.
+ * Handles Stage 1 beta gate (preview landing + access code) when enabled.
  * Run with: npm run test:e2e
  *
  * Optional: PLAYWRIGHT_BETA_CODE=<code> to pass the gate automatically.
@@ -10,7 +10,7 @@ import { test, expect } from "@playwright/test";
 
 async function enterBetaGateIfPresent(page) {
   const code = process.env.PLAYWRIGHT_BETA_CODE?.trim();
-  const gateHeading = page.getByRole("heading", { name: /Private Preview/i });
+  const gateHeading = page.getByRole("heading", { name: /Have an access code\?/i });
   try {
     await gateHeading.waitFor({ state: "visible", timeout: 8000 });
   } catch {
@@ -21,7 +21,7 @@ async function enterBetaGateIfPresent(page) {
     return;
   }
   await page.getByPlaceholder(/access code/i).fill(code);
-  await page.getByRole("button", { name: /^Enter$/i }).click();
+  await page.getByRole("button", { name: /Enter site/i }).click();
   await expect(gateHeading).toBeHidden({ timeout: 10000 });
 }
 
@@ -30,7 +30,7 @@ test.describe("public smoke", () => {
     await page.goto("/");
     await expect(page).toHaveTitle(/Local.?Kids|Calendar/i);
     await expect(
-      page.getByText(/Private Preview|Loading|Local|Calendar|Sign|Zip/i).first()
+      page.getByText(/access code|final touches|LocalKidsCalendar|Loading|Local|Calendar|Sign|Zip/i).first()
     ).toBeVisible({ timeout: 20000 });
     await enterBetaGateIfPresent(page);
   });
