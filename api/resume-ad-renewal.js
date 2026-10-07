@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { getEnv, createAdminClient, requireUser } from "./_lib/stripeHelpers.js";
+import { applyStripeSubscriptionToAd } from "./_lib/syncAdSubscription.js";
 import {
   RENEWAL_CANCELLATION_WINDOW_DAYS,
   canResumeAutoRenew,
@@ -51,23 +52,40 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "This ad is already set to auto-renew." });
     }
 
-    if (!canResumeAutoRenew(ad)) {
-      const daysLeft = daysUntilDate(renewalDeadline(ad));
-      if (daysLeft !== null && daysLeft < 0) {
-        return res.status(400).json({ error: "This ad term has already ended." });
-      }
-      return res.status(400).json({
-        error: `Auto-renew cannot be turned back on within ${RENEWAL_CANCELLATION_WINDOW_DAYS} days of your renewal date.`,
-      });
-    }
-
+    let adForPolicy = ad;
     if (ad.stripe_subscription_id) {
       const stripe = new Stripe(stripeSecret);
       const subscription = await stripe.subscriptions.retrieve(ad.stripe_subscription_id);
       if (subscription.status === "canceled") {
         return res.status(400).json({ error: "This subscription has already ended." });
       }
+      // Sync period first so a stale past next_renewal_date doesn't block resume incorrectly.
+      const synced = await applyStripeSubscriptionToAd(admin, adId, subscription, {
+        includeAutoRenew: false,
+      });
+      if (synced) {
+        adForPolicy = { ...ad, ...synced, auto_renew: false };
+      }
+
+      if (!canResumeAutoRenew(adForPolicy)) {
+        const daysLeft = daysUntilDate(renewalDeadline(adForPolicy));
+        if (daysLeft !== null && daysLeft < 0) {
+          return res.status(400).json({ error: "This ad term has already ended." });
+        }
+        return res.status(400).json({
+          error: `Auto-renew cannot be turned back on within ${RENEWAL_CANCELLATION_WINDOW_DAYS} days of your renewal date.`,
+        });
+      }
+
       await stripe.subscriptions.update(ad.stripe_subscription_id, { cancel_at_period_end: false });
+    } else if (!canResumeAutoRenew(adForPolicy)) {
+      const daysLeft = daysUntilDate(renewalDeadline(adForPolicy));
+      if (daysLeft !== null && daysLeft < 0) {
+        return res.status(400).json({ error: "This ad term has already ended." });
+      }
+      return res.status(400).json({
+        error: `Auto-renew cannot be turned back on within ${RENEWAL_CANCELLATION_WINDOW_DAYS} days of your renewal date.`,
+      });
     }
 
     const { error: updateError } = await admin

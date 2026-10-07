@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { getEnv, createAdminClient, requireUser } from "./_lib/stripeHelpers.js";
+import { applyStripeSubscriptionToAd } from "./_lib/syncAdSubscription.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
@@ -37,9 +38,17 @@ export default async function handler(req, res) {
     if (!ad) return res.status(404).json({ error: "Ad not found" });
     if (ad.user_id !== authUser.id) return res.status(403).json({ error: "Forbidden" });
 
+    let periodUpdates = null;
     if (ad.stripe_subscription_id) {
       const stripe = new Stripe(stripeSecret);
-      await stripe.subscriptions.update(ad.stripe_subscription_id, { cancel_at_period_end: true });
+      const subscription = await stripe.subscriptions.update(ad.stripe_subscription_id, {
+        cancel_at_period_end: true,
+      });
+      // Refresh dates from Stripe so Ad Manager shows the real current term end
+      // (avoids stale next_renewal_date after a renewal webhook lag).
+      periodUpdates = await applyStripeSubscriptionToAd(admin, adId, subscription, {
+        includeAutoRenew: false,
+      });
     }
 
     const { error: updateError } = await admin
@@ -49,7 +58,7 @@ export default async function handler(req, res) {
     if (updateError) throw updateError;
 
     console.log(`cancel-ad-renewal: ad ${adId} set to cancel_at_period_end by user ${authUser.id}`);
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, billing: periodUpdates });
   } catch (error) {
     console.error("cancel-ad-renewal error:", error);
     return res.status(500).json({ error: error.message || "Failed to cancel renewal" });

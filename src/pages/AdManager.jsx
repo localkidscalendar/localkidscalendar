@@ -20,7 +20,7 @@ import ActiveAdCard from "@/components/ads/ActiveAdCard";
 import InactiveAdCard from "@/components/ads/InactiveAdCard";
 import WaitlistManager, { joinAdWaitlist } from "@/components/ads/WaitlistManager";
 import CurrentAdRates from "@/components/ads/CurrentAdRates";
-import { createAdCheckout, validateAdDiscount } from "@/lib/adBilling";
+import { createAdCheckout, syncAdBilling, validateAdDiscount } from "@/lib/adBilling";
 import { markStripeCheckoutGrace } from "@/lib/sessionActivityStorage";
 import { useSessionActivityPause } from "@/lib/SessionActivityContext";
 import { SUPPORTER_RULES, TOS_INTRO, TOS_SECTIONS, TOS_FOOTER } from "@/lib/supporterContent";
@@ -991,6 +991,12 @@ export default function AdManager() {
     if (silent) setRefreshing(true);
     else setLoading(true);
     try {
+      // Repair stale next_renewal_date after renewals (Stripe period is source of truth).
+      try {
+        await syncAdBilling();
+      } catch (syncErr) {
+        console.warn("Ad billing sync skipped:", syncErr?.message || syncErr);
+      }
       const { data, error } = await supabase
         .from("banner_ads")
         .select("*")

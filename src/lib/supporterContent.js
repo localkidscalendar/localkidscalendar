@@ -62,8 +62,8 @@ export const TOS_SECTIONS = [
     title: "3. Payments & Subscriptions",
     paragraphs: ["All plans are prepaid in full before your ad becomes active. We offer:"],
     list: [
-      { label: "Monthly Plan", text: "30-day period, billed at the current monthly rate per zip code." },
-      { label: "Annual Plan", text: "365-day period, billed at the current annual rate (monthly rate × 12, less the published annual discount) per zip code." },
+      { label: "Monthly Plan", text: "One calendar month from your start date (for example, Oct 12 renews Nov 12), billed at the current monthly rate per zip code." },
+      { label: "Annual Plan", text: "One calendar year from your start date, billed at the current annual rate (monthly rate × 12, less the published annual discount) per zip code." },
     ],
     afterListParagraphs: ["Rates are set by the Platform and may change. Your renewal rate will be the current rate as of 21 days before your renewal date. Plans automatically renew for the same period unless cancelled at least 14 days prior to renewal. Payment is processed via Stripe. By providing payment information, you authorize us to charge your payment method for all applicable fees."],
   },

@@ -23,6 +23,7 @@ import {
 import {
   RENEWAL_CANCELLATION_WINDOW_DAYS,
   canResumeAutoRenew,
+  isWithinCancellationLock,
   renewalDeadline,
   daysUntilDate,
 } from "../../../shared/adRenewalPolicy.js";
@@ -57,8 +58,8 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
 
   const cfg = STATUS_CONFIG[ad.status] || STATUS_CONFIG.pending_review;
   const renewalDate = ad.next_renewal_date ? moment(ad.next_renewal_date) : null;
-  const daysUntilRenewal = renewalDate ? renewalDate.diff(moment(), "days") : null;
-  const withinCancellationWindow = daysUntilRenewal !== null && daysUntilRenewal < RENEWAL_CANCELLATION_WINDOW_DAYS;
+  const daysUntilRenewal = daysUntilDate(ad.next_renewal_date);
+  const withinCancellationWindow = isWithinCancellationLock(ad);
   const resumeAutoRenewAllowed = ad.auto_renew === false && canResumeAutoRenew(ad);
   const daysUntilDeadline = daysUntilDate(renewalDeadline(ad));
   const nextTermEnd = renewalDate

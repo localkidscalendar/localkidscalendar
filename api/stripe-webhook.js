@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { getEnv, createAdminClient, planDates } from "./_lib/stripeHelpers.js";
+import { billingFieldsFromStripeSubscription } from "./_lib/syncAdSubscription.js";
 import { runProcessWaitlist } from "./_lib/processWaitlistCore.js";
 import {
   GRACE_PERIOD_DAYS,
@@ -25,7 +26,7 @@ function subscriptionIdOf(value) {
   return typeof value === "string" ? value : value.id || null;
 }
 
-async function handleCheckoutCompleted(admin, session) {
+async function handleCheckoutCompleted(admin, stripe, session) {
   const meta = session.metadata || {};
   const adId = meta.ad_id;
   if (!adId) {
@@ -33,12 +34,31 @@ async function handleCheckoutCompleted(admin, session) {
     return;
   }
 
-  const { start: planStart, end: planEnd } = planDates(meta.plan_type);
+  const subId = subscriptionIdOf(session.subscription);
+  let planStart;
+  let planEnd;
+  if (subId) {
+    try {
+      const subscription = await stripe.subscriptions.retrieve(subId);
+      const fromStripe = billingFieldsFromStripeSubscription(subscription);
+      if (fromStripe) {
+        planStart = fromStripe.plan_start_date;
+        planEnd = fromStripe.plan_end_date;
+      }
+    } catch (err) {
+      console.error(`stripe-webhook: failed to load subscription ${subId} on checkout:`, err.message);
+    }
+  }
+  if (!planStart || !planEnd) {
+    const fallback = planDates(meta.plan_type);
+    planStart = fallback.start;
+    planEnd = fallback.end;
+  }
 
   const adUpdate = {
     status: "active",
     moderation_status: "auto_approved",
-    stripe_subscription_id: subscriptionIdOf(session.subscription),
+    stripe_subscription_id: subId,
     stripe_customer_id: subscriptionIdOf(session.customer),
     plan_start_date: planStart,
     plan_end_date: planEnd,
@@ -221,10 +241,24 @@ async function handlePaymentSucceeded(admin, stripe, invoice) {
     const isRenewal = invoice.billing_reason === "subscription_cycle";
 
     if (isRenewal) {
-      const { start, end } = planDates(ad.plan_type);
-      updates.plan_start_date = start;
-      updates.plan_end_date = end;
-      updates.next_renewal_date = end;
+      try {
+        const subscription = await stripe.subscriptions.retrieve(subId);
+        const fromStripe = billingFieldsFromStripeSubscription(subscription);
+        if (fromStripe) {
+          updates.plan_start_date = fromStripe.plan_start_date;
+          updates.plan_end_date = fromStripe.plan_end_date;
+          updates.next_renewal_date = fromStripe.next_renewal_date;
+          updates.auto_renew = fromStripe.auto_renew;
+        }
+      } catch (err) {
+        console.error(`stripe-webhook: failed to sync period for ad ${ad.id}:`, err.message);
+      }
+      if (!updates.next_renewal_date) {
+        const { start, end } = planDates(ad.plan_type);
+        updates.plan_start_date = start;
+        updates.plan_end_date = end;
+        updates.next_renewal_date = end;
+      }
       updates.discount_cycles_used = (Number(ad.discount_cycles_used) || 0) + 1;
     }
 
@@ -297,7 +331,7 @@ export default async function handler(req, res) {
   try {
     switch (event.type) {
       case "checkout.session.completed":
-        await handleCheckoutCompleted(admin, event.data.object);
+        await handleCheckoutCompleted(admin, stripe, event.data.object);
         break;
       case "customer.subscription.deleted":
         await handleSubscriptionDeleted(admin, event.data.object);

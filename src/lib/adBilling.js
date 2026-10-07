@@ -152,6 +152,11 @@ export function formatPaymentMethodLabel(paymentMethod) {
   return paymentMethod.via_link ? `${masked} (via Link)` : masked;
 }
 
+/** Refresh stale plan/renewal dates from Stripe (repairs lag after renewals). */
+export async function syncAdBilling({ ad_id, force } = {}) {
+  return postJson("/api/sync-ad-billing", { ad_id, force });
+}
+
 /** Cancel auto-renewal for an ad's subscription (runs through the end of the paid term). */
 export async function cancelAdRenewal({ ad_id } = {}) {
   return postJson("/api/cancel-ad-renewal", { ad_id });

@@ -127,8 +127,10 @@ function MockAdCard({ ad }) {
   const msg = STATUS_MESSAGES[ad.status];
 
   const renewalDate = ad.next_renewal_date ? moment(ad.next_renewal_date) : null;
-  const daysUntilRenewal = renewalDate ? renewalDate.diff(moment(), "days") : null;
-  const withinCancellationWindow = daysUntilRenewal !== null && daysUntilRenewal < 14;
+  const daysUntilRenewal = renewalDate ? renewalDate.startOf("day").diff(moment().startOf("day"), "days") : null;
+  // Lock only while renewal is still upcoming within 14 days (not after the date has passed).
+  const withinCancellationWindow =
+    daysUntilRenewal !== null && daysUntilRenewal >= 0 && daysUntilRenewal < 14;
   const nextTermEnd = renewalDate
     ? moment(renewalDate).add(1, ad.plan_type === "annual" ? "year" : "month").format("MMM D, YYYY")
     : null;

@@ -86,13 +86,27 @@ export async function getPricing(adminClient) {
   };
 }
 
+/** Local calendar YYYY-MM-DD (avoids UTC day-shift from toISOString). */
+export function formatDateYmdLocal(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Anniversary plan window from a start instant.
+ * Monthly = +1 calendar month (Oct 12 → Nov 12; Oct 28 → Nov 28), not calendar-month boundaries.
+ * Annual = +1 calendar year. Stripe subscriptions use the same anniversary style.
+ */
 export function planDates(planType, from = new Date()) {
   const start = new Date(from);
   const end = new Date(from);
   if (planType === "annual") end.setFullYear(end.getFullYear() + 1);
   else end.setMonth(end.getMonth() + 1);
   return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
+    start: formatDateYmdLocal(start),
+    end: formatDateYmdLocal(end),
   };
 }

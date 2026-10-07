@@ -742,23 +742,25 @@ const categories = [
         id: "advertising-payments",
         title: "Payments, Grace Period & Cancellation",
         overview:
-          "Stripe Checkout + subscriptions. Failed renewal → Past Due with a 7-day grace period, then cleanup. From 14 days before renewal, Ad Manager shows cancel-outcome messaging. ~21 days before renewal, in-app renewal reminders can fire.",
+          "Stripe Checkout + subscriptions on anniversary periods (start day + 1 month/year — not calendar-month boundaries). Failed renewal → Past Due with a 7-day grace period, then cleanup. From 14 days before the upcoming renewal date, Ad Manager shows cancel-outcome messaging. ~21 days before renewal, in-app renewal reminders can fire.",
         features: [
-          "Stripe monthly/annual",
+          "Stripe monthly/annual (anniversary billing: Oct 12 renews Nov 12)",
           "My Active Ads: masked card on file (brand, last4, expiry) plus Update Payment Method via Stripe Customer Portal",
           "Set Non-Renew (cancel_at_period_end); Turn Auto-Renew Back On while still ≥14 days before renewal",
           "7-day grace on payment failure (cron cleanup 10:00 AM PT)",
-          "14-day cancel warning UI",
+          "14-day cancel warning UI (only when renewal is still upcoming)",
           "21-day renewal-soon notices (in-app; cron 9:00 AM PT)",
         ],
         technicalOverview:
-          "api/stripe-webhook.js; cancel-ad-renewal; resume-ad-renewal; billing-portal; ad-payment-method; shared/adRenewalPolicy.js (14-day lock); cron-grace-period-cleanup (10:00 AM PT); cron-renewal-reminders (9:00 AM PT); adBillingNotices.js. Full table: Scheduled Jobs (Crons).",
+          "api/stripe-webhook.js (syncs plan dates from Stripe current_period_*); sync-ad-billing (repairs stale renewal dates on Ad Manager load); cancel-ad-renewal; resume-ad-renewal; billing-portal; ad-payment-method; shared/adRenewalPolicy.js (14-day lock); cron-grace-period-cleanup (10:00 AM PT); cron-renewal-reminders (9:00 AM PT); adBillingNotices.js. Full table: Scheduled Jobs (Crons).",
         technicalFeatures: [
           "invoice.payment_failed → notifyPaymentFailed (message + email)",
-          "invoice.payment_succeeded → renew notices / plan switches as applicable",
+          "invoice.payment_succeeded → write plan_start/end/next_renewal from Stripe subscription period; renew notices / plan switches as applicable",
+          "Ad Manager loadAds calls /api/sync-ad-billing when stored next_renewal_date is in the past so cancel UI uses the real next charge date",
+          "isWithinCancellationLock requires 0 ≤ daysUntilRenewal < 14 (past dates are not treated as locked)",
           "ActiveAdCard shows plan label + your paying rate for this term (discounted when applicable; list rate locked at purchase — not site-wide Current Ad Rates). Renewal note: published list rate locks ~21 days before renewal; ongoing/multi-term discounts still apply on top until they expire",
           "ActiveAdCard loads /api/ad-payment-method per zip (card last4 when available; Stripe Link or bank when not) and opens /api/billing-portal in a new tab; full numbers stay in Stripe",
-          "resume-ad-renewal clears Stripe cancel_at_period_end and sets banner_ads.auto_renew true when outside 14-day window",
+          "resume-ad-renewal syncs Stripe period then clears cancel_at_period_end and sets banner_ads.auto_renew true when outside 14-day window",
         ],
       },
       {
