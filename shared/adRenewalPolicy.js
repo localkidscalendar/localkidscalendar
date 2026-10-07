@@ -21,6 +21,21 @@ export function parseLocalDate(dateStr) {
   return new Date(year, month, day);
 }
 
+export function formatLocalYmd(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export function addPlanPeriod(date, planType) {
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (planType === "annual") next.setFullYear(next.getFullYear() + 1);
+  else next.setMonth(next.getMonth() + 1);
+  return next;
+}
+
 export function daysUntilDate(dateStr) {
   const target = parseLocalDate(dateStr);
   if (!target) return null;
@@ -34,20 +49,80 @@ export function renewalDeadline(ad) {
 }
 
 /**
+ * When stored next_renewal_date is already past but the ad is still live,
+ * advance anniversary windows until renewal is today or in the future.
+ * Covers missed Stripe webhook updates so cancel/renew UI never cites a past end date.
+ */
+export function effectiveBillingDates(ad) {
+  if (!ad) {
+    return {
+      plan_start_date: null,
+      plan_end_date: null,
+      next_renewal_date: null,
+      adjusted: false,
+    };
+  }
+
+  let start = ad.plan_start_date || null;
+  let end = ad.plan_end_date || ad.next_renewal_date || null;
+  let next = ad.next_renewal_date || ad.plan_end_date || null;
+  const live = ["active", "past_due", "flagged"].includes(ad.status);
+  const days = daysUntilDate(next);
+
+  if (!live || !next || days === null || days >= 0) {
+    return {
+      plan_start_date: start,
+      plan_end_date: end,
+      next_renewal_date: next,
+      adjusted: false,
+    };
+  }
+
+  const planType = ad.plan_type === "annual" ? "annual" : "monthly";
+  let cursor = parseLocalDate(next);
+  let guard = 0;
+  while (cursor && daysUntilDate(formatLocalYmd(cursor)) < 0 && guard < 48) {
+    const periodStart = cursor;
+    cursor = addPlanPeriod(cursor, planType);
+    start = formatLocalYmd(periodStart);
+    end = formatLocalYmd(cursor);
+    next = end;
+    guard += 1;
+  }
+
+  return {
+    plan_start_date: start,
+    plan_end_date: end,
+    next_renewal_date: next,
+    adjusted: true,
+  };
+}
+
+/** Merge effective (possibly rolled-forward) billing dates onto an ad for UI/policy checks. */
+export function withEffectiveBillingDates(ad) {
+  if (!ad) return ad;
+  const eff = effectiveBillingDates(ad);
+  return {
+    ...ad,
+    plan_start_date: eff.plan_start_date,
+    plan_end_date: eff.plan_end_date,
+    next_renewal_date: eff.next_renewal_date,
+  };
+}
+
+/**
  * True when the next renewal charge is committed (fewer than 14 days remain,
  * and the renewal date is still today or in the future).
- * Past renewal dates are not treated as locked — those usually mean stale DB
- * dates that should be synced from Stripe before showing cancel outcomes.
  */
 export function isWithinCancellationLock(ad) {
-  const days = daysUntilDate(renewalDeadline(ad));
+  const days = daysUntilDate(renewalDeadline(withEffectiveBillingDates(ad)));
   if (days === null) return false;
   return days >= 0 && days < RENEWAL_CANCELLATION_WINDOW_DAYS;
 }
 
 /** True when supporter may turn auto-renew back on (outside the 14-day lock window). */
 export function canResumeAutoRenew(ad) {
-  const days = daysUntilDate(renewalDeadline(ad));
+  const days = daysUntilDate(renewalDeadline(withEffectiveBillingDates(ad)));
   if (days === null) return false;
   return days >= RENEWAL_CANCELLATION_WINDOW_DAYS;
 }

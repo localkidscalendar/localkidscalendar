@@ -19,6 +19,7 @@ import {
   openBillingPortalInNewTab,
   requestAdPlanChange,
   resumeAdRenewal,
+  syncAdBilling,
 } from "@/lib/adBilling";
 import {
   RENEWAL_CANCELLATION_WINDOW_DAYS,
@@ -26,6 +27,7 @@ import {
   isWithinCancellationLock,
   renewalDeadline,
   daysUntilDate,
+  withEffectiveBillingDates,
 } from "../../../shared/adRenewalPolicy.js";
 import { RENEWAL_RATE_LOCK_DAYS } from "../../../shared/adBillingPolicy.js";
 
@@ -55,27 +57,56 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   const [portalLoading, setPortalLoading] = useState(false);
   const [cardLoading, setCardLoading] = useState(false);
   const [cardLabel, setCardLabel] = useState(null);
+  const [billingPatch, setBillingPatch] = useState(null);
 
-  const cfg = STATUS_CONFIG[ad.status] || STATUS_CONFIG.pending_review;
-  const renewalDate = ad.next_renewal_date ? moment(ad.next_renewal_date) : null;
-  const daysUntilRenewal = daysUntilDate(ad.next_renewal_date);
-  const withinCancellationWindow = isWithinCancellationLock(ad);
-  const resumeAutoRenewAllowed = ad.auto_renew === false && canResumeAutoRenew(ad);
-  const daysUntilDeadline = daysUntilDate(renewalDeadline(ad));
+  useEffect(() => {
+    setBillingPatch(null);
+  }, [ad.id, ad.next_renewal_date, ad.plan_end_date, ad.plan_start_date, ad.auto_renew]);
+
+  // Prefer freshly synced dates; always roll past renewal dates forward for live ads.
+  const billingAd = withEffectiveBillingDates({ ...ad, ...(billingPatch || {}) });
+  const cfg = STATUS_CONFIG[billingAd.status] || STATUS_CONFIG.pending_review;
+  const renewalDate = billingAd.next_renewal_date ? moment(billingAd.next_renewal_date) : null;
+  const daysUntilRenewal = daysUntilDate(billingAd.next_renewal_date);
+  const withinCancellationWindow = isWithinCancellationLock(billingAd);
+  const resumeAutoRenewAllowed = billingAd.auto_renew === false && canResumeAutoRenew(billingAd);
+  const daysUntilDeadline = daysUntilDate(renewalDeadline(billingAd));
+  const termEndLabel = billingAd.plan_end_date
+    ? moment(billingAd.plan_end_date).format("MMM D, YYYY")
+    : renewalDate?.format("MMM D, YYYY") || null;
   const nextTermEnd = renewalDate
-    ? moment(renewalDate).add(1, ad.plan_type === "annual" ? "year" : "month").format("MMM D, YYYY")
+    ? moment(renewalDate).add(1, billingAd.plan_type === "annual" ? "year" : "month").format("MMM D, YYYY")
     : null;
-  const impressions = Number(ad.impressions || 0);
-  const clicks = Number(ad.clicks || 0);
+  const impressions = Number(billingAd.impressions || 0);
+  const clicks = Number(billingAd.clicks || 0);
   const ctr = impressions > 0 ? `${((clicks / impressions) * 100).toFixed(1)}%` : "0.0%";
-  const billingLive = !!ad.stripe_subscription_id;
-  const hasBillingAccount = Boolean(ad.stripe_customer_id);
-  const upgradePending = Boolean(ad.upgrade_to_annual_pending);
-  const downgradePending = Boolean(ad.downgrade_to_monthly_pending);
+  const billingLive = !!billingAd.stripe_subscription_id;
+  const hasBillingAccount = Boolean(billingAd.stripe_customer_id);
+  const upgradePending = Boolean(billingAd.upgrade_to_annual_pending);
+  const downgradePending = Boolean(billingAd.downgrade_to_monthly_pending);
   const planChangePending = upgradePending || downgradePending;
-  const targetPlanLabel = ad.plan_type === "annual" ? "Monthly" : "Annual";
-  const termRates = getAdTermRates(ad);
-  const payingRate = formatAdPayingRate(ad);
+  const targetPlanLabel = billingAd.plan_type === "annual" ? "Monthly" : "Annual";
+  const termRates = getAdTermRates(billingAd);
+  const payingRate = formatAdPayingRate(billingAd);
+
+  const openNonRenewConfirm = async () => {
+    setNonRenewLoading(true);
+    try {
+      if (billingLive) {
+        const result = await syncAdBilling({ ad_id: ad.id, force: true });
+        const synced = result?.synced?.[0];
+        if (synced) {
+          setBillingPatch((prev) => ({ ...(prev || {}), ...synced }));
+        }
+        onRefresh?.();
+      }
+    } catch (err) {
+      console.warn("Billing sync before non-renew skipped:", err?.message || err);
+    } finally {
+      setNonRenewLoading(false);
+      setShowNonRenewConfirm(true);
+    }
+  };
 
   const handleChangeCreative = async (asset) => {
     setCreativeLoading(true);
@@ -106,7 +137,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   };
 
   const handlePlanSwitch = async () => {
-    if (ad.auto_renew === false) {
+    if (billingAd.auto_renew === false) {
       toast({
         title: "Turn auto-renew back on first",
         description: "Plan switches apply at renewal, so auto-renew must be on.",
@@ -221,11 +252,11 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
   };
 
   const renewalLine = (() => {
-    if (!renewalDate && !ad.plan_end_date) return null;
-    if (ad.auto_renew === false) {
+    if (!renewalDate && !billingAd.plan_end_date) return null;
+    if (billingAd.auto_renew === false) {
       return (
         <span className="text-amber-700 font-medium">
-          Ends {ad.plan_end_date ? moment(ad.plan_end_date).format("MMM D, YYYY") : renewalDate?.format("MMM D, YYYY")} (no renewal)
+          Ends {termEndLabel || "term end"} (no renewal)
         </span>
       );
     }
@@ -247,7 +278,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h3 className="font-heading font-semibold text-sm">Zip {ad.zip_code}</h3>
             <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${cfg.color}`}>{cfg.label}</span>
-            {ad.auto_renew === false ? (
+            {billingAd.auto_renew === false ? (
               <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
                 Non-renewing
               </span>
@@ -258,10 +289,10 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
               </span>
             ) : null}
           </div>
-          <p className="text-xs text-muted-foreground truncate">{ad.business_name}</p>
+          <p className="text-xs text-muted-foreground truncate">{billingAd.business_name}</p>
           <p className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5">
             <span>
-              {formatPlanTypeLabel(ad.plan_type)}
+              {formatPlanTypeLabel(billingAd.plan_type)}
               {payingRate && !(termRates.discountActive && termRates.listRate > termRates.effectiveRate)
                 ? ` · ${payingRate}`
                 : ""}
@@ -269,7 +300,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
             {termRates.discountActive && termRates.listRate > termRates.effectiveRate ? (
               <span className="w-full flex flex-wrap items-center gap-1.5 text-[10px]">
                 <span className="text-muted-foreground/80 line-through decoration-muted-foreground/50">
-                  {formatAdListRate(ad)}
+                  {formatAdListRate(billingAd)}
                 </span>
                 <span className="inline-flex items-center rounded-md bg-mint-50 px-1.5 py-0.5 font-semibold text-mint-700 ring-1 ring-inset ring-mint-200/80">
                   {termRates.discountPercent}% off
@@ -287,23 +318,23 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
                 Your rate for this term (locked at purchase; not the site-wide published rate).
               </span>
             ) : null}
-            {ad.plan_start_date ? (
+            {billingAd.plan_start_date ? (
               <span>
-                {moment(ad.plan_start_date).format("MMM D, YYYY")}
+                {moment(billingAd.plan_start_date).format("MMM D, YYYY")}
                 {" → "}
-                {ad.plan_end_date ? moment(ad.plan_end_date).format("MMM D, YYYY") : "—"}
+                {billingAd.plan_end_date ? moment(billingAd.plan_end_date).format("MMM D, YYYY") : "—"}
               </span>
             ) : null}
             {renewalLine}
-            {ad.auto_renew !== false && renewalDate ? (
+            {billingAd.auto_renew !== false && renewalDate ? (
               <span
                 className={`w-full text-[10px] ${
-                  termRates.discountActive || ad.discount_code_used
+                  termRates.discountActive || billingAd.discount_code_used
                     ? "text-mint-700 font-medium"
                     : "text-muted-foreground/90"
                 }`}
               >
-                {formatAdRenewalRateNote(ad, RENEWAL_RATE_LOCK_DAYS)}
+                {formatAdRenewalRateNote(billingAd, RENEWAL_RATE_LOCK_DAYS)}
               </span>
             ) : null}
           </p>
@@ -366,24 +397,26 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
             variant="outline"
             size="sm"
             className="rounded-xl h-7 text-xs"
-            disabled={planSwitchLoading || ad.auto_renew === false}
+            disabled={planSwitchLoading || billingAd.auto_renew === false}
             onClick={handlePlanSwitch}
           >
             {planSwitchLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <TrendingUp className="w-3 h-3 mr-1" />}
             Switch To {targetPlanLabel}
           </Button>
         )}
-        {ad.auto_renew !== false && !showNonRenewConfirm ? (
+        {billingAd.auto_renew !== false && !showNonRenewConfirm ? (
           <Button
             variant="outline"
             size="sm"
             className="rounded-xl h-7 text-xs"
-            onClick={() => setShowNonRenewConfirm(true)}
+            disabled={nonRenewLoading}
+            onClick={openNonRenewConfirm}
           >
-            <BellOff className="w-3 h-3 mr-1" /> Set Non-Renew
+            {nonRenewLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <BellOff className="w-3 h-3 mr-1" />}
+            Set Non-Renew
           </Button>
         ) : null}
-        {ad.auto_renew === false && resumeAutoRenewAllowed && !showResumeRenewConfirm ? (
+        {billingAd.auto_renew === false && resumeAutoRenewAllowed && !showResumeRenewConfirm ? (
           <Button
             variant="outline"
             size="sm"
@@ -417,7 +450,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
         </div>
       ) : null}
 
-      {ad.auto_renew === false && !resumeAutoRenewAllowed && daysUntilDeadline !== null && daysUntilDeadline >= 0 ? (
+      {billingAd.auto_renew === false && !resumeAutoRenewAllowed && daysUntilDeadline !== null && daysUntilDeadline >= 0 ? (
         <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 text-[11px] text-amber-800">
           <p className="font-semibold">Auto-renew cannot be turned back on</p>
           <p className="mt-0.5">
@@ -428,7 +461,7 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
         </div>
       ) : null}
 
-      {ad.auto_renew !== false && withinCancellationWindow ? (
+      {billingAd.auto_renew !== false && withinCancellationWindow ? (
         <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 text-[11px] text-amber-800">
           <p className="font-semibold">
             Renewal in {daysUntilRenewal} day{daysUntilRenewal !== 1 ? "s" : ""} — cancellation window has passed
@@ -514,12 +547,8 @@ export default function ActiveAdCard({ ad, user, onRefresh }) {
               <p className="font-semibold text-amber-800">Confirm Non-Renew</p>
               <p className="text-amber-700">
                 Your ad will continue until{" "}
-                <strong>
-                  {ad.plan_end_date
-                    ? moment(ad.plan_end_date).format("MMM D, YYYY")
-                    : renewalDate?.format("MMM D, YYYY") || "the end of the current term"}
-                </strong>{" "}
-                and will not renew.
+                <strong>{termEndLabel || "the end of the current term"}</strong>
+                {" "}and will not renew.
               </p>
             </>
           )}

@@ -3,7 +3,9 @@ import {
   RENEWAL_CANCELLATION_WINDOW_DAYS,
   canResumeAutoRenew,
   daysUntilDate,
+  effectiveBillingDates,
   isWithinCancellationLock,
+  withEffectiveBillingDates,
 } from "../../shared/adRenewalPolicy.js";
 import { planDates, formatDateYmdLocal } from "../../api/_lib/stripeHelpers.js";
 import { billingFieldsFromStripeSubscription } from "../../api/_lib/syncAdSubscription.js";
@@ -34,6 +36,30 @@ describe("adRenewalPolicy cancellation lock", () => {
 
   it("locks on the renewal day itself (0 days left)", () => {
     expect(isWithinCancellationLock({ next_renewal_date: "2026-10-06" })).toBe(true);
+  });
+
+  it("rolls a past monthly term forward so cancel UI cites the current end date", () => {
+    const eff = effectiveBillingDates({
+      status: "active",
+      plan_type: "monthly",
+      plan_start_date: "2026-09-01",
+      plan_end_date: "2026-10-01",
+      next_renewal_date: "2026-10-01",
+    });
+    expect(eff).toEqual({
+      plan_start_date: "2026-10-01",
+      plan_end_date: "2026-11-01",
+      next_renewal_date: "2026-11-01",
+      adjusted: true,
+    });
+    const locked = withEffectiveBillingDates({
+      status: "active",
+      plan_type: "monthly",
+      next_renewal_date: "2026-10-01",
+      auto_renew: true,
+    });
+    expect(isWithinCancellationLock(locked)).toBe(false);
+    expect(canResumeAutoRenew({ ...locked, auto_renew: false })).toBe(true);
   });
 });
 

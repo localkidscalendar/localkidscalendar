@@ -1,12 +1,16 @@
 import Stripe from "stripe";
 import { getEnv, createAdminClient, requireUser } from "./_lib/stripeHelpers.js";
-import { applyStripeSubscriptionToAd } from "./_lib/syncAdSubscription.js";
-import { daysUntilDate, renewalDeadline } from "../shared/adRenewalPolicy.js";
+import { billingFieldsFromStripeSubscription } from "./_lib/syncAdSubscription.js";
+import {
+  daysUntilDate,
+  effectiveBillingDates,
+  renewalDeadline,
+} from "../shared/adRenewalPolicy.js";
 
 /**
  * Refresh banner_ads plan dates from Stripe for the signed-in supporter.
  * Repairs stale next_renewal_date after renewals when webhooks lagged or failed.
- * By default only syncs ads whose stored renewal date is in the past (or forced).
+ * Falls back to anniversary roll-forward when Stripe is unavailable or still past.
  */
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
@@ -37,7 +41,7 @@ export default async function handler(req, res) {
     let query = admin
       .from("banner_ads")
       .select(
-        "id, user_id, status, stripe_subscription_id, next_renewal_date, plan_end_date, plan_start_date, auto_renew"
+        "id, user_id, status, plan_type, stripe_subscription_id, next_renewal_date, plan_end_date, plan_start_date, auto_renew"
       )
       .eq("user_id", authUser.id)
       .not("stripe_subscription_id", "is", null)
@@ -56,18 +60,53 @@ export default async function handler(req, res) {
       const needsSync = force === true || daysLeft === null || daysLeft < 0;
       if (!needsSync) continue;
 
+      let candidate = {
+        plan_start_date: ad.plan_start_date,
+        plan_end_date: ad.plan_end_date,
+        next_renewal_date: ad.next_renewal_date,
+        auto_renew: ad.auto_renew,
+      };
+
       try {
         const subscription = await stripe.subscriptions.retrieve(ad.stripe_subscription_id);
-        if (subscription.status === "canceled") continue;
-        const updates = await applyStripeSubscriptionToAd(admin, ad.id, subscription, {
-          includeAutoRenew: true,
-        });
-        if (updates) {
-          synced.push({ id: ad.id, ...updates });
+        if (subscription.status !== "canceled") {
+          const fromStripe = billingFieldsFromStripeSubscription(subscription);
+          if (fromStripe) {
+            candidate = {
+              plan_start_date: fromStripe.plan_start_date,
+              plan_end_date: fromStripe.plan_end_date,
+              next_renewal_date: fromStripe.next_renewal_date,
+              auto_renew: fromStripe.auto_renew,
+            };
+          }
         }
       } catch (err) {
-        console.error(`sync-ad-billing: failed for ad ${ad.id}:`, err.message);
+        console.error(`sync-ad-billing: Stripe retrieve failed for ad ${ad.id}:`, err.message);
       }
+
+      // If renewal is still in the past, roll anniversary windows forward for live ads.
+      const eff = effectiveBillingDates({
+        ...ad,
+        ...candidate,
+      });
+      const updates = {
+        plan_start_date: eff.plan_start_date,
+        plan_end_date: eff.plan_end_date,
+        next_renewal_date: eff.next_renewal_date,
+        auto_renew: candidate.auto_renew,
+      };
+
+      const changed =
+        updates.plan_start_date !== ad.plan_start_date
+        || updates.plan_end_date !== ad.plan_end_date
+        || updates.next_renewal_date !== ad.next_renewal_date
+        || updates.auto_renew !== ad.auto_renew;
+
+      if (!changed) continue;
+
+      const { error } = await admin.from("banner_ads").update(updates).eq("id", ad.id);
+      if (error) throw error;
+      synced.push({ id: ad.id, ...updates });
     }
 
     return res.status(200).json({ success: true, synced_count: synced.length, synced });

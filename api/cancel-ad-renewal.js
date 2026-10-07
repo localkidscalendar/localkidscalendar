@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { getEnv, createAdminClient, requireUser } from "./_lib/stripeHelpers.js";
-import { applyStripeSubscriptionToAd } from "./_lib/syncAdSubscription.js";
+import { billingFieldsFromStripeSubscription } from "./_lib/syncAdSubscription.js";
+import { effectiveBillingDates } from "../shared/adRenewalPolicy.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
@@ -31,29 +32,46 @@ export default async function handler(req, res) {
     const admin = createAdminClient();
     const { data: ad, error: adError } = await admin
       .from("banner_ads")
-      .select("id, user_id, stripe_subscription_id")
+      .select(
+        "id, user_id, status, plan_type, stripe_subscription_id, plan_start_date, plan_end_date, next_renewal_date"
+      )
       .eq("id", adId)
       .maybeSingle();
     if (adError) throw adError;
     if (!ad) return res.status(404).json({ error: "Ad not found" });
     if (ad.user_id !== authUser.id) return res.status(403).json({ error: "Forbidden" });
 
-    let periodUpdates = null;
+    let periodUpdates = {
+      plan_start_date: ad.plan_start_date,
+      plan_end_date: ad.plan_end_date,
+      next_renewal_date: ad.next_renewal_date,
+    };
+
     if (ad.stripe_subscription_id) {
       const stripe = new Stripe(stripeSecret);
       const subscription = await stripe.subscriptions.update(ad.stripe_subscription_id, {
         cancel_at_period_end: true,
       });
-      // Refresh dates from Stripe so Ad Manager shows the real current term end
-      // (avoids stale next_renewal_date after a renewal webhook lag).
-      periodUpdates = await applyStripeSubscriptionToAd(admin, adId, subscription, {
-        includeAutoRenew: false,
-      });
+      const fromStripe = billingFieldsFromStripeSubscription(subscription);
+      if (fromStripe) {
+        periodUpdates = {
+          plan_start_date: fromStripe.plan_start_date,
+          plan_end_date: fromStripe.plan_end_date,
+          next_renewal_date: fromStripe.next_renewal_date,
+        };
+      }
     }
+
+    const eff = effectiveBillingDates({ ...ad, ...periodUpdates });
+    periodUpdates = {
+      plan_start_date: eff.plan_start_date,
+      plan_end_date: eff.plan_end_date,
+      next_renewal_date: eff.next_renewal_date,
+    };
 
     const { error: updateError } = await admin
       .from("banner_ads")
-      .update({ auto_renew: false })
+      .update({ ...periodUpdates, auto_renew: false })
       .eq("id", adId);
     if (updateError) throw updateError;
 

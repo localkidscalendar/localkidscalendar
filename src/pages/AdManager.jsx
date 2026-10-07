@@ -991,9 +991,13 @@ export default function AdManager() {
     if (silent) setRefreshing(true);
     else setLoading(true);
     try {
-      // Repair stale next_renewal_date after renewals (Stripe period is source of truth).
+      // Repair stale next_renewal_date after renewals (Stripe + anniversary roll-forward).
+      let syncedById = {};
       try {
-        await syncAdBilling();
+        const syncResult = await syncAdBilling();
+        for (const row of syncResult?.synced || []) {
+          if (row?.id) syncedById[row.id] = row;
+        }
       } catch (syncErr) {
         console.warn("Ad billing sync skipped:", syncErr?.message || syncErr);
       }
@@ -1004,7 +1008,9 @@ export default function AdManager() {
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      setAds(data || []);
+      setAds(
+        (data || []).map((row) => (syncedById[row.id] ? { ...row, ...syncedById[row.id] } : row))
+      );
       if (silent) toast({ title: "Ads refreshed" });
     } catch {
       setAds([]);
