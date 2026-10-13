@@ -1,0 +1,28 @@
+---
+description: Grant Data API access in the same migration that creates a public table
+globs: supabase/**/*.sql
+alwaysApply: false
+---
+
+# Supabase Data API grants
+
+From **October 30, 2026**, Supabase no longer auto-grants Data API access on new `public` tables. Existing tables are unchanged. A new table without grants returns permission denied for supabase-js, PostgREST, and `service_role` API routes — including preview branches and `supabase db reset`.
+
+## When creating a table
+
+In the **same migration** (and any matching `supabase/scripts` ensure file), add only the grants that role needs:
+
+```sql
+grant select on public.your_table to anon;
+
+grant select, insert, update, delete on public.your_table to authenticated;
+
+grant select, insert, update, delete on public.your_table to service_role;
+```
+
+- `anon`: public read only, when the browser should see rows without a session.
+- `authenticated`: the client operations RLS still allows.
+- `service_role`: required when a Vercel `/api` route reads or writes the table. Do not skip this.
+- Grant sequence usage too when the table uses `serial` / `identity` and inserts go through the Data API.
+
+Column-only changes do not need new grants. Do not weaken RLS to compensate for a missing grant.
